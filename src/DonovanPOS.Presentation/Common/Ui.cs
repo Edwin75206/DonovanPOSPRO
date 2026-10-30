@@ -39,15 +39,18 @@ public abstract partial class PageVm(UiState ui) : ObservableObject
 {
     protected UiState Ui { get; } = ui;
     [ObservableProperty] private bool busy;
+    [ObservableProperty] private bool busyVisible;
+    private int operation;
     public abstract string Title { get; }
     public virtual Task Load() => Task.CompletedTask;
     protected async Task Run(Func<Task> action, string? success = null)
     {
-        if (Busy) return; Busy = true;
+        if (Busy) return; Busy = true; var current = ++operation; _ = ShowLoading(current);
         try { await action(); if (success is not null) Ui.Notify(success); }
         catch (Exception ex) { Ui.Notify(Ui.Error(ex), true); }
-        finally { Busy = false; }
+        finally { Busy = false; BusyVisible = false; }
     }
+    private async Task ShowLoading(int current) { await Task.Delay(200); if (Busy && operation == current) BusyVisible = true; }
 }
 public static class ThemeManager
 {

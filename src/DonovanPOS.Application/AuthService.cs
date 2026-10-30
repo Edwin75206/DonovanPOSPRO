@@ -4,15 +4,17 @@ namespace DonovanPOS.Application;
 public sealed class AuthService(IDataStore store, IPasswordHasher passwords, UserSession session, IClock clock)
 {
     public Task<bool> NeedsSetup() => store.Read(async db => await db.Count<User>() == 0);
-    public async Task Setup(string storeName, string username, string name, string password)
+    public async Task Setup(string storeName, string username, string name, string password, StoreSettings? preferences = null)
     {
         ValidatePassword(password);
         var hash = passwords.Hash(password);
+        var config = preferences ?? new StoreSettings(); config.StoreName = Amount.Text(storeName, "Nombre del comercio", 150); config.Id = 0;
+        Amount.Require(config.DefaultTaxBasisPoints is >= 0 and <= 10000 && config.TicketWidthMm is 58 or 80 && config.BackupIntervalHours is >= 1 and <= 168, "Revisa los impuestos, el ancho del ticket y el intervalo de respaldo.");
         await store.Write(async db =>
         {
             Amount.Require(await db.Count<User>() == 0, "La instalación ya tiene un administrador.");
             db.Add(new User { Username = Normalize(username), Name = Amount.Text(name, "Nombre", 100), PasswordHash = hash, Role = Role.Administrador });
-            db.Add(new StoreSettings { StoreName = Amount.Text(storeName, "Nombre del comercio", 150) });
+            db.Add(config);
             Operations.Audit(db, clock, null, "Configuración inicial", "Instalación");
             return true;
         });

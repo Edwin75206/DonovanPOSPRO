@@ -9,6 +9,7 @@ public sealed class Product : Entity
     public string Category { get; set; } = "General";
     public string Brand { get; set; } = "";
     public string Size { get; set; } = "";
+    public string Aliases { get; set; } = "";
     public Unit Unit { get; set; }
     public long? CostCents { get; set; }
     public long PriceCents { get; set; }
@@ -24,7 +25,10 @@ public sealed class Product : Entity
     [NotMapped] public decimal Stock => Amount.Quantity(StockUnits);
     [NotMapped] public decimal Minimum => Amount.Quantity(MinimumUnits);
     [NotMapped] public string StockLabel => $"{Stock:0.####} {Unit}";
-    [NotMapped] public string StockStatus => !Active ? "Archivado" : StockUnits <= MinimumUnits ? "Pocas existencias" : "Disponible";
+    [NotMapped] public string StockStatus => !Active ? "Archivado" : StockUnits == 0 ? "Agotado" : StockUnits <= MinimumUnits ? "Existencia baja" : "Disponible";
+    [NotMapped] public decimal SuggestedPurchase => Amount.Quantity(Math.Max(0, MinimumUnits - StockUnits));
+    [NotMapped] public string Specification => string.Join(" · ", new[] { Brand, Size }.Where(x => !string.IsNullOrWhiteSpace(x)));
+    public Product CopyForImport() => new() { Sku = Sku, Barcode = Barcode, Name = Name, Category = Category, Brand = Brand, Size = Size, Aliases = Aliases, Unit = Unit, CostCents = CostCents, PriceCents = PriceCents, WholesaleCents = WholesaleCents, StockUnits = StockUnits, MinimumUnits = MinimumUnits, TaxBasisPoints = TaxBasisPoints, PackName = PackName, PackUnits = PackUnits, Active = Active };
     public void Validate()
     {
         Sku = Amount.Text(Sku, "Clave", 40).ToUpperInvariant();

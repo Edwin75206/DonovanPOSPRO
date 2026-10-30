@@ -1,0 +1,10 @@
+ClosedXML: https://raw.githubusercontent.com/ClosedXML/ClosedXML/b4ebe47bd3ecebf8480dea7422188d16b35b9d9a/LICENSE
+ClosedXML.Parser: https://raw.githubusercontent.com/ClosedXML/ClosedXML.Parser/658973aeedc2fe289e0ccba2bb9959f67692ded5/LICENSE.txt
+CommunityToolkit: https://raw.githubusercontent.com/CommunityToolkit/dotnet/35dfe7b12da0e64384bfaec7ebc0883196a89f9f/License.md
+LiveCharts2: https://raw.githubusercontent.com/beto-rodriguez/LiveCharts2/e8a67f59bae283d2e88b1e8d30ef1bf7bcf5b5d5/LICENSE
+RBush: https://raw.githubusercontent.com/viceroypenguin/RBush/b8690322abac35d835baa2fdca4a3918ed77a910/LICENSE
+Fonts: https://raw.githubusercontent.com/SixLabors/Fonts/32bef42997adb10268369ca149777f00e4241ce9/LICENSE
+PDFsharp: https://raw.githubusercontent.com/empira/PDFsharp/v6.2.4/LICENSE
+OpenTK: https://raw.githubusercontent.com/opentk/opentk/4.3.0/LICENSE.md
+ExcelNumberFormat: https://raw.githubusercontent.com/andersnm/ExcelNumberFormat/v1.1.0/LICENSE
+OpenTK.GLWpfControl: https://raw.githubusercontent.com/opentk/GLWpfControl/4.2.3/LICENSE.md

@@ -13,6 +13,14 @@ public sealed class SalesService(IDataStore store, UserSession session, IClock c
             var existing = (await db.List<Sale>(s => s.RequestId == request.RequestId)).SingleOrDefault();
             if (existing is not null) return existing;
             var cash = await Operations.OpenCash(db);
+            HeldSale? held = null;
+            if (request.HeldSaleId is int heldId)
+            {
+                held = await db.Get<HeldSale>(heldId) ?? throw new RuleException("No se encontró la venta suspendida.");
+                Amount.Require(held.SaleId is null && !held.Discarded, "Esta venta suspendida ya se cerró.");
+                Amount.Require(held.UserId == actor.Id || actor.Role == Role.Administrador, "Solo puedes cobrar tus ventas suspendidas.");
+                Amount.Require(request.QuoteId is null, "Inicia por separado la venta de la cotización.");
+            }
             Quote? quote = null;
             List<SaleLine> lines;
             if (request.QuoteId is int quoteId)
@@ -62,6 +70,7 @@ public sealed class SalesService(IDataStore store, UserSession session, IClock c
             Operations.Cash(db, clock, actor.Id, cash.Id, cashAmount, "Venta", sale.Folio);
             if (credit > 0) db.Add(new CreditEntry { CustomerId = customer!.Id, SaleId = sale.Id, UserId = actor.Id, CreatedAt = clock.Now, DueDate = request.DueDate!.Value.Date, AmountCents = credit, Method = PayMethod.Credito, Kind = "Venta a crédito", Reference = sale.Folio });
             if (quote is not null) quote.SaleId = sale.Id;
+            if (held is not null) held.SaleId = sale.Id;
             Operations.Audit(db, clock, actor.Id, "Registrar venta", sale.Folio);
             return sale;
         });

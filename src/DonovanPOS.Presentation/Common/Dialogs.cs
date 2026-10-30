@@ -19,7 +19,7 @@ public sealed class FormValues(Dictionary<string, string> values)
     public int Integer(string key) => int.Parse(this[key], Mx.Culture);
     public bool Boolean(string key) => this[key] == "Sí";
 }
-public sealed class Dialogs(UiState ui)
+public sealed partial class Dialogs(UiState ui)
 {
     public static Choice[] YesNo => [new("No", "No"), new("Sí", "Sí")];
     public static Choice[] Options<T>() where T : Enum => Enum.GetNames(typeof(T)).Select(x => new Choice(x, x)).ToArray();
@@ -87,23 +87,6 @@ public sealed class Dialogs(UiState ui)
         var table = new DataTable(); foreach (var header in data.Headers) table.Columns.Add(header); foreach (var row in data.Rows) table.Rows.Add(row.Cast<object>().ToArray());
         var window = new Window { Title = data.Title, Owner = System.Windows.Application.Current.MainWindow, Width = 920, Height = 580, WindowStartupLocation = WindowStartupLocation.CenterOwner, MaxWidth = SystemParameters.WorkArea.Width, MaxHeight = SystemParameters.WorkArea.Height };
         var grid = new DataGrid { ItemsSource = table.DefaultView, AutoGenerateColumns = true, Margin = new Thickness(20) }; window.Content = grid; window.ShowDialog();
-    }
-    public void Print(StoreSettings store, BusinessDocument document)
-    {
-        var dialog = new PrintDialog();
-        if (!string.IsNullOrWhiteSpace(store.PrinterName))
-        {
-            using var server = new System.Printing.LocalPrintServer();
-            dialog.PrintQueue = server.GetPrintQueues().FirstOrDefault(x => x.Name == store.PrinterName) ?? dialog.PrintQueue;
-        }
-        if (dialog.ShowDialog() != true) return;
-        var width = store.TicketWidthMm * 96d / 25.4;
-        var flow = new FlowDocument { PageWidth = width, ColumnWidth = width, PagePadding = new Thickness(8), FontFamily = new FontFamily("Arial"), FontSize = 10 };
-        void P(string text, bool bold = false) => flow.Blocks.Add(new Paragraph(new Run(text)) { FontWeight = bold ? FontWeights.Bold : FontWeights.Normal, Margin = new Thickness(0, 0, 0, 6) });
-        P(store.StoreName, true); P(store.Address); P(store.Phone); P(document.Title + " · " + document.Folio, true); P(document.Date.ToString("dd/MM/yyyy HH:mm")); P(document.Customer);
-        foreach (var item in document.Lines) { P(item.Description); P($"{item.Quantity} × {item.Price:C2} = {item.Total:C2}"); }
-        P($"TOTAL MXN {document.Total:C2}", true); P($"IVA incluido {document.Tax:C2}"); P(document.Notes); P(store.TicketFooter); P("Este documento no es un CFDI.");
-        dialog.PrintDocument(((IDocumentPaginatorSource)flow).DocumentPaginator, document.Folio);
     }
 }
 

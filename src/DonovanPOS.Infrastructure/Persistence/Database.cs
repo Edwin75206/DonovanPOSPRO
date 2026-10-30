@@ -15,6 +15,11 @@ public sealed class Database(string directory) : IDataStore
     {
         Directory.CreateDirectory(DirectoryPath);
         await using var db = Context();
+        if (File.Exists(FilePath) && (await db.Database.GetPendingMigrationsAsync()).Any())
+        {
+            var backupFolder = Path.Combine(DirectoryPath, "antes-de-actualizar"); Directory.CreateDirectory(backupFolder);
+            BackupService.CopyDatabase(FilePath, Path.Combine(backupFolder, $"DonovanPOS-{DateTime.Now:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}.db"));
+        }
         await db.Database.MigrateAsync();
         await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
         await db.Database.ExecuteSqlRawAsync("PRAGMA synchronous=FULL;");

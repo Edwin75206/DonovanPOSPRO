@@ -65,6 +65,13 @@ public sealed class PosDbContext(DbContextOptions<PosDbContext> options) : DbCon
         b.Entity<CashMovement>().HasIndex(x => new { x.CashSessionId, x.CreatedAt });
         b.Entity<AuditEvent>().HasOne<User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
         b.Entity<AuditEvent>().HasIndex(x => x.CreatedAt);
+        b.Entity<HeldSale>().HasIndex(x => x.Folio).IsUnique();
+        b.Entity<HeldSale>().HasOne<User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<HeldSale>().HasOne<Customer>().WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<HeldSale>().HasOne<Sale>().WithMany().HasForeignKey(x => x.SaleId).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<HeldSaleLine>().HasOne<HeldSale>().WithMany().HasForeignKey(x => x.HeldSaleId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<HeldSaleLine>().HasOne<Product>().WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<HeldSaleLine>().ToTable(t => t.HasCheckConstraint("CK_Held_Quantity", "QuantityUnits > 0 AND OriginalPriceCents >= 0"));
     }
 }
 public sealed class DesignTimeFactory : IDesignTimeDbContextFactory<PosDbContext>

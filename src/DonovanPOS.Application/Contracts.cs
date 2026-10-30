@@ -18,9 +18,17 @@ public interface IDataStore
 }
 public interface IPasswordHasher { string Hash(string password); bool Verify(string password, string encoded); }
 public interface IClock { DateTime Now { get; } }
-public interface IBackupService { Task<string> Backup(string folder); Task Restore(string file); string DataDirectory { get; } }
+public interface IBackupService
+{
+    Task<string> Backup(string folder);
+    Task<string?> BackupIfDue();
+    Task<List<BackupRecord>> History();
+    Task Restore(string file);
+    string DataDirectory { get; }
+}
 public sealed record TableData(string Title, string[] Headers, List<string[]> Rows);
 public sealed record DocumentLine(string Description, string Quantity, decimal Price, decimal Total);
+public sealed record BarcodeLabel(string Code, string Name, long PriceCents, int Copies);
 public sealed record BusinessDocument(string Title, string Folio, DateTime Date, string Customer, IReadOnlyList<DocumentLine> Lines, decimal Total, decimal Tax, string Notes);
 public interface IDocumentService
 {
@@ -28,6 +36,8 @@ public interface IDocumentService
     Task Excel(string path, TableData table);
     Task<TableData> ReadExcel(string path);
     Task ReportPdf(string path, StoreSettings store, TableData table);
+    Task<byte[]> ReadLogo(string path);
+    Task Labels(string path, StoreSettings store, IReadOnlyList<BarcodeLabel> labels);
 }
 public sealed record SessionUser(int Id, string Username, string Name, Role Role);
 public sealed class UserSession
@@ -44,9 +54,16 @@ public sealed class UserSession
     }
 }
 public sealed record ProductPage(List<Product> Items, int Total);
+public sealed record StockSummary(int Total, int Available, int Low, int OutOfStock);
+public interface IProductQueries
+{
+    Task<ProductPage> Search(string search, int page, bool archived, string? category, string? stockFilter, CancellationToken ct);
+    Task<List<string>> Categories();
+    Task<StockSummary> Summary();
+}
 public sealed record SaleItem(int ProductId, decimal Quantity, bool Wholesale = false);
 public sealed record PaymentInput(PayMethod Method, decimal Amount, string Reference = "");
-public sealed record CheckoutRequest(string RequestId, IReadOnlyList<SaleItem> Items, IReadOnlyList<PaymentInput> Payments, decimal Tendered, decimal DiscountPercent = 0, int? CustomerId = null, DateTime? DueDate = null, int? QuoteId = null);
+public sealed record CheckoutRequest(string RequestId, IReadOnlyList<SaleItem> Items, IReadOnlyList<PaymentInput> Payments, decimal Tendered, decimal DiscountPercent = 0, int? CustomerId = null, DateTime? DueDate = null, int? QuoteId = null, int? HeldSaleId = null);
 public sealed record PurchaseItem(int ProductId, decimal Quantity, decimal UnitCost, bool ByPack = false);
 public sealed record ReturnItem(int SaleLineId, decimal Quantity);
 public sealed record SaleDetail(Sale Sale, List<SaleLine> Lines, List<PaymentRecord> Payments, List<SaleReturn> Returns);

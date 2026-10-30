@@ -10,6 +10,8 @@ public static class DependencyInjection
     {
         services.AddSingleton(new Database(dataDirectory));
         services.AddSingleton<IDataStore>(s => s.GetRequiredService<Database>());
+        services.AddSingleton<IProductQueries, ProductQueries>();
+        services.AddSingleton<HeldSalesService>();
         services.AddSingleton<UserSession>(); services.AddSingleton<IClock, MexicoClock>(); services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddSingleton<AuthService>(); services.AddSingleton<CatalogService>(); services.AddSingleton<SalesService>(); services.AddSingleton<ReturnService>();
         services.AddSingleton<CustomersService>(); services.AddSingleton<PurchasesService>(); services.AddSingleton<QuotesService>(); services.AddSingleton<CashService>(); services.AddSingleton<SettingsService>();

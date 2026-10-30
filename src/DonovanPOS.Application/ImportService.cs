@@ -39,8 +39,7 @@ public sealed class ImportService(IDataStore store, IDocumentService documents, 
         {
             foreach (var row in preview.Rows)
             {
-                var p = row.Product!; p.Validate();
-                Amount.Require(p.Id == 0, "Este archivo ya se importó. Vuelve a generar la vista previa.");
+                var p = row.Product!.CopyForImport(); p.Validate();
                 Amount.Require(await db.Count<Product>(x => x.Sku == p.Sku || (p.Barcode != null && x.Barcode == p.Barcode)) == 0, $"Fila {row.Row}: la clave o código ya existe. Genera otra vista previa.");
                 var initial = p.StockUnits; p.StockUnits = 0; db.Add(p); await db.Flush();
                 if (initial > 0) Operations.Stock(db, clock, actor.Id, p, initial, "Importación", p.Sku);

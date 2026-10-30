@@ -50,6 +50,42 @@ namespace DonovanPOS.Infrastructure.Persistence.Migrations
                     b.ToTable("AuditEvent", (string)null);
                 });
 
+            modelBuilder.Entity("DonovanPOS.Domain.BackupRecord", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("FileBytes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Result")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Successful")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("BackupRecord", (string)null);
+                });
+
             modelBuilder.Entity("DonovanPOS.Domain.CashMovement", b =>
                 {
                     b.Property<int>("Id")
@@ -210,6 +246,85 @@ namespace DonovanPOS.Infrastructure.Persistence.Migrations
                     b.ToTable("Customer", (string)null);
                 });
 
+            modelBuilder.Entity("DonovanPOS.Domain.HeldSale", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("CustomerId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Discarded")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("DiscountParts")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Folio")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("SaleId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("Folio")
+                        .IsUnique();
+
+                    b.HasIndex("SaleId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("HeldSale", (string)null);
+                });
+
+            modelBuilder.Entity("DonovanPOS.Domain.HeldSaleLine", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("HeldSaleId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("OriginalPriceCents")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ProductId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("QuantityUnits")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Wholesale")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HeldSaleId");
+
+                    b.HasIndex("ProductId");
+
+                    b.ToTable("HeldSaleLine", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Held_Quantity", "QuantityUnits > 0 AND OriginalPriceCents >= 0");
+                        });
+                });
+
             modelBuilder.Entity("DonovanPOS.Domain.PaymentRecord", b =>
                 {
                     b.Property<int>("Id")
@@ -247,6 +362,10 @@ namespace DonovanPOS.Infrastructure.Persistence.Migrations
 
                     b.Property<bool>("Active")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("Aliases")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Barcode")
                         .HasColumnType("TEXT");
@@ -758,9 +877,15 @@ namespace DonovanPOS.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("AutomaticBackups")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("BackupDirectory")
                         .IsRequired()
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("BackupIntervalHours")
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("DarkMode")
                         .HasColumnType("INTEGER");
@@ -775,6 +900,9 @@ namespace DonovanPOS.Infrastructure.Persistence.Migrations
                     b.Property<string>("FolioPrefix")
                         .IsRequired()
                         .HasColumnType("TEXT");
+
+                    b.Property<byte[]>("LogoData")
+                        .HasColumnType("BLOB");
 
                     b.Property<string>("LogoPath")
                         .IsRequired()
@@ -928,6 +1056,40 @@ namespace DonovanPOS.Infrastructure.Persistence.Migrations
                     b.HasOne("DonovanPOS.Domain.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("DonovanPOS.Domain.HeldSale", b =>
+                {
+                    b.HasOne("DonovanPOS.Domain.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("DonovanPOS.Domain.Sale", null)
+                        .WithMany()
+                        .HasForeignKey("SaleId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("DonovanPOS.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("DonovanPOS.Domain.HeldSaleLine", b =>
+                {
+                    b.HasOne("DonovanPOS.Domain.HeldSale", null)
+                        .WithMany()
+                        .HasForeignKey("HeldSaleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("DonovanPOS.Domain.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

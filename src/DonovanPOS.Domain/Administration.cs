@@ -39,14 +39,27 @@ public sealed class StoreSettings : Entity
     public string Email { get; set; } = "";
     public string TaxId { get; set; } = "";
     public string LogoPath { get; set; } = "";
+    public byte[]? LogoData { get; set; }
     public string TicketFooter { get; set; } = "Gracias por su compra";
     public string FolioPrefix { get; set; } = "V";
     public int DefaultTaxBasisPoints { get; set; } = 1600;
     public int TicketWidthMm { get; set; } = 80;
     public string PrinterName { get; set; } = "";
     public string BackupDirectory { get; set; } = "";
+    public bool AutomaticBackups { get; set; } = true;
+    public int BackupIntervalHours { get; set; } = 24;
     public bool DarkMode { get; set; }
     public bool ReducedMotion { get; set; }
+}
+public sealed class BackupRecord : Entity
+{
+    public DateTime CreatedAt { get; set; }
+    public string FilePath { get; set; } = "";
+    public string Kind { get; set; } = "";
+    public bool Successful { get; set; }
+    public long FileBytes { get; set; }
+    public string Sha256 { get; set; } = "";
+    public string Result { get; set; } = "";
 }
 public sealed class Sequence : Entity { public string Key { get; set; } = ""; public long Value { get; set; } }
 public sealed class AuditEvent : Entity

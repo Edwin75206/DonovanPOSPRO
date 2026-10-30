@@ -1,20 +1,20 @@
-#if DEBUG
+
 using DonovanPOS.Application;
 using DonovanPOS.Domain;
 using Microsoft.Extensions.DependencyInjection;
-namespace DonovanPOS.Presentation.QualityAssurance;
+namespace DonovanPOS.Presentation.Demonstration;
 
-internal sealed class QaClock : IClock
+internal sealed class DemoClock : IClock
 {
     public DateTime Now { get; set; } = new DonovanPOS.Infrastructure.MexicoClock().Now;
 }
-internal static class QaData
+internal static class DemoData
 {
     public static async Task Prepare(ServiceProvider services)
     {
         T Get<T>() where T : notnull => services.GetRequiredService<T>();
-        var password = Guid.NewGuid().ToString("N"); await Get<AuthService>().Setup("Ferretería La Central · DEMOSTRACIÓN", "qa", "Edwin · pruebas", password); await Get<AuthService>().Login("qa", password);
-        var clock = (QaClock)Get<IClock>(); var now = clock.Now;
+        var password = Guid.NewGuid().ToString("N"); await Get<AuthService>().Setup("Ferretería La Central · DEMOSTRACIÓN", "demostracion", "Administrador · DEMO", password); await Get<AuthService>().Login("demostracion", password);
+        var clock = (DemoClock)Get<IClock>(); var now = clock.Now;
         (string sku, string name, string category, string brand, Unit unit, decimal price, decimal stock)[] products =
         [
             ("HER-001", "Martillo de uña 16 oz", "Herramientas", "Truper", Unit.Pieza, 189, 24),
@@ -51,4 +51,5 @@ internal static class QaData
         await Get<QuotesService>().Save(0, [new(ids[0].id, 2), new(ids[3].id, 20)], customer, 0, now.AddDays(15), "Datos de demostración, sin validez comercial.");
     }
 }
-#endif
+
+

@@ -1,1 +1,14 @@
-<Project Sdk="Microsoft.NET.Sdk"><ItemGroup><PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.14" /><PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.14" /><ProjectReference Include="../DonovanPOS.Application/DonovanPOS.Application.csproj" /><PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.10" /><PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10"><PrivateAssets>all</PrivateAssets></PackageReference><PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.10" /><PackageReference Include="ClosedXML" Version="0.105.1" /><PackageReference Include="PDFsharp" Version="6.2.4" /></ItemGroup></Project>
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../DonovanPOS.Application/DonovanPOS.Application.csproj" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.14" />
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.14" />
+    <PackageReference Include="ZXing.Net" Version="0.16.11" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.14" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.14"><PrivateAssets>all</PrivateAssets></PackageReference>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.14" />
+    <PackageReference Include="ClosedXML" Version="0.105.1" />
+    <!-- Keep the permissive release; 6.5+ changes the licensing model. -->
+    <PackageReference Include="PDFsharp" Version="6.2.4" />
+  </ItemGroup>
+</Project>

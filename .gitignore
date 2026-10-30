@@ -7,3 +7,5 @@ artifacts/
 *.user
 .tools/
 TestResults/
+setup.inf
+setup.rpt

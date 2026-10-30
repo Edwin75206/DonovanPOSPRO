@@ -136,7 +136,9 @@ while($dialogRecord=$dialogView.Fetch()) {
 }
 [void]$dialogView.Close(); ReleaseCom $dialogView
 $ddf = Join-Path $buildRoot 'payload.ddf'; [IO.File]::WriteAllLines($ddf,$cabLines,[Text.Encoding]::Default)
-& makecab.exe /F $ddf | Out-Null; if ($LASTEXITCODE -ne 0) { throw 'No se pudo crear el gabinete.' }
+Push-Location $buildRoot
+try { & makecab.exe /F $ddf | Out-Null; if ($LASTEXITCODE -ne 0) { throw 'No se pudo crear el gabinete.' } }
+finally { Pop-Location }
 Row 'Media' @('DiskId','LastSequence','Cabinet') @(1,$sequence,'#payload.cab')
 Stream '_Streams' 'payload.cab' (Join-Path $buildRoot 'payload.cab')
 $summary = $database.SummaryInformation(20); $summary.Property(1)=1252; $summary.Property(2)='Donovan POS Pro'; $summary.Property(3)='Instalador para Windows x64'; $summary.Property(4)='Donovan Systems'; $summary.Property(7)='x64;2058'; $summary.Property(9)='{' + [Guid]::NewGuid().ToString().ToUpperInvariant() + '}'; $summary.Property(14)=400; $summary.Property(15)=10; $summary.Property(18)='Donovan Systems - Native MSI Builder'; $summary.Persist(); $database.Commit()

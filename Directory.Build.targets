@@ -1,0 +1,8 @@
+<Project>
+  <!-- Updates belong outside a target, so only the named .NET packs are changed.
+       The Windows SDK projection retains its independent 10.0.19041.x version. -->
+  <ItemGroup Condition="'$(SelfContained)' == 'true'">
+    <KnownFrameworkReference Update="Microsoft.NETCore.App;Microsoft.WindowsDesktop.App;Microsoft.WindowsDesktop.App.WPF;Microsoft.WindowsDesktop.App.WindowsForms" DefaultRuntimeFrameworkVersion="10.0.14" LatestRuntimeFrameworkVersion="10.0.14" />
+    <KnownAppHostPack Update="Microsoft.NETCore.App" AppHostPackVersion="10.0.14" />
+  </ItemGroup>
+</Project>

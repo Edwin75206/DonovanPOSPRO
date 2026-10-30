@@ -1,0 +1,10 @@
+Donovan POS Pro
+Donovan Systems
+Copyright © 2026 Ing. Edwin Donovan Castañeda Calderón.
+
+Todos los derechos reservados sobre el código original de este proyecto.
+Los componentes de terceros conservan sus titulares y licencias respectivas.
+Consulte SupermarketPos.txt, DEPENDENCIES.csv, packages y sources.
+
+Las capturas y datos de demostración son ejemplos sintéticos de operación.
+Esta entrega local no concede derechos sobre marcas comerciales de terceros.

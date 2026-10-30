@@ -8,3 +8,11 @@ PDFsharp: https://raw.githubusercontent.com/empira/PDFsharp/v6.2.4/LICENSE
 OpenTK: https://raw.githubusercontent.com/opentk/opentk/4.3.0/LICENSE.md
 ExcelNumberFormat: https://raw.githubusercontent.com/andersnm/ExcelNumberFormat/v1.1.0/LICENSE
 OpenTK.GLWpfControl: https://raw.githubusercontent.com/opentk/GLWpfControl/4.2.3/LICENSE.md
+ZXing: https://raw.githubusercontent.com/micjahn/ZXing.Net/v0.16.11.0/COPYING
+OpenXML: https://raw.githubusercontent.com/dotnet/Open-XML-SDK/v3.1.1/LICENSE
+OpenXML-NOTICE: https://raw.githubusercontent.com/dotnet/Open-XML-SDK/v3.1.1/NOTICE
+SkiaSharp: https://raw.githubusercontent.com/mono/SkiaSharp/v3.119.4/LICENSE.txt
+SQLitePCLRaw: https://raw.githubusercontent.com/ericsink/SQLitePCL.raw/master/LICENSE.TXT
+Microsoft: https://raw.githubusercontent.com/dotnet/efcore/v10.0.14/LICENSE.txt
+SQLitePCLRaw-NOTICE: https://raw.githubusercontent.com/ericsink/SQLitePCL.raw/master/NOTICE.TXT
+Windows SDK 10.0.19041.57: https://download.microsoft.com/download/0/F/F/0FF2B061-47DD-4F55-89B6-FD1D8C44F14D/sdk_license.rtf

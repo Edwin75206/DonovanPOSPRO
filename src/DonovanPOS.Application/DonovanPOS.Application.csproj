@@ -1,0 +1,1 @@
+<Project Sdk="Microsoft.NET.Sdk"><ItemGroup><ProjectReference Include="../DonovanPOS.Domain/DonovanPOS.Domain.csproj" /></ItemGroup></Project>

@@ -9,3 +9,10 @@ artifacts/
 TestResults/
 setup.inf
 setup.rpt
+**/node_modules/
+desktop/dist/
+desktop/src-tauri/target/
+desktop/test-results/
+desktop/.runtime/
+desktop/src-tauri/gen/
+desktop/tsconfig.tsbuildinfo

@@ -38,8 +38,9 @@ Los importes se guardan en centavos enteros; las cantidades usan 10,000 unidades
 | `002_desktop.sql` | Identidad de base, migraciones nativas, sesiones, preferencias y recibos de solicitudes; `user_version=2` |
 | `003_appearance.sql` | Apariencia individual y fondo embebido; `user_version=3` |
 | `004_business_documents.sql` | Presentación del negocio, impresión automática y detalle exacto de nuevas compras; `user_version=4` |
+| `005_ticket_profile.sql` | Márgenes, copias, logo, modo monocromático y leyenda del ticket; `user_version=5` |
 
-El esquema WPF reconocido usa `user_version=0` y su historial EF exacto. No se acepta cualquier SQLite con tablas de nombres parecidos: se verifican versión, columnas, relaciones, índices relevantes, integridad y claves foráneas. Las migraciones se ejecutan sobre una copia controlada. No se degrada una base de una versión futura.
+El esquema WPF reconocido usa `user_version=0` y su historial EF exacto. No se acepta cualquier SQLite con tablas de nombres parecidos: se verifican versión, columnas, relaciones, índices relevantes, integridad y claves foráneas. Al importar otra base se migra una copia controlada. Al actualizar la base activa se crea primero `before-migration-<identificador>.sqlite` y después se ejecutan las migraciones en una transacción. No se degrada una base de una versión futura.
 
 `NativeMigration` registra versiones aplicadas; `AppMeta` registra producto, versión e identificador de base. Los SQL completos se distribuyen con la documentación técnica.
 
@@ -48,6 +49,7 @@ El esquema WPF reconocido usa `user_version=0` y su historial EF exacto. No se a
 | Tablas | Función y relaciones principales |
 | --- | --- |
 | `Product`, `ProductSearch` | Catálogo e índice FTS5; disparadores mantienen el índice de búsqueda |
+| `TicketProfile` | Una fila por `StoreSettings.Id` mediante `StoreId` (PK y FK); márgenes 2–8 mm, copias 1–3, banderas de logo/monocromo y leyenda. El ancho y el dispositivo permanecen en `StoreSettings`; `StorePresentation` conserva impresión automática |
 | `Customer`, `Supplier` | Clientes, límites de crédito y proveedores; archivar conserva el historial |
 | `User`, `UserSession` | Cuentas, permisos y sesiones vinculadas a la versión de autenticación de cada usuario |
 | `UserPreferences`, `UserAppearance` | Tutorial y personalización por `UserId`; el fondo se guarda como BLOB |

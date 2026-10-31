@@ -260,7 +260,7 @@ impl Engine {
         ))?;
         if let Some(error) = &self.startup_error {
             return Ok(
-                json!({"storageError":error,"profile":profile,"version":"2.0.0","demo":self.demo,"uiContext":self.ui_context()}),
+                json!({"storageError":error,"profile":profile,"version":env!("CARGO_PKG_VERSION"),"demo":self.demo,"uiContext":self.ui_context()}),
             );
         }
         let setup = db::scalar(self.db()?, "SELECT COUNT(*) FROM User", [])? == 0;
@@ -314,7 +314,7 @@ impl Engine {
             None
         };
         Ok(
-            json!({"needsSetup":setup,"settings":settings,"actor":actor,"preferences":preferences,"appearance":appearance,"profile":profile,"version":"2.0.0","demo":self.demo,"locked":locked,"storageError":null,"databaseId":database_id["value"],"sessionExpiresAt":expires,"uiContext":self.ui_context()}),
+            json!({"needsSetup":setup,"settings":settings,"actor":actor,"preferences":preferences,"appearance":appearance,"profile":profile,"version":env!("CARGO_PKG_VERSION"),"demo":self.demo,"locked":locked,"storageError":null,"databaseId":database_id["value"],"sessionExpiresAt":expires,"uiContext":self.ui_context()}),
         )
     }
     pub fn log_error(&self, module: &str, operation: &str, error: &AppError) {

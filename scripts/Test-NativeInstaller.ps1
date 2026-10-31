@@ -5,7 +5,8 @@ param(
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $qaParent = Join-Path $repo 'artifacts/v2/installation'
-$installer = Join-Path $repo 'desktop/src-tauri/target/release/bundle/nsis/Donovan POS Pro_2.0.0_x64-setup.exe'
+$packageVersion = (Get-Content -LiteralPath (Join-Path $repo 'desktop/src-tauri/tauri.conf.json') -Raw | ConvertFrom-Json).version
+$installer = Join-Path $repo "desktop/src-tauri/target/release/bundle/nsis/Donovan POS Pro_$($packageVersion)_x64-setup.exe"
 $binary = Join-Path $repo 'desktop/src-tauri/target/release/DonovanPOS.exe'
 function ExpectedNsisHash([string]$Path) {
     # Tauri patches this unique marker UNK -> NSS while bundling, then restores
@@ -90,7 +91,7 @@ if ($Action -like 'Uninstall*') {
     $result.executableRemoved = $true
 } else {
     if ((Get-FileHash -LiteralPath $exe).Hash.ToLowerInvariant() -ne $expectedInstalled) { throw 'Installed binary differs from the verified NSIS release.' }
-    foreach ($resource in @('licenses/THIRD_PARTY_NOTICES.txt','documentation/MANUAL.md','documentation/DATOS-Y-PORTABILIDAD.md','documentation/migrations/004_business_documents.sql')) {
+    foreach ($resource in @('licenses/THIRD_PARTY_NOTICES.txt','documentation/MANUAL.md','documentation/DATOS-Y-PORTABILIDAD.md','documentation/migrations/005_ticket_profile.sql')) {
         if (-not (Test-Path -LiteralPath (Join-Path $destination $resource))) { throw "Missing bundled resource: $resource" }
     }
     $result.executableMatched = $true

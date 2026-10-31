@@ -1,4 +1,4 @@
-# Reconstrucción 2.0 — registro de validación
+# Reconstrucción 2.0 y evolución 2.1 — registro de validación
 
 La versión 1.0 WPF y sus pruebas permanecen en el repositorio como referencia funcional. La nueva aplicación vive en `desktop` y usa Tauri 2, React, TypeScript y servicios Rust con SQLite. Este archivo registra hitos comprobados; no representa una declaración de entrega final.
 
@@ -64,3 +64,13 @@ Las pruebas de portabilidad anteriores corresponden al motor sobre carpetas aisl
 - Se comprobó un caso adicional de Excel: reemplazar una existencia exige una cantidad explícita; una celda vacía no la convierte en cero. Los cinco casos de Excel pasaron. En total se han comprobado 23 casos distintos del motor y cinco de interfaz.
 
 La entrega y los límites de estas pruebas se describen en [VALIDACION.md](VALIDACION.md). El paquete no está firmado digitalmente; no se probó una impresora física ni una máquina Windows limpia sin WebView2.
+
+## Caja unificada e impresión configurable 2.1 (31 de octubre de 2026)
+
+- Búsqueda, lectura HID, categorías de SQLite, tarjetas/lista, stock disponible, cantidades y cobro se reúnen en una pantalla. Se conservan cotizaciones, ventas en espera, caja rápida y consulta de ventas recientes.
+- El carrito admite fracciones válidas y valida existencias tanto en la interfaz como en la transacción Rust. El cobro distingue efectivo entregado, importes aplicados y cambio; la impresión usa el folio guardado.
+- Configuración incorpora Impresoras y tickets: controladores de Windows, estado disponible, 58/80 mm, márgenes, copias, vista previa, prueba, PDF y logo monocromático sin alterar el original. La migración 5 conserva las preferencias y se incluye en los respaldos.
+- Se aprobaron 14 casos de interfaz y 27 casos distintos del motor. Se validaron la migración 4 → 5 con copia de seguridad, la venta en espera después de reiniciar y la restauración del perfil de ticket.
+- La instalación final registró V-000019 por $564.25, con $1,000.00 recibidos y $435.75 de cambio. Al cerrar se verificaron una sola venta nueva, el descuento exacto de inventario y la integridad de SQLite.
+- Se guardaron capturas reales de tres partidas, cobro a 1366 × 768, confirmación, ticket y modo oscuro. El dashboard del administrador conserva sus indicadores y gráficas.
+- El instalador final se abrió y verificó, rechazó una actualización de su copia en uso y conservó los datos al reinstalar y desinstalar. La entrega y los límites están en [VALIDACION-2.1.md](VALIDACION-2.1.md).

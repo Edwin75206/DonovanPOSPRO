@@ -139,7 +139,7 @@ export function DocumentDialog({
   const selection = { ...request, widthMm: width };
   const document = useResource(
     () => api('document', selection),
-    [request.kind, request.id, width, request.copies, JSON.stringify(request.report)],
+    [request.kind, request.id, width, request.copies, JSON.stringify(request.report), JSON.stringify(request.ticket)],
   );
   const printers = useResource(() => api('printers'), []);
   const exportOp = useOperation();

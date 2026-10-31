@@ -4,11 +4,12 @@ use rusqlite::{Connection, OpenFlags, Params, Row, types::ValueRef};
 use serde_json::{Map, Value, json};
 use std::{path::Path, time::Duration};
 
-pub const SCHEMA_VERSION: i64 = 4;
+pub const SCHEMA_VERSION: i64 = 5;
 pub const LEGACY_SCHEMA: &str = include_str!("../migrations/001_legacy.sql");
 const DESKTOP_SCHEMA: &str = include_str!("../migrations/002_desktop.sql");
 const APPEARANCE_SCHEMA: &str = include_str!("../migrations/003_appearance.sql");
 const DOCUMENTS_SCHEMA: &str = include_str!("../migrations/004_business_documents.sql");
+const TICKET_SCHEMA: &str = include_str!("../migrations/005_ticket_profile.sql");
 pub const LEGACY_LAST: &str = "20261030215746_BackupHistoryAndEmbeddedLogo";
 
 pub fn connect(path: &Path, readonly: bool) -> Result<Connection> {
@@ -86,6 +87,9 @@ pub fn compatible(db: &Connection) -> Result<i64> {
     }
     if version >= 4 {
         reference.execute_batch(DOCUMENTS_SCHEMA)?;
+    }
+    if version >= 5 {
+        reference.execute_batch(TICKET_SCHEMA)?;
     }
     for name in reference.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'ProductSearch%' AND name NOT LIKE '__EF%'")?.query_map([], |r| r.get::<_,String>(0))? {
         let name = name?;
@@ -181,6 +185,10 @@ pub fn migrate(db: &mut Connection, now: &str) -> Result<()> {
     if current < 4 {
         tx.execute_batch(DOCUMENTS_SCHEMA)?;
         tx.execute("INSERT INTO NativeMigration VALUES (4,?1,'Presentación del negocio y detalle exacto de compras por empaque')", [now])?;
+    }
+    if current < 5 {
+        tx.execute_batch(TICKET_SCHEMA)?;
+        tx.execute("INSERT INTO NativeMigration VALUES (5,?1,'Perfil de ticket, márgenes y copias de impresión')", [now])?;
     }
     tx.commit()?;
     integrity(db)

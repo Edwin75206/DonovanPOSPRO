@@ -26,3 +26,4 @@ pub mod documents;
 pub mod exporting;
 pub mod history;
 pub mod importing;
+pub mod tickets;

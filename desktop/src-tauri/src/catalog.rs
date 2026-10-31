@@ -128,6 +128,42 @@ pub fn persist(db: &Connection, p: &Product) -> Result<i64> {
     }
 }
 impl Engine {
+    pub fn product_for_code(&self, code: &str) -> Result<Value> {
+        self.actor("sell")?;
+        let code = code.trim();
+        ensure(
+            !code.is_empty() && code.len() <= 200,
+            "INVALID_CODE",
+            "Escanea un código o escribe la clave completa.",
+        )?;
+        let matches = db::all(
+            self.db()?,
+            "SELECT Id FROM Product WHERE Barcode=?1 OR Sku=?1 COLLATE NOCASE LIMIT 2",
+            [code],
+        )?;
+        ensure(
+            !matches.is_empty(),
+            "CODE_NOT_FOUND",
+            "No encontramos ese código. Busca el nombre y selecciona el producto.",
+        )?;
+        ensure(
+            matches.len() == 1,
+            "AMBIGUOUS_CODE",
+            "Este código coincide con más de un artículo. Selecciona el producto por nombre y pide al administrador revisar las claves.",
+        )?;
+        let value = self.get_product(matches[0]["id"].as_i64().unwrap_or(0))?;
+        ensure(
+            value["active"].as_bool() == Some(true),
+            "PRODUCT_UNAVAILABLE",
+            "El producto está archivado y no se puede vender.",
+        )?;
+        ensure(
+            value["stockUnits"].as_i64().unwrap_or(0) > 0,
+            "INSUFFICIENT_STOCK",
+            "Producto agotado. No se agregó al ticket.",
+        )?;
+        Ok(value)
+    }
     pub fn products(&self, search: &str, category: &str, status: &str, page: i64) -> Result<Value> {
         self.product_page(search, category, status, page, "name", false)
     }

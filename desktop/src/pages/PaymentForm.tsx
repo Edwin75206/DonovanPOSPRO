@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Check, ShieldCheck } from 'lucide-react';
 import { api, normalizeError, type Charge, type Checkout, type SaleDetail } from '@/lib/api';
 import { money, parseScaled, quantity, today } from '@/lib/utils';
 import { Button, Field, Failure, useOperation } from '@/components/common';
 import type { Cart } from './Register';
+import { ScanBuffer } from '@/lib/register';
+import { toast } from 'sonner';
 
 export function PaymentForm({
   charge,
@@ -24,6 +26,8 @@ export function PaymentForm({
   const [reference, setReference] = useState('');
   const [dueDate, setDueDate] = useState('');
   const op = useOperation();
+  const submitting = useRef(false);
+  const scanShield = useRef(new ScanBuffer());
   const creditAvailable = allowCredit && !!cart.customerId;
   const methods = ['Efectivo', 'Tarjeta', 'Transferencia', 'Crédito'];
   const payments =
@@ -50,9 +54,34 @@ export function PaymentForm({
   return (
     <form
       className="payment-layout"
+      onFocusCapture={() => scanShield.current.reset()}
+      onKeyDownCapture={(event) => {
+        const input = event.target as HTMLInputElement;
+        const code = scanShield.current.key(
+          event.key,
+          performance.now(),
+          input.tagName === 'INPUT',
+          event.ctrlKey || event.altKey || event.metaKey || event.nativeEvent.isComposing,
+        );
+        if (code) {
+          event.preventDefault();
+          event.stopPropagation();
+          if (input.dataset.paymentField === 'received') setReceived('');
+          if (input.dataset.paymentIndex !== undefined)
+            setAmounts((current) =>
+              current.map((value, index) =>
+                index === Number(input.dataset.paymentIndex) ? '' : value,
+              ),
+            );
+          toast.info(
+            'Lectura pausada durante el cobro. Revisa el importe y confirma con el botón.',
+          );
+        }
+      }}
       onSubmit={async (e) => {
         e.preventDefault();
-        if (op.busy || invalid) return;
+        if (submitting.current || op.busy || invalid) return;
+        submitting.current = true;
         const request: Checkout = {
           requestId: cart.requestId,
           items: cart.rows.map((r) => ({
@@ -89,6 +118,7 @@ export function PaymentForm({
             }
           }, onSuccess);
         } finally {
+          submitting.current = false;
           onBusy(false);
         }
       }}
@@ -109,7 +139,7 @@ export function PaymentForm({
         </div>
         <div className="payment-safe">
           <ShieldCheck size={18} />
-          <span>Se guardan juntos el pago, la venta y el movimiento de inventario.</span>
+          <span>Venta segura. Si falla la impresión, tu cobro permanece registrado.</span>
         </div>
       </section>
       <section className="payment-fields">
@@ -135,6 +165,7 @@ export function PaymentForm({
                   <Field label={`${name} (MXN)`} key={name}>
                     <div className="split-input">
                       <input
+                        data-payment-index={i}
                         type="number"
                         min="0"
                         max={charge.totalCents / 100}
@@ -191,6 +222,8 @@ export function PaymentForm({
                   <span>$</span>
                   <input
                     autoFocus
+                    data-payment-field="received"
+                    aria-label="Efectivo recibido"
                     type="number"
                     min={cash / 100}
                     step="0.01"
@@ -203,13 +236,18 @@ export function PaymentForm({
                   <span>MXN</span>
                 </div>
               </Field>
-              <button
-                type="button"
-                className="text-button"
-                onClick={() => setReceived(String(cash / 100))}
-              >
-                Efectivo exacto
-              </button>
+              <div className="cash-denominations" aria-label="Importes rápidos de efectivo">
+                <button type="button" onClick={() => setReceived(String(cash / 100))}>
+                  Exacto
+                </button>
+                {[100, 200, 500, 1000]
+                  .filter((amount) => amount * 100 >= cash)
+                  .map((amount) => (
+                    <button type="button" key={amount} onClick={() => setReceived(String(amount))}>
+                      {money(amount * 100)}
+                    </button>
+                  ))}
+              </div>
               <div className={`change-banner ${change < 0 ? 'negative' : ''}`}>
                 <span>{change < 0 ? 'Falta por recibir' : 'Cambio para el cliente'}</span>
                 <b>{money(Math.abs(change))}</b>
@@ -225,6 +263,11 @@ export function PaymentForm({
                 placeholder="Folio de la operación"
               />
             </Field>
+          )}
+          {payments.some((p) => p.method === 1 || p.method === 2) && (
+            <p className="muted">
+              Registro manual: confirma el pago en tu terminal o banco antes de continuar.
+            </p>
           )}
           {credit > 0 && (
             <Field

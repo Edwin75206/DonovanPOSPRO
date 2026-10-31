@@ -43,6 +43,9 @@ pub enum Request {
         page: i64,
     },
     SaveProduct(Product),
+    ProductForCode {
+        code: String,
+    },
     AdjustStock {
         id: i64,
         delta: i64,
@@ -80,6 +83,11 @@ pub enum Request {
     ExportReport(crate::reports::ReportQuery),
     ExportDocument(crate::documents::DocumentRequest),
     Printers,
+    PrinterDetails {
+        printer: String,
+    },
+    TicketConfig,
+    SaveTicketConfig(crate::tickets::TicketConfig),
     PrintDocument {
         document: crate::documents::DocumentRequest,
         printer: String,
@@ -217,6 +225,8 @@ pub enum Request {
 }
 fn dispatch(engine: &mut Engine, window: &tauri::WebviewWindow, request: Request) -> Result<Value> {
     match request {
+        Request::TicketConfig => Ok(serde_json::to_value(engine.ticket_config()?)?),
+        Request::SaveTicketConfig(input) => engine.save_ticket_config(input),
         Request::SaveBusiness(input) => engine.save_business(input),
         Request::ChooseBusinessLogo => {
             engine.actor("admin")?;
@@ -248,6 +258,7 @@ fn dispatch(engine: &mut Engine, window: &tauri::WebviewWindow, request: Request
             page,
         } => engine.products(&search, &category, &status, page),
         Request::SaveProduct(input) => engine.save_product(input),
+        Request::ProductForCode { code } => engine.product_for_code(&code),
         Request::AdjustStock { id, delta, reason } => engine.adjust_stock(id, delta, &reason),
         Request::StockHistory { id } => engine.stock_history(id),
         Request::Product { id } => engine.get_product(id),
@@ -295,10 +306,9 @@ fn dispatch(engine: &mut Engine, window: &tauri::WebviewWindow, request: Request
                 None => Ok(Value::Null),
             }
         }
-        Request::Printers | Request::PrintDocument { .. } => Err(AppError::rule(
-            "UNEXPECTED",
-            "No pudimos iniciar la impresión.",
-        )),
+        Request::Printers | Request::PrinterDetails { .. } | Request::PrintDocument { .. } => Err(
+            AppError::rule("UNEXPECTED", "No pudimos iniciar la impresión."),
+        ),
         Request::Sales { from, to, page } => engine.sales(&from, &to, page),
         Request::SalesPage(query) => engine.sales_page(query),
         Request::CashOverview => engine.cash_overview(),
@@ -527,7 +537,7 @@ pub async fn execute(
             Ok(engine) => engine,
             Err(error) => {
                 if matches!(request, Request::Bootstrap | Request::RetryStorage) {
-                    return Ok(json!({"storageError":error,"version":"2.0.0","uiContext":null}));
+                    return Ok(json!({"storageError":error,"version":env!("CARGO_PKG_VERSION"),"uiContext":null}));
                 }
                 return Err(error.clone());
             }
@@ -536,10 +546,11 @@ pub async fn execute(
         let operation = request.operation();
         if let Request::PrintDocument { document, printer } = &request {
             let prepared = engine.business_document(document)?;
+            let copies = if document.kind=="sale" || document.kind=="ticketTest" {document.ticket.as_ref().map(|t|t.copies).unwrap_or(engine.ticket_config()?.copies)} else {1};
             let printer = printer.clone();
             drop(guard);
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                Ok(serde_json::to_value(crate::documents::printing::print(&prepared, &printer, None)?)?)
+                Ok(serde_json::to_value(crate::documents::printing::print_copies(&prepared, &printer, None, copies)?)?)
             })).unwrap_or_else(|_| Err(AppError::rule("PRINT_FAILED", "No pudimos confirmar la impresión. Revisa la cola de Windows antes de volver a enviar el documento. La venta se conserva.")));
             if let Err(error) = &result {
                 if let Ok(mut guard) = state.engine.lock() {
@@ -552,6 +563,10 @@ pub async fn execute(
             engine.actor("sell")?;
             drop(guard);
             return Ok(serde_json::to_value(crate::documents::printing::printers()?)?);
+        }
+        if let Request::PrinterDetails { printer } = &request {
+            engine.actor("sell")?; let printer=printer.clone(); drop(guard);
+            return Ok(serde_json::to_value(crate::documents::printing::details(&printer)?)?);
         }
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| dispatch(engine, &window, request)))
             .unwrap_or_else(|_| Err(AppError::rule("UNEXPECTED", "Ocurrió un problema y no pudimos completar esta operación. Puedes volver a intentarlo.")));

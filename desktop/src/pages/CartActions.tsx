@@ -115,7 +115,7 @@ export function SaveDraft({
   cart: Cart;
   kind: 'held' | 'quote';
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (result: { id: number; folio: string }) => void;
 }) {
   const [label, setLabel] = useState(cart.customerName || 'Venta de mostrador');
   const [notes, setNotes] = useState(cart.editingQuote?.notes ?? '');
@@ -169,7 +169,7 @@ export function SaveDraft({
                   customerId: cart.customerId,
                   discountParts: cart.discountParts,
                 });
-                return result.folio;
+                return { id: result.id, folio: result.folio };
               }
               const result = await api('saveQuote', {
                 requestId,
@@ -180,13 +180,13 @@ export function SaveDraft({
                 validUntil,
                 notes,
               });
-              return result.quote.folio;
+              return { id: result.quote.id, folio: result.quote.folio };
             },
-            (folio) => {
+            (result) => {
               toast.success(
-                `${kind === 'held' ? 'Venta guardada' : cart.editingQuote ? 'Cotización actualizada' : 'Cotización creada'} · ${folio}`,
+                `${kind === 'held' ? 'Venta guardada' : cart.editingQuote ? 'Cotización actualizada' : 'Cotización creada'} · ${result.folio}`,
               );
-              onSaved();
+              onSaved(result);
             },
           );
         }}

@@ -94,11 +94,31 @@ export interface BusinessReport {
   chart: { title: string; daily: boolean; values: { name: string; valueCents: number }[] } | null;
 }
 export interface DocumentRequest {
-  kind: 'sale' | 'quote' | 'purchase' | 'report' | 'labels';
+  kind: 'sale' | 'quote' | 'purchase' | 'report' | 'labels' | 'ticketTest';
   id: number;
   widthMm?: number;
   report?: ReportQuery;
   copies?: number;
+  ticket?: TicketConfig;
+}
+export interface TicketConfig {
+  printerName: string;
+  widthMm: number;
+  marginMm: number;
+  copies: number;
+  monochrome: boolean;
+  showLogo: boolean;
+  autoPrint: boolean;
+  footer: string;
+  legend: string;
+}
+export interface PrinterDetails {
+  name: string;
+  driver: string;
+  status: string;
+  offline: boolean;
+  queuedJobs: number;
+  paperWidthsMm: number[];
 }
 export type DocumentDraw =
   | {
@@ -518,6 +538,10 @@ export const normalizeError = (error: unknown): UiFailure => {
 };
 // This map is the frontend contract. Only named Rust services can access business data.
 export interface Calls {
+  ticketConfig: [undefined, TicketConfig];
+  saveTicketConfig: [TicketConfig, Bootstrap];
+  printerDetails: [{ printer: string }, PrinterDetails];
+  productForCode: [{ code: string }, Product];
   report: [ReportQuery, BusinessReport];
   exportReport: [ReportQuery, { path: string; bytes: number } | null];
   document: [DocumentRequest, BusinessDocument];

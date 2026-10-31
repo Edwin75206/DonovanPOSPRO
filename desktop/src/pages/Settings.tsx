@@ -10,6 +10,7 @@ import {
   Pencil,
   ShieldCheck,
   RefreshCw,
+  Printer,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, type Actor, type Bootstrap } from '@/lib/api';
@@ -26,11 +27,13 @@ import {
 } from '@/components/common';
 import { DataGrid } from '@/components/DataGrid';
 import { DataManager } from './DataManager';
+import { PrinterSettings } from './PrinterSettings';
 import { Logo } from './Auth';
 import { useLeaveGuard } from '@/lib/leaveGuard';
 
 const sections = [
-  { id: 'business', label: 'Negocio y tickets', icon: Building2 },
+  { id: 'business', label: 'Datos del negocio', icon: Building2 },
+  { id: 'printers', label: 'Impresoras y tickets', icon: Printer },
   { id: 'data', label: 'Administración de datos', icon: Database },
   { id: 'users', label: 'Usuarios y permisos', icon: Users },
   { id: 'about', label: 'Acerca de', icon: Info },
@@ -84,6 +87,8 @@ export function Settings({
       <div className="settings-content">
         {section === 'business' ? (
           <BusinessSettings data={data} onSaved={onSession} onDirty={setDirty} />
+        ) : section === 'printers' ? (
+          <PrinterSettings data={data} onSaved={onSession} onDirty={setDirty} />
         ) : section === 'data' ? (
           <DataManager data={data} onChanged={onChanged} hasDraft={hasDraft} />
         ) : section === 'users' ? (
@@ -128,8 +133,6 @@ function BusinessSettings({
   const source = data.settings!;
   const [draft, setDraft] = useState(source);
   const [logoAction, setLogoAction] = useState<'keep' | 'replace'>('keep');
-  const printers = useResource(() => api('printers'), []);
-  const selectedPrinter = printers.data?.find((printer) => printer.name === draft.printerName);
   const op = useOperation();
   const dirty = Object.keys(source).some(
     (key) => draft[key as keyof typeof draft] !== source[key as keyof typeof source],
@@ -301,51 +304,8 @@ function BusinessSettings({
               </p>
             </div>
             <p className="muted">Los tickets son comprobantes de venta; no sustituyen un CFDI.</p>
-            <Field
-              label="Impresora para tickets"
-              hint="Las impresoras se instalan desde Windows. Guardar PDF funciona sin una impresora física."
-            >
-              <select
-                value={draft.printerName}
-                onChange={(event) =>
-                  setDraft({ ...draft, printerName: event.target.value, autoPrint: false })
-                }
-              >
-                <option value="">Elegir al imprimir</option>
-                {draft.printerName &&
-                  !printers.data?.some((printer) => printer.name === draft.printerName) && (
-                    <option value={draft.printerName}>{draft.printerName} · No disponible</option>
-                  )}
-                {printers.data?.map((printer) => (
-                  <option key={printer.name} value={printer.name}>
-                    {printer.name}
-                    {printer.virtualPrinter ? ' · Guardar como archivo' : ''}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={printers.busy}
-              onClick={printers.reload}
-            >
-              <RefreshCw size={16} />
-              {printers.busy ? 'Buscando impresoras…' : 'Actualizar impresoras'}
-            </Button>
-            <Failure error={printers.error} />
-            <label className="check-label">
-              <input
-                type="checkbox"
-                checked={draft.autoPrint}
-                disabled={!selectedPrinter || selectedPrinter.virtualPrinter}
-                onChange={(event) => setDraft({ ...draft, autoPrint: event.target.checked })}
-              />{' '}
-              Imprimir el ticket automáticamente después de cobrar
-            </label>
             <p className="muted">
-              La venta se guarda antes de imprimir. Si la impresora falla, podrás reimprimir desde
-              el historial.
+              Configura el papel, márgenes, copias y vista previa en Impresoras y tickets.
             </p>
           </fieldset>
         </section>

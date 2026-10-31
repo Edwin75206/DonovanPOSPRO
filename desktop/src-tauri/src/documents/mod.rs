@@ -23,12 +23,46 @@ pub struct DocumentRequest {
     pub width_mm: Option<i64>,
     pub report: Option<crate::reports::ReportQuery>,
     pub copies: Option<i64>,
+    pub ticket: Option<crate::tickets::TicketConfig>,
 }
 fn s<'a>(value: &'a Value, key: &str) -> &'a str {
     value[key].as_str().unwrap_or("")
 }
 fn n(value: &Value, key: &str) -> i64 {
     value[key].as_i64().unwrap_or(0)
+}
+// Render a monochrome copy for thermal output. The stored original and its geometry are untouched.
+pub fn thermal_logo(logo: Option<String>, monochrome: bool) -> Result<Option<String>> {
+    if !monochrome {
+        return Ok(logo);
+    }
+    let Some(source) = logo else { return Ok(None) };
+    let bytes = STANDARD
+        .decode(source)
+        .map_err(|e| AppError::internal("DOCUMENT_IMAGE", "No pudimos leer el logotipo.", e))?;
+    crate::appearance::validate_image(&bytes)?;
+    let mut bitmap = image::load_from_memory(&bytes)
+        .map_err(|e| AppError::internal("DOCUMENT_IMAGE", "No pudimos preparar el logotipo.", e))?
+        .to_rgba8();
+    for pixel in bitmap.pixels_mut() {
+        let luminance =
+            (2126 * pixel[0] as u32 + 7152 * pixel[1] as u32 + 722 * pixel[2] as u32) / 10000;
+        let color = if luminance < 190 { 0 } else { 255 };
+        pixel[0] = color;
+        pixel[1] = color;
+        pixel[2] = color;
+    }
+    let mut output = std::io::Cursor::new(Vec::new());
+    image::DynamicImage::ImageRgba8(bitmap)
+        .write_to(&mut output, image::ImageFormat::Png)
+        .map_err(|e| {
+            AppError::internal(
+                "DOCUMENT_IMAGE",
+                "No pudimos preparar el logotipo térmico.",
+                e,
+            )
+        })?;
+    Ok(Some(STANDARD.encode(output.into_inner())))
 }
 pub(crate) fn date(value: &str) -> String {
     chrono::NaiveDateTime::parse_from_str(value, "%Y-%m-%d %H:%M:%S%.f")
@@ -86,12 +120,19 @@ fn branding(layout: &mut Layout, settings: &Value) -> Result<()> {
 impl Engine {
     pub fn business_document(&self, request: &DocumentRequest) -> Result<BusinessDocument> {
         self.actor("sell")?;
-        let settings = db::one(
+        let mut settings = db::one(
             self.db()?,
             "SELECT s.*,COALESCE(p.Subtitle,'') AS Subtitle FROM StoreSettings s LEFT JOIN StorePresentation p ON p.StoreId=s.Id LIMIT 1",
             [],
         )?;
-        let width = request.width_mm.unwrap_or(n(&settings, "ticketWidthMm"));
+        let mut ticket = crate::tickets::TicketConfig::load(self.db()?)?;
+        if let Some(override_config) = &request.ticket {
+            self.actor("admin")?;
+            override_config.validate()?;
+            ticket = override_config.clone();
+        }
+        let width = request.width_mm.unwrap_or(ticket.width_mm);
+        settings["ticketFooter"] = json!(ticket.footer);
         ensure(
             [58, 80].contains(&width),
             "VALIDATION",
@@ -114,10 +155,22 @@ impl Engine {
                     request.copies.unwrap_or(16),
                 )
             }
-            "sale" => {
-                let detail = self.sale(request.id)?;
+            "sale" | "ticketTest" => {
+                let detail = if request.kind == "ticketTest" {
+                    let actor = self.actor("admin")?;
+                    json!({"sale":{"folio":"PRUEBA · NO ES UNA VENTA","cashier":actor.name,"createdAt":self.now_string(),"customerName":"Cliente de prueba","totalCents":17050,"taxCents":2352,"discountCents":0,"tenderedCents":20000,"changeCents":2950},"lines":[{"sku":"MUESTRA-01","name":"Producto de prueba","quantityUnits":20000,"unit":0,"priceCents":7500,"totalCents":15000},{"sku":"MUESTRA-02","name":"Material por metro","quantityUnits":25000,"unit":1,"priceCents":820,"totalCents":2050}],"payments":[{"method":0,"amountCents":17050}],"returns":[]})
+                } else {
+                    self.sale(request.id)?
+                };
                 let sale = &detail["sale"];
-                let mut paper = Layout::new(s(sale, "folio"), "sale", width as f32, true, logo)?;
+                let ticket_logo = if ticket.show_logo {
+                    thermal_logo(logo, ticket.monochrome)?
+                } else {
+                    None
+                };
+                let mut paper =
+                    Layout::new(s(sale, "folio"), "sale", width as f32, true, ticket_logo)?;
+                paper.set_roll_margin(ticket.margin_mm as f32);
                 branding(&mut paper, &settings)?;
                 paper.paragraph("COMPROBANTE DE VENTA", 9.0, true, true, INK);
                 paper.paragraph(s(sale, "folio"), 13.0, true, true, INK);
@@ -262,7 +315,9 @@ impl Engine {
                     paper.paragraph(s(&settings, "ticketFooter"), 7.5, false, true, INK);
                 }
                 paper.space(7.0);
-                paper.paragraph("Conserva este comprobante.", 7.0, false, true, GRAY);
+                if !ticket.legend.is_empty() {
+                    paper.paragraph(&ticket.legend, 7.0, false, true, GRAY);
+                }
                 paper.paragraph("No es un CFDI.", 7.0, false, true, GRAY);
                 paper.finish()
             }

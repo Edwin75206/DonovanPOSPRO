@@ -1,6 +1,6 @@
 # Donovan POS Pro — guía de uso
 
-Construrama Chicontla · Donovan Systems · Versión 2.0
+Construrama Chicontla · Donovan Systems · Versión 2.1
 
 ## Instalar y empezar
 
@@ -20,19 +20,33 @@ La sesión persiste al cerrar y abrir el programa, hasta un máximo fijo de 24 h
 
 ## Hacer una venta
 
-1. Abre **Caja** e indica el efectivo inicial. La aplicación te avisa si intentas cobrar sin una jornada abierta.
-2. En **Punto de venta**, escanea un código o busca por nombre, clave, marca o medida. Pulsa un producto para agregarlo.
-3. Ajusta cantidades, selecciona al cliente si hace falta y revisa el total. Los precios muestran IVA incluido. Los descuentos y el mayoreo requieren permiso.
+1. En el mostrador, pulsa **Abrir caja** e indica el efectivo inicial. Puedes hacerlo sin cambiar de módulo.
+2. Escanea un código con terminación Enter o Tab: el artículo se agrega automáticamente. Una lectura repetida aumenta la cantidad. Para una búsqueda escrita, elige el resultado con un clic o con flechas y Enter.
+3. Revisa precio, unidad y existencia en las tarjetas o en la lista compacta. Las categorías proceden del catálogo. Ajusta cantidades directamente en el ticket; metros, kilos y litros admiten hasta cuatro decimales. Los precios muestran IVA incluido. Los descuentos y el mayoreo requieren permiso.
 4. Pulsa **Cobrar venta** o F8. Selecciona el método de pago, o combina métodos. Para efectivo, indica lo recibido y revisa el cambio. El crédito requiere cliente, límite disponible y vencimiento.
-5. Confirma el cobro una sola vez. La pantalla muestra el folio guardado y permite revisar el ticket. Si la impresión falla, reimprime ese folio desde **Ventas**.
+5. Confirma el cobro. La pantalla muestra el folio guardado y el cambio cuando hay efectivo. Si la impresión falla, la venta sigue registrada: reimprime el mismo folio desde **Ventas recientes**, sin volver a cobrar. Pulsa **Siguiente venta** para continuar.
+
+**Existencias:** la tarjeta muestra lo que queda disponible después de las cantidades en tu ticket. «Últimas» indica que se alcanzó el mínimo; «Agotado» bloquea agregar; «Todo en tu ticket» indica que ya agregaste toda la existencia. El administrador configura el mínimo en Productos/Inventario. El motor vuelve a comprobar disponibilidad al confirmar.
+
+**Lector USB:** configúralo como teclado HID, sin prefijo, con sufijo Enter (recomendado) o Tab y distribución de teclado igual a Windows. F3 enfoca el buscador. La detección de ráfagas admite separaciones de hasta 70 ms; un lector más lento puede usar el buscador y Enter con el código completo. No se incorporan artículos mientras está abierto un diálogo o se edita otro campo. Prueba tu lector y sus códigos antes de operar.
+
+**Efectivo y pagos mixtos:** Exacto y las denominaciones rápidas rellenan el dinero entregado. En Mixto, los importes aplicados deben sumar el total; «Efectivo recibido» puede exceder solamente la parte en efectivo y de ahí se calcula el cambio. Tarjeta y transferencia son registros manuales, no conexiones a una terminal bancaria.
 
 **Atajos:** F2 abre el punto de venta; F3 enfoca la búsqueda; F8 abre el cobro; F1 abre la ayuda. Durante la edición de una cotización, F8 abre su guardado. F5 y Ctrl+R no recargan la aplicación para proteger el ticket en curso.
 
-**Guardar** deja una venta en espera sin cobrar ni apartar existencias. Recupera el carrito desde **En espera**; la aplicación revisa precios y disponibilidad. Guarda el trabajo pendiente antes de cerrar o cambiar de base.
+**Guardar** deja una venta en espera en SQLite sin cobrar ni apartar existencias. Recupera el carrito desde **En espera** incluso después de reiniciar; la aplicación revisa precios y disponibilidad. Buscar, filtrar o cambiar de vista conserva el ticket actual. Un carrito que no se haya guardado no es un respaldo frente a un corte de energía: guarda el trabajo pendiente antes de cerrar o cambiar de base.
 
 ## Cotizaciones
 
-Prepara las partidas desde el punto de venta y pulsa **Cotizar**. Revisa cliente, vigencia y observaciones antes de guardar. La cotización conserva su precio acordado y no modifica el inventario.
+Prepara las partidas desde el punto de venta y pulsa **Cotizar**. Revisa cliente, vigencia y observaciones antes de guardar. La cotización conserva su precio acordado y no modifica el inventario. Su vista previa se abre sobre el mostrador y permite guardar el PDF o imprimir.
+
+## Impresoras y tickets
+
+Como administrador, abre **Configuración → Impresoras y tickets**. Actualiza la lista de dispositivos instalados en Windows, selecciona uno y revisa el estado que comunica su controlador. Ajusta ancho de 58 u 80 mm, márgenes de 2 a 8 mm y de una a tres copias. Comprueba la vista previa y usa **Imprimir prueba** antes de activar impresión automática. Los anchos anunciados por el controlador son orientativos; algunos equipos requieren configurar un formulario personalizado en Windows. Una cola sin errores no garantiza que haya papel o conexión física.
+
+Puedes activar el logo, usar su versión monocromática y editar el agradecimiento y la leyenda. La variante térmica se genera al dibujar y conserva el archivo original. Dirección y teléfono se editan en **Datos del negocio**. Los comprobantes no son CFDI.
+
+Sin impresora configurada puedes vender, consultar el ticket y guardarlo como PDF. La impresión automática requiere seleccionar una impresora física; PDF, XPS y dispositivos virtuales se usan manualmente. Si Windows informa un fallo, revisa su cola antes de reenviar: el folio registrado se conserva. Cambiar de impresora no requiere reinstalar el programa.
 
 Desde **Cotizaciones**, abre el detalle para generar el PDF o continuar al cobro con los importes acordados. Una propuesta vencida debe renovarse antes de vender. **Editar partidas y vigencia** abre una revisión con precios actuales de menudeo y descuento inicial en cero; la propuesta anterior se conserva hasta pulsar **Guardar cambios**. Una cotización convertida en venta conserva su historial y no puede volver a convertirse.
 

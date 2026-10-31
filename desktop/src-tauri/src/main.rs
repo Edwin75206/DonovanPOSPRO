@@ -87,7 +87,7 @@ fn main() {
                     window.center()?;
                 }
                 window.set_title(if demo {
-                    "Donovan POS Pro 2.0 · DEMOSTRACIÓN"
+                    "Donovan POS Pro 2.1 · DEMOSTRACIÓN"
                 } else {
                     "Donovan POS Pro"
                 })?;

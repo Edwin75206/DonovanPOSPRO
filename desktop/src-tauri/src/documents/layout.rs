@@ -176,6 +176,11 @@ impl Layout {
     pub fn content_width(&self) -> f32 {
         self.width - self.margin * 2.0
     }
+    pub fn set_roll_margin(&mut self, mm: f32) {
+        self.margin = mm * MM;
+        self.y = self.margin;
+        self.page.margin = self.margin;
+    }
     pub fn landscape(title: &str, logo: Option<String>) -> Result<Self> {
         let mut paper = Self::new(title, "report", 297.0, false, logo)?;
         paper.page.height = 210.0 * MM;

@@ -10,7 +10,7 @@ use std::{
     ptr::{null, null_mut},
 };
 use windows_sys::Win32::{
-    Foundation::{HANDLE, RECT},
+    Foundation::{HANDLE, POINT, RECT},
     Graphics::{Gdi::*, Printing::*},
     Storage::Xps::*,
 };
@@ -22,13 +22,121 @@ pub struct Printer {
     pub is_default: bool,
     pub virtual_printer: bool,
 }
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PrintJob {
     pub job_id: i32,
     pub printer: String,
     pub pages: usize,
     pub message: String,
+}
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrinterDetails {
+    pub name: String,
+    pub driver: String,
+    pub status: String,
+    pub offline: bool,
+    pub queued_jobs: u32,
+    pub paper_widths_mm: Vec<f32>,
+}
+pub fn status_message(status: u32, attributes: u32) -> (String, bool) {
+    let offline =
+        status & PRINTER_STATUS_OFFLINE != 0 || attributes & PRINTER_ATTRIBUTE_WORK_OFFLINE != 0;
+    let mut messages = Vec::new();
+    if offline {
+        messages.push("Sin conexión");
+    }
+    for (flag, message) in [
+        (PRINTER_STATUS_PAPER_OUT, "Sin papel"),
+        (PRINTER_STATUS_PAPER_JAM, "Papel atascado"),
+        (PRINTER_STATUS_PAUSED, "En pausa"),
+        (PRINTER_STATUS_ERROR, "Error del dispositivo"),
+        (PRINTER_STATUS_DOOR_OPEN, "Tapa abierta"),
+        (PRINTER_STATUS_PRINTING, "Imprimiendo"),
+    ] {
+        if status & flag != 0 {
+            messages.push(message);
+        }
+    }
+    if messages.is_empty() {
+        messages.push("Sin incidencias informadas por Windows");
+    }
+    (messages.join(" · "), offline)
+}
+pub fn details(selected: &str) -> Result<PrinterDetails> {
+    let devices = printers()?;
+    let device = devices
+        .iter()
+        .find(|p| {
+            if selected.is_empty() {
+                p.is_default
+            } else {
+                p.name == selected
+            }
+        })
+        .ok_or_else(|| {
+            AppError::rule(
+                "PRINTER_MISSING",
+                "Esta impresora no está disponible. Selecciona otra o guarda el ticket como PDF.",
+            )
+        })?;
+    unsafe {
+        let name = wide(&device.name);
+        let mut raw = PRINTER_HANDLE::default();
+        if OpenPrinterW(name.as_ptr(), &mut raw, null()) == 0 {
+            return Err(error("OpenPrinterW"));
+        }
+        let handle = PrinterHandle(raw);
+        let mut needed = 0;
+        GetPrinterW(handle.0, 2, null_mut(), 0, &mut needed);
+        ensure(
+            needed >= size_of::<PRINTER_INFO_2W>() as u32 && needed < 8 * 1024 * 1024,
+            "PRINT_FAILED",
+            "No pudimos consultar el controlador de impresión.",
+        )?;
+        let mut buffer = vec![0u64; (needed as usize).div_ceil(8)];
+        if GetPrinterW(handle.0, 2, buffer.as_mut_ptr().cast(), needed, &mut needed) == 0 {
+            return Err(error("GetPrinterW"));
+        }
+        let info = &*buffer.as_ptr().cast::<PRINTER_INFO_2W>();
+        let (status, offline) = status_message(info.Status, info.Attributes);
+        let count = DeviceCapabilitiesW(
+            name.as_ptr(),
+            info.pPortName,
+            DC_PAPERSIZE,
+            null_mut(),
+            null(),
+        );
+        let mut widths = Vec::new();
+        if count > 0 && count < 4096 {
+            let mut sizes = vec![POINT { x: 0, y: 0 }; count as usize];
+            let read = DeviceCapabilitiesW(
+                name.as_ptr(),
+                info.pPortName,
+                DC_PAPERSIZE,
+                sizes.as_mut_ptr().cast(),
+                null(),
+            );
+            if read > 0 && read <= count {
+                for size in sizes.iter().take(read as usize) {
+                    let width = size.x as f32 / 10.;
+                    if width > 0. && !widths.contains(&width) {
+                        widths.push(width);
+                    }
+                }
+            }
+        }
+        widths.sort_by(f32::total_cmp);
+        Ok(PrinterDetails {
+            name: device.name.clone(),
+            driver: read_wide(info.pDriverName),
+            status,
+            offline,
+            queued_jobs: info.cJobs,
+            paper_widths_mm: widths,
+        })
+    }
 }
 fn wide(value: &str) -> Vec<u16> {
     value.encode_utf16().chain(Some(0)).collect()
@@ -176,6 +284,25 @@ fn color(rgb: [u8; 3]) -> u32 {
 /// `output` is only used by the isolated native integration check. The desktop
 /// command never accepts filesystem paths supplied by JavaScript for printing.
 pub fn print(source: &BusinessDocument, selected: &str, output: Option<&Path>) -> Result<PrintJob> {
+    print_copies(source, selected, output, 1)
+}
+pub fn print_copies(
+    source: &BusinessDocument,
+    selected: &str,
+    output: Option<&Path>,
+    copies: i64,
+) -> Result<PrintJob> {
+    ensure(
+        (1..=3).contains(&copies),
+        "VALIDATION",
+        "Selecciona entre una y tres copias.",
+    )?;
+    // Some drivers cannot report status. GDI still decides whether a job can be
+    // accepted; only a known offline state prevents submission here.
+    if let Ok(status) = details(selected) {
+        ensure(!status.offline, "PRINTER_OFFLINE",
+            "La impresora está sin conexión. La venta permanece registrada; reconecta el equipo o guarda el PDF.")?;
+    }
     ensure(
         !source.pages.is_empty(),
         "DOCUMENT_EMPTY",
@@ -317,7 +444,13 @@ pub fn print(source: &BusinessDocument, selected: &str, output: Option<&Path>) -
                 Ok((pixels, decoded.width(), decoded.height()))
             })
             .transpose()?;
-        for (index, page) in source.pages.iter().enumerate() {
+        for (index, page) in source
+            .pages
+            .iter()
+            .cycle()
+            .take(source.pages.len() * copies as usize)
+            .enumerate()
+        {
             if index > 0 {
                 apply_size(page.width, page.height)?;
                 let changed = ResetDCW(dc.0, mode_ptr);
@@ -530,6 +663,6 @@ pub fn print(source: &BusinessDocument, selected: &str, output: Option<&Path>) -
             return Err(error("EndDoc"));
         }
         job.completed = true;
-        Ok(PrintJob{job_id,printer:printer.name.clone(),pages:source.pages.len(),message:"Windows recibió el documento. Puedes continuar; revisa la cola de impresión si no sale en papel.".into()})
+        Ok(PrintJob{job_id,printer:printer.name.clone(),pages:source.pages.len()*copies as usize,message:"Windows recibió el documento. Puedes continuar; revisa la cola de impresión si no sale en papel.".into()})
     }
 }

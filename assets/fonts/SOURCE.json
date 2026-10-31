@@ -1,0 +1,9 @@
+{
+  "file": "ofl/manrope/Manrope[wght].ttf",
+  "repository": "https://github.com/google/fonts",
+  "revision": "b31870aff700ab7a1d74fa0c6887d95beb9e0037",
+  "sha256": "3AE11C49DB0455A3CC33E37D380F20FDB8C7F8B41DC07625C177E3D87A9D6AE6",
+  "modifications": "Static 400 and 700 weight instances, family renamed to Donovan Paper.",
+  "tool": "fontTools 4.60.1",
+  "license": "SIL Open Font License 1.1"
+}

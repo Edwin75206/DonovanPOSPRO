@@ -1,0 +1,86 @@
+@font-face {
+  font-family: 'Donovan Paper';
+  src: url('../../assets/fonts/DonovanPaper-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-display: block;
+}
+@font-face {
+  font-family: 'Donovan Paper';
+  src: url('../../assets/fonts/DonovanPaper-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-display: block;
+}
+.document-dialog {
+  width: min(60rem, 96vw) !important;
+  max-height: 94dvh !important;
+}
+.document-controls {
+  display: flex;
+  align-items: end;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+.document-controls .field:last-of-type {
+  flex: 1;
+  min-width: 14rem;
+}
+.paper-preview {
+  background: color-mix(in srgb, var(--muted) 65%, var(--background));
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  padding: 1.4rem;
+  max-height: 58dvh;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.paper-preview figure {
+  margin: 0 auto 1rem;
+  width: fit-content;
+  max-width: 100%;
+}
+.paper-preview figure:last-child {
+  margin-bottom: 0;
+}
+.paper-preview svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  box-shadow: 0 8px 25px #00000016;
+  background: white;
+  overflow: hidden;
+}
+.paper-preview svg text {
+  font-family: 'Donovan Paper', sans-serif;
+  font-kerning: none;
+  font-variant: none;
+  letter-spacing: 0;
+}
+.paper-preview figcaption {
+  text-align: center;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  margin-top: 0.7rem;
+}
+.document-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--foreground);
+  font-size: 0.85rem;
+}
+.document-actions {
+  position: sticky;
+  bottom: -1px;
+  background: var(--card);
+  padding-top: 0.8rem;
+  margin-top: 0;
+}
+@media (max-height: 800px) {
+  .paper-preview {
+    max-height: 42dvh;
+    padding: 0.8rem;
+  }
+  .document-dialog {
+    gap: 0.75rem !important;
+  }
+}

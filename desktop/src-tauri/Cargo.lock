@@ -1034,6 +1034,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tempfile",
+ "ttf-parser",
  "unicode-normalization",
  "uuid",
  "windows-sys 0.61.2",

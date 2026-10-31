@@ -145,6 +145,15 @@ pub fn credit_balance(db: &Connection, customer: i64, sale: Option<i64>) -> Resu
         params![customer, sale],
     )
 }
+pub fn cash_state(db: &Connection) -> Result<Value> {
+    let open = db::all(db, "SELECT * FROM CashSession WHERE ClosedAt IS NULL", [])?
+        .into_iter()
+        .next();
+    let id = open.as_ref().and_then(|v| v["id"].as_i64()).unwrap_or(0);
+    Ok(
+        json!({"open":open,"expectedCents":if id>0{cash_balance(db,id)?}else{0},"movementCount":db::scalar(db,"SELECT COUNT(*) FROM CashMovement WHERE CashSessionId=?1",[id])?,"movements":db::all(db,"SELECT * FROM CashMovement WHERE CashSessionId=?1 ORDER BY Id DESC LIMIT 1000",[id])?,"history":db::all(db,"SELECT * FROM CashSession WHERE ClosedAt IS NOT NULL ORDER BY Id DESC LIMIT 200",[])?}),
+    )
+}
 pub fn sale_detail(db: &Connection, actor: &Actor, id: i64) -> Result<Value> {
     let sale = db::one(db, "SELECT * FROM Sale WHERE Id=?1", [id])?;
     ensure(
@@ -163,10 +172,46 @@ pub fn sale_detail(db: &Connection, actor: &Actor, id: i64) -> Result<Value> {
         }
     }
     Ok(
-        json!({"sale":sale,"lines":lines,"payments":db::all(db,"SELECT * FROM PaymentRecord WHERE SaleId=?1",[id])?,"returns":db::all(db,"SELECT * FROM SaleReturn WHERE SaleId=?1",[id])?}),
+        json!({"creditBalanceCents":if let Some(customer)=sale["customerId"].as_i64(){credit_balance(db,customer,Some(id))?}else{0},"sale":sale,"lines":lines,"payments":db::all(db,"SELECT * FROM PaymentRecord WHERE SaleId=?1",[id])?,"returns":db::all(db,"SELECT * FROM SaleReturn WHERE SaleId=?1",[id])?}),
     )
 }
 impl Engine {
+    pub fn price_cart(
+        &self,
+        items: &[SaleItem],
+        discount: i64,
+        quote_id: Option<i64>,
+    ) -> Result<Charge> {
+        let actor = self.actor("sell")?;
+        let mut charge = if let Some(id) = quote_id {
+            quote_charge(self.db()?, id, &self.now_string()[..10])?
+        } else {
+            calculate(self.db()?, &actor, items, discount)?
+        };
+        if !actor.can("catalog") {
+            for line in &mut charge.lines {
+                line.cost_cents = None;
+            }
+        }
+        Ok(charge)
+    }
+    pub fn checkout_result(&self, request_id: &str) -> Result<Value> {
+        let actor = self.actor("sell")?;
+        ensure(
+            uuid::Uuid::parse_str(request_id).is_ok(),
+            "VALIDATION",
+            "La referencia de venta no es válida.",
+        )?;
+        let found = db::all(
+            self.db()?,
+            "SELECT Id FROM Sale WHERE RequestId=?1",
+            [request_id],
+        )?;
+        match found.first() {
+            Some(row) => sale_detail(self.db()?, &actor, row["id"].as_i64().unwrap_or(0)),
+            None => Ok(Value::Null),
+        }
+    }
     pub fn price(&self, items: &[SaleItem], discount: i64) -> Result<Charge> {
         let actor = self.actor("sell")?;
         let mut charge = calculate(self.db()?, &actor, items, discount)?;
@@ -179,29 +224,26 @@ impl Engine {
     }
     pub fn cash_overview(&self) -> Result<Value> {
         self.actor("cash")?;
-        let open = db::all(
-            self.db()?,
-            "SELECT * FROM CashSession WHERE ClosedAt IS NULL",
-            [],
-        )?
-        .into_iter()
-        .next();
-        let id = open.as_ref().and_then(|v| v["id"].as_i64()).unwrap_or(0);
-        Ok(
-            json!({"open":open,"expectedCents":if id>0{cash_balance(self.db()?,id)?}else{0},"movements":db::all(self.db()?,"SELECT * FROM CashMovement WHERE CashSessionId=?1 ORDER BY Id DESC LIMIT 1000",[id])?,"history":db::all(self.db()?,"SELECT * FROM CashSession WHERE ClosedAt IS NOT NULL ORDER BY Id DESC LIMIT 200",[])?}),
-        )
+        cash_state(self.db()?)
     }
     pub fn cash_open(&mut self, opening: i64) -> Result<Value> {
+        self.cash_open_once(&uuid::Uuid::new_v4().to_string(), opening)
+    }
+    pub fn cash_open_once(&mut self, request_id: &str, opening: i64) -> Result<Value> {
         let actor = self.actor("cash")?;
         ensure(
             (0..=money::MAX_AMOUNT).contains(&opening),
             "VALIDATION",
             "El fondo inicial debe ser un importe positivo o cero.",
         )?;
+        let hash = crate::operations::fingerprint(&opening)?;
         let now = self.now_string();
         let tx = self
             .db_mut()?
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        if crate::operations::previous(&tx, &actor, request_id, "cash-open", &hash)?.is_some() {
+            return cash_state(&tx);
+        }
         ensure(
             db::scalar(
                 &tx,
@@ -213,11 +255,30 @@ impl Engine {
         )?;
         let folio = db::folio(&tx, "cash", "CJ")?;
         tx.execute("INSERT INTO CashSession(Folio,UserId,OpenedAt,ClosedAt,OpeningCents,ExpectedCents,CountedCents,Notes) VALUES (?1,?2,?3,NULL,?4,NULL,NULL,'')",params![folio,actor.id,now,opening])?;
+        let id = tx.last_insert_rowid();
         db::audit(&tx, &now, Some(actor.id), "Abrir caja", &folio, "")?;
+        let result = cash_state(&tx)?;
+        crate::operations::receipt(
+            &tx,
+            &actor,
+            request_id,
+            "cash-open",
+            &hash,
+            &json!({"cashSessionId":id}),
+            &now,
+        )?;
         tx.commit()?;
-        self.cash_overview()
+        Ok(result)
     }
     pub fn cash_movement(&mut self, cents: i64, reason: &str) -> Result<Value> {
+        self.cash_movement_once(&uuid::Uuid::new_v4().to_string(), cents, reason)
+    }
+    pub fn cash_movement_once(
+        &mut self,
+        request_id: &str,
+        cents: i64,
+        reason: &str,
+    ) -> Result<Value> {
         let actor = self.actor("cash")?;
         let reason = text(reason, "Motivo", 300)?;
         ensure(
@@ -225,8 +286,14 @@ impl Engine {
             "VALIDATION",
             "Indica un importe válido distinto de cero.",
         )?;
+        let hash = crate::operations::fingerprint(&(cents, &reason))?;
         let now = self.now_string();
-        let tx = self.db_mut()?.transaction()?;
+        let tx = self
+            .db_mut()?
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        if crate::operations::previous(&tx, &actor, request_id, "cash-move", &hash)?.is_some() {
+            return cash_state(&tx);
+        }
         let id = open_cash(&tx)?;
         cash_move(
             &tx,
@@ -246,18 +313,42 @@ impl Engine {
             &id.to_string(),
             &reason,
         )?;
+        let result = cash_state(&tx)?;
+        crate::operations::receipt(
+            &tx,
+            &actor,
+            request_id,
+            "cash-move",
+            &hash,
+            &json!({"cashSessionId":id}),
+            &now,
+        )?;
         tx.commit()?;
-        self.cash_overview()
+        Ok(result)
     }
     pub fn cash_close(&mut self, counted: i64, notes: &str) -> Result<Value> {
+        self.cash_close_once(&uuid::Uuid::new_v4().to_string(), counted, notes)
+    }
+    pub fn cash_close_once(
+        &mut self,
+        request_id: &str,
+        counted: i64,
+        notes: &str,
+    ) -> Result<Value> {
         let actor = self.actor("cash")?;
         ensure(
             (0..=money::MAX_AMOUNT).contains(&counted) && notes.len() <= 1000,
             "VALIDATION",
             "Revisa el efectivo contado y las notas.",
         )?;
+        let hash = crate::operations::fingerprint(&(counted, notes))?;
         let now = self.now_string();
-        let tx = self.db_mut()?.transaction()?;
+        let tx = self
+            .db_mut()?
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        if crate::operations::previous(&tx, &actor, request_id, "cash-close", &hash)?.is_some() {
+            return cash_state(&tx);
+        }
         let id = open_cash(&tx)?;
         let expected = cash_balance(&tx, id)?;
         tx.execute("UPDATE CashSession SET ClosedAt=?1,ExpectedCents=?2,CountedCents=?3,Notes=?4 WHERE Id=?5",params![now,expected,counted,notes,id])?;
@@ -269,9 +360,20 @@ impl Engine {
             &id.to_string(),
             &format!("Diferencia: {} centavos", counted - expected),
         )?;
+        let result = cash_state(&tx)?;
+        crate::operations::receipt(
+            &tx,
+            &actor,
+            request_id,
+            "cash-close",
+            &hash,
+            &json!({"cashSessionId":id}),
+            &now,
+        )?;
         tx.commit()?;
-        self.cash_overview()
+        Ok(result)
     }
+
     pub fn checkout(&mut self, request: &Checkout) -> Result<Value> {
         let actor = self.actor("sell")?;
         ensure(
@@ -315,65 +417,12 @@ impl Engine {
         }
         let mut customer_id = request.customer_id;
         let charge = if let Some(id) = request.quote_id {
-            let quote = db::one(&tx, "SELECT * FROM Quote WHERE Id=?1", [id])?;
-            ensure(
-                quote["saleId"].is_null(),
-                "ALREADY_COMPLETED",
-                "Esta cotización ya se convirtió en venta.",
-            )?;
-            ensure(
-                quote["validUntil"]
-                    .as_str()
-                    .unwrap_or("")
-                    .get(..10)
-                    .unwrap_or("")
-                    >= today.as_str(),
-                "QUOTE_EXPIRED",
-                "La cotización venció. Revisa su vigencia antes de vender.",
-            )?;
             if customer_id.is_none() {
-                customer_id = quote["customerId"].as_i64();
+                customer_id =
+                    db::one(&tx, "SELECT CustomerId FROM Quote WHERE Id=?1", [id])?["customerId"]
+                        .as_i64();
             }
-            let mut lines = vec![];
-            for row in db::all(
-                &tx,
-                "SELECT * FROM QuoteLine WHERE QuoteId=?1 ORDER BY Id",
-                [id],
-            )? {
-                let p = catalog::product(&tx, row["productId"].as_i64().unwrap_or(0))?;
-                ensure(
-                    p.active,
-                    "PRODUCT_UNAVAILABLE",
-                    "La cotización contiene un producto archivado.",
-                )?;
-                lines.push(ChargeLine {
-                    product_id: p.id,
-                    sku: p.sku,
-                    name: row["name"].as_str().unwrap_or("").into(),
-                    category: p.category,
-                    unit: row["unit"].as_i64().unwrap_or(0),
-                    quantity_units: row["quantityUnits"].as_i64().unwrap_or(0),
-                    price_cents: row["priceCents"].as_i64().unwrap_or(0),
-                    cost_cents: p.cost_cents,
-                    tax_basis_points: row["taxBasisPoints"].as_i64().unwrap_or(0),
-                    total_cents: row["totalCents"].as_i64().unwrap_or(0),
-                    tax_cents: 0,
-                });
-            }
-            let total = lines.iter().map(|x| x.total_cents).sum();
-            let before = lines
-                .iter()
-                .map(|l| money::line_total(l.price_cents, l.quantity_units))
-                .collect::<Result<Vec<_>>>()?
-                .iter()
-                .sum::<i64>();
-            let vat = tax(&mut lines)?;
-            Charge {
-                lines,
-                total_cents: total,
-                tax_cents: vat,
-                discount_cents: before - total,
-            }
+            quote_charge(&tx, id, &today)?
         } else {
             calculate(&tx, &actor, &request.items, request.discount_parts)?
         };
@@ -526,4 +575,63 @@ impl Engine {
         )?;
         Ok(json!(items))
     }
+}
+
+fn quote_charge(db: &Connection, id: i64, today: &str) -> Result<Charge> {
+    let quote = db::one(db, "SELECT * FROM Quote WHERE Id=?1", [id])?;
+    ensure(
+        quote["saleId"].is_null(),
+        "ALREADY_COMPLETED",
+        "Esta cotización ya se convirtió en venta.",
+    )?;
+    ensure(
+        quote["validUntil"]
+            .as_str()
+            .unwrap_or("")
+            .get(..10)
+            .unwrap_or("")
+            >= today,
+        "QUOTE_EXPIRED",
+        "La cotización venció. Revisa su vigencia antes de vender.",
+    )?;
+    let mut lines = vec![];
+    for row in db::all(
+        db,
+        "SELECT * FROM QuoteLine WHERE QuoteId=?1 ORDER BY Id",
+        [id],
+    )? {
+        let p = catalog::product(db, row["productId"].as_i64().unwrap_or(0))?;
+        ensure(
+            p.active,
+            "PRODUCT_UNAVAILABLE",
+            "La cotización contiene un producto archivado.",
+        )?;
+        lines.push(ChargeLine {
+            product_id: p.id,
+            sku: p.sku,
+            name: row["name"].as_str().unwrap_or("").into(),
+            category: p.category,
+            unit: row["unit"].as_i64().unwrap_or(0),
+            quantity_units: row["quantityUnits"].as_i64().unwrap_or(0),
+            price_cents: row["priceCents"].as_i64().unwrap_or(0),
+            cost_cents: p.cost_cents,
+            tax_basis_points: row["taxBasisPoints"].as_i64().unwrap_or(0),
+            total_cents: row["totalCents"].as_i64().unwrap_or(0),
+            tax_cents: 0,
+        });
+    }
+    let total = lines.iter().map(|x| x.total_cents).sum();
+    let before = lines
+        .iter()
+        .map(|l| money::line_total(l.price_cents, l.quantity_units))
+        .collect::<Result<Vec<_>>>()?
+        .iter()
+        .sum::<i64>();
+    let vat = tax(&mut lines)?;
+    Ok(Charge {
+        lines,
+        total_cents: total,
+        tax_cents: vat,
+        discount_cents: before - total,
+    })
 }

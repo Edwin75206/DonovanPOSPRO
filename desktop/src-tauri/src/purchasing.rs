@@ -30,7 +30,7 @@ impl Engine {
         ensure(search.len() <= 300, "VALIDATION", "Acorta la búsqueda.")?;
         Ok(json!(db::all(
             self.db()?,
-            "SELECT p.*,s.Name AS SupplierName,u.Name AS UserName FROM Purchase p JOIN Supplier s ON s.Id=p.SupplierId JOIN User u ON u.Id=p.UserId WHERE p.Folio LIKE '%'||?1||'%' OR p.SupplierReference LIKE '%'||?1||'%' OR s.Name LIKE '%'||?1||'%' ORDER BY p.Id DESC LIMIT 1000",
+            "SELECT p.*,s.Name AS SupplierName,u.Name AS UserName,d.PaidFromCash,(d.PurchaseId IS NOT NULL) AS SourceExact FROM Purchase p JOIN Supplier s ON s.Id=p.SupplierId JOIN User u ON u.Id=p.UserId LEFT JOIN PurchaseDetails d ON d.PurchaseId=p.Id WHERE p.Folio LIKE '%'||?1||'%' OR p.SupplierReference LIKE '%'||?1||'%' OR s.Name LIKE '%'||?1||'%' ORDER BY p.Id DESC LIMIT 1000",
             [search.trim()]
         )?))
     }
@@ -38,7 +38,7 @@ impl Engine {
         self.actor("purchase")?;
         let db = self.db()?;
         Ok(
-            json!({"purchase":db::one(db,"SELECT p.*,s.Name AS SupplierName FROM Purchase p JOIN Supplier s ON s.Id=p.SupplierId WHERE p.Id=?1",[id])?,"lines":db::all(db,"SELECT l.*,p.Name,p.Sku,p.Unit FROM PurchaseLine l JOIN Product p ON p.Id=l.ProductId WHERE l.PurchaseId=?1 ORDER BY l.Id",[id])?}),
+            json!({"purchase":db::one(db,"SELECT p.*,s.Name AS SupplierName,d.PaidFromCash,(d.PurchaseId IS NOT NULL) AS SourceExact FROM Purchase p JOIN Supplier s ON s.Id=p.SupplierId LEFT JOIN PurchaseDetails d ON d.PurchaseId=p.Id WHERE p.Id=?1",[id])?,"lines":db::all(db,"SELECT l.*,COALESCE(x.ProductName,p.Name) AS Name,COALESCE(x.ProductSku,p.Sku) AS Sku,COALESCE(x.Unit,p.Unit) AS Unit,x.EnteredQuantityUnits,x.EnteredCostCents,x.ByPack,x.PackName,x.PackUnits,x.TotalCents FROM PurchaseLine l JOIN Product p ON p.Id=l.ProductId LEFT JOIN PurchaseLineDetails x ON x.PurchaseLineId=l.Id WHERE l.PurchaseId=?1 ORDER BY l.Id",[id])?}),
         )
     }
     pub fn receive_purchase(&mut self, input: PurchaseInput) -> Result<Value> {
@@ -83,6 +83,10 @@ impl Engine {
         let created_at = format!("{} {}", input.date, &now[11..]);
         tx.execute("INSERT INTO Purchase(SupplierId,Folio,SupplierReference,CreatedAt,UserId,TotalCents) VALUES (?1,?2,?3,?4,?5,0)",params![input.supplier_id,folio,reference,created_at,actor.id])?;
         let id = tx.last_insert_rowid();
+        tx.execute(
+            "INSERT INTO PurchaseDetails(PurchaseId,PaidFromCash) VALUES (?1,?2)",
+            params![id, input.paid_from_cash],
+        )?;
         let mut total = 0;
         for item in &input.items {
             let p = catalog::product(&tx, item.product_id)?;
@@ -143,6 +147,8 @@ impl Engine {
                 params![average, p.id],
             )?;
             tx.execute("INSERT INTO PurchaseLine(PurchaseId,ProductId,QuantityUnits,CostCents) VALUES (?1,?2,?3,?4)",params![id,p.id,units,cost])?;
+            let line_id = tx.last_insert_rowid();
+            tx.execute("INSERT INTO PurchaseLineDetails(PurchaseLineId,ProductName,ProductSku,Unit,EnteredQuantityUnits,EnteredCostCents,ByPack,PackName,PackUnits,TotalCents) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)", params![line_id,p.name,p.sku,p.unit,item.quantity_units,item.unit_cost_cents,item.by_pack,p.pack_name,p.pack_units,line_total])?;
         }
         tx.execute(
             "UPDATE Purchase SET TotalCents=?1 WHERE Id=?2",

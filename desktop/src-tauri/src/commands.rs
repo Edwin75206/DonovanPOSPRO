@@ -65,25 +65,41 @@ pub enum Request {
     Price {
         items: Vec<SaleItem>,
         discount_parts: i64,
+        #[serde(default)]
+        quote_id: Option<i64>,
+    },
+    CheckoutResult {
+        request_id: String,
     },
     Checkout(Checkout),
     Sale {
         id: i64,
+    },
+    Document(crate::documents::DocumentRequest),
+    ExportDocument(crate::documents::DocumentRequest),
+    Printers,
+    PrintDocument {
+        document: crate::documents::DocumentRequest,
+        printer: String,
     },
     Sales {
         from: String,
         to: String,
         page: i64,
     },
+    SalesPage(crate::history::SalesQuery),
     CashOverview,
     CashOpen {
+        request_id: String,
         opening_cents: i64,
     },
     CashMovement {
+        request_id: String,
         amount_cents: i64,
         reason: String,
     },
     CashClose {
+        request_id: String,
         counted_cents: i64,
         notes: String,
     },
@@ -103,6 +119,10 @@ pub enum Request {
         theme: String,
         reduced_motion: bool,
     },
+    Tutorial {
+        status: String,
+        step: i64,
+    },
     Dashboard {
         from: String,
         to: String,
@@ -117,6 +137,10 @@ pub enum Request {
         supplier: bool,
         search: String,
         archived: bool,
+    },
+    Contact {
+        supplier: bool,
+        id: i64,
     },
     SaveContact {
         supplier: bool,
@@ -148,7 +172,7 @@ pub enum Request {
         id: i64,
     },
     ReceivePurchase(crate::purchasing::PurchaseInput),
-    ReturnSale(crate::returns::ReturnInput),
+    ReturnSale(crate::returns::ReviewedReturn),
     DataOverview,
     VerifyDatabase,
     CreateBackup {
@@ -183,9 +207,24 @@ pub enum Request {
     ExportProducts {
         template: bool,
     },
+    SaveBusiness(crate::business::BusinessInput),
+    ChooseBusinessLogo,
 }
 fn dispatch(engine: &mut Engine, window: &tauri::WebviewWindow, request: Request) -> Result<Value> {
     match request {
+        Request::SaveBusiness(input) => engine.save_business(input),
+        Request::ChooseBusinessLogo => {
+            engine.actor("admin")?;
+            match rfd::FileDialog::new()
+                .set_parent(window)
+                .set_title("Selecciona el logotipo del negocio")
+                .add_filter("Imagen PNG o JPEG", &["png", "jpg", "jpeg"])
+                .pick_file()
+            {
+                Some(path) => engine.image_for_appearance(&path),
+                None => Ok(Value::Null),
+            }
+        }
         Request::Bootstrap => engine.bootstrap(),
         Request::RetryStorage => {
             engine.open_database()?;
@@ -218,20 +257,48 @@ fn dispatch(engine: &mut Engine, window: &tauri::WebviewWindow, request: Request
         Request::Price {
             items,
             discount_parts,
-        } => Ok(serde_json::to_value(engine.price(&items, discount_parts)?)?),
+            quote_id,
+        } => Ok(serde_json::to_value(engine.price_cart(
+            &items,
+            discount_parts,
+            quote_id,
+        )?)?),
+        Request::CheckoutResult { request_id } => engine.checkout_result(&request_id),
         Request::Checkout(request) => engine.checkout(&request),
         Request::Sale { id } => engine.sale(id),
+        Request::Document(input) => Ok(serde_json::to_value(engine.business_document(&input)?)?),
+        Request::ExportDocument(input) => {
+            engine.business_document(&input)?;
+            match rfd::FileDialog::new()
+                .set_parent(window)
+                .set_title("Guardar documento PDF")
+                .pick_folder()
+            {
+                Some(folder) => engine.export_document(&input, &folder),
+                None => Ok(Value::Null),
+            }
+        }
+        Request::Printers | Request::PrintDocument { .. } => Err(AppError::rule(
+            "UNEXPECTED",
+            "No pudimos iniciar la impresión.",
+        )),
         Request::Sales { from, to, page } => engine.sales(&from, &to, page),
+        Request::SalesPage(query) => engine.sales_page(query),
         Request::CashOverview => engine.cash_overview(),
-        Request::CashOpen { opening_cents } => engine.cash_open(opening_cents),
+        Request::CashOpen {
+            request_id,
+            opening_cents,
+        } => engine.cash_open_once(&request_id, opening_cents),
         Request::CashMovement {
+            request_id,
             amount_cents,
             reason,
-        } => engine.cash_movement(amount_cents, &reason),
+        } => engine.cash_movement_once(&request_id, amount_cents, &reason),
         Request::CashClose {
+            request_id,
             counted_cents,
             notes,
-        } => engine.cash_close(counted_cents, &notes),
+        } => engine.cash_close_once(&request_id, counted_cents, &notes),
         Request::Users => engine.users(),
         Request::SaveUser {
             id,
@@ -256,6 +323,7 @@ fn dispatch(engine: &mut Engine, window: &tauri::WebviewWindow, request: Request
             theme,
             reduced_motion,
         } => engine.preferences(&status, step, &theme, reduced_motion),
+        Request::Tutorial { status, step } => engine.tutorial(&status, step),
         Request::Dashboard { from, to } => engine.dashboard(&from, &to),
         Request::SaveAppearance {
             config,
@@ -282,6 +350,7 @@ fn dispatch(engine: &mut Engine, window: &tauri::WebviewWindow, request: Request
         Request::SaveContact { supplier, contact } => engine.save_contact(supplier, contact),
         Request::CustomerLedger { id } => engine.customer_ledger(id),
         Request::CreditPayment(input) => engine.credit_payment(input),
+        Request::Contact { supplier, id } => engine.contact(supplier, id),
         Request::Quotes { search } => engine.quotes(&search),
         Request::Quote { id } => engine.quote(id),
         Request::SaveQuote(input) => engine.save_quote(input),
@@ -292,7 +361,10 @@ fn dispatch(engine: &mut Engine, window: &tauri::WebviewWindow, request: Request
         Request::Purchases { search } => engine.purchases(&search),
         Request::Purchase { id } => engine.purchase(id),
         Request::ReceivePurchase(input) => engine.receive_purchase(input),
-        Request::ReturnSale(input) => engine.return_sale(input),
+        Request::ReturnSale(input) => engine.return_sale_checked(
+            input.input,
+            Some((input.expected_total_cents, input.expected_paid_refund_cents)),
+        ),
         Request::DataOverview => engine.data_overview(),
         Request::VerifyDatabase => engine.verify_database(),
         Request::CreateBackup { folder } => engine.create_backup(&PathBuf::from(folder)),
@@ -394,6 +466,8 @@ impl Request {
             }
             Self::CommitImport { .. } => "Importar Excel",
             Self::ExportProducts { .. } => "Exportar catálogo",
+            Self::Document(_) | Self::ExportDocument(_) => "Preparar documento",
+            Self::PrintDocument { .. } | Self::Printers => "Imprimir documento",
             Self::SaveAppearance { .. } => "Guardar apariencia",
             Self::CashOpen { .. } | Self::CashMovement { .. } | Self::CashClose { .. } => {
                 "Operación de caja"
@@ -407,14 +481,53 @@ pub async fn execute(
     state: tauri::State<'_, std::sync::Arc<AppState>>,
     window: tauri::WebviewWindow,
     request: Request,
+    context: Option<String>,
 ) -> Result<Value> {
     let state = state.inner().clone();
-    tauri::async_runtime::spawn_blocking(move||{
-   let mut guard=state.engine.lock().map_err(|_|AppError::rule("UNEXPECTED","Ocurrió un problema. Cierra y vuelve a abrir Donovan POS Pro."))?;
-   if guard.is_none()||(matches!(request,Request::RetryStorage)&&guard.as_ref().is_some_and(Result::is_err)){*guard=Some(Engine::open(&state.root).and_then(|mut engine|{if state.demo{engine.seed_demo()?;}Ok(engine)}));}
-   let engine=match guard.as_mut().expect("engine initialized"){Ok(engine)=>engine,Err(error)=>{if matches!(request,Request::Bootstrap|Request::RetryStorage){return Ok(json!({"storageError":error,"version":"2.0.0"}));}return Err(error.clone());}};
-   let operation=request.operation();let result=std::panic::catch_unwind(std::panic::AssertUnwindSafe(||dispatch(engine,&window,request))).unwrap_or_else(|_|Err(AppError::rule("UNEXPECTED","Ocurrió un problema y no pudimos completar esta operación. Puedes volver a intentarlo.")));
-   if let Err(error)=&result{engine.log_error("desktop",operation,error);if engine.startup_error.is_some(){let _=window.emit("storage-unavailable",());}}
-   result
- }).await.map_err(|_|AppError::rule("UNEXPECTED","No pudimos completar la operación. Intenta nuevamente."))?
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut guard = state.engine.lock().map_err(|_| AppError::rule("UNEXPECTED", "Ocurrió un problema. Cierra y vuelve a abrir Donovan POS Pro."))?;
+        if guard.is_none() || (matches!(request, Request::RetryStorage) && guard.as_ref().is_some_and(Result::is_err)) {
+            *guard = Some(Engine::open(&state.root).and_then(|mut engine| {
+                if state.demo { engine.seed_demo()?; }
+                Ok(engine)
+            }));
+        }
+        let engine = match guard.as_mut().expect("engine initialized") {
+            Ok(engine) => engine,
+            Err(error) => {
+                if matches!(request, Request::Bootstrap | Request::RetryStorage) {
+                    return Ok(json!({"storageError":error,"version":"2.0.0","uiContext":null}));
+                }
+                return Err(error.clone());
+            }
+        };
+        if !matches!(request,Request::Bootstrap|Request::RetryStorage){engine.check_ui_context(context.as_deref())?;}
+        let operation = request.operation();
+        if let Request::PrintDocument { document, printer } = &request {
+            let prepared = engine.business_document(document)?;
+            let printer = printer.clone();
+            drop(guard);
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                Ok(serde_json::to_value(crate::documents::printing::print(&prepared, &printer, None)?)?)
+            })).unwrap_or_else(|_| Err(AppError::rule("PRINT_FAILED", "No pudimos confirmar la impresión. Revisa la cola de Windows antes de volver a enviar el documento. La venta se conserva.")));
+            if let Err(error) = &result {
+                if let Ok(mut guard) = state.engine.lock() {
+                    if let Some(Ok(engine)) = guard.as_mut() { engine.log_error("desktop", operation, error); }
+                }
+            }
+            return result;
+        }
+        if matches!(request, Request::Printers) {
+            engine.actor("sell")?;
+            drop(guard);
+            return Ok(serde_json::to_value(crate::documents::printing::printers()?)?);
+        }
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| dispatch(engine, &window, request)))
+            .unwrap_or_else(|_| Err(AppError::rule("UNEXPECTED", "Ocurrió un problema y no pudimos completar esta operación. Puedes volver a intentarlo.")));
+        if let Err(error) = &result {
+            engine.log_error("desktop", operation, error);
+            if engine.startup_error.is_some() { let _ = window.emit("storage-unavailable", ()); }
+        }
+        result
+    }).await.map_err(|_| AppError::rule("UNEXPECTED", "No pudimos completar la operación. Intenta nuevamente."))?
 }

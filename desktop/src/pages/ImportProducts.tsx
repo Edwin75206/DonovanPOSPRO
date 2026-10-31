@@ -51,7 +51,7 @@ export function ImportProducts({
             ? 'Relaciona tus columnas y elige qué información actualizar.'
             : 'Carga tu catálogo sin capturar los productos uno por uno.'
       }
-      className="import-dialog"
+      className={`import-dialog ${book ? 'import-expanded' : ''}`}
     >
       <div className="import-step">
         <span className={!book ? 'active' : ''}>1. Archivo</span>

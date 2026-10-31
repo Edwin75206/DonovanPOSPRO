@@ -4,10 +4,11 @@ use rusqlite::{Connection, OpenFlags, Params, Row, types::ValueRef};
 use serde_json::{Map, Value, json};
 use std::{path::Path, time::Duration};
 
-pub const SCHEMA_VERSION: i64 = 3;
+pub const SCHEMA_VERSION: i64 = 4;
 pub const LEGACY_SCHEMA: &str = include_str!("../migrations/001_legacy.sql");
 const DESKTOP_SCHEMA: &str = include_str!("../migrations/002_desktop.sql");
 const APPEARANCE_SCHEMA: &str = include_str!("../migrations/003_appearance.sql");
+const DOCUMENTS_SCHEMA: &str = include_str!("../migrations/004_business_documents.sql");
 pub const LEGACY_LAST: &str = "20261030215746_BackupHistoryAndEmbeddedLogo";
 
 pub fn connect(path: &Path, readonly: bool) -> Result<Connection> {
@@ -82,6 +83,9 @@ pub fn compatible(db: &Connection) -> Result<i64> {
     }
     if version >= 3 {
         reference.execute_batch(APPEARANCE_SCHEMA)?;
+    }
+    if version >= 4 {
+        reference.execute_batch(DOCUMENTS_SCHEMA)?;
     }
     for name in reference.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'ProductSearch%' AND name NOT LIKE '__EF%'")?.query_map([], |r| r.get::<_,String>(0))? {
         let name = name?;
@@ -174,6 +178,10 @@ pub fn migrate(db: &mut Connection, now: &str) -> Result<()> {
         tx.execute_batch(APPEARANCE_SCHEMA)?;
         tx.execute("INSERT INTO NativeMigration VALUES (3,?1,'Apariencia personal versionada y fondo local por usuario')",[now])?;
     }
+    if current < 4 {
+        tx.execute_batch(DOCUMENTS_SCHEMA)?;
+        tx.execute("INSERT INTO NativeMigration VALUES (4,?1,'Presentación del negocio y detalle exacto de compras por empaque')", [now])?;
+    }
     tx.commit()?;
     integrity(db)
 }
@@ -204,6 +212,17 @@ pub fn integrity(db: &Connection) -> Result<()> {
     Ok(())
 }
 fn business_integrity(db: &Connection) -> Result<()> {
+    if schema(db)? >= 4 {
+        ensure(
+            scalar(
+                db,
+                "SELECT COUNT(*) FROM Purchase p JOIN PurchaseDetails d ON d.PurchaseId=p.Id WHERE p.TotalCents<>COALESCE((SELECT SUM(x.TotalCents) FROM PurchaseLine l JOIN PurchaseLineDetails x ON x.PurchaseLineId=l.Id WHERE l.PurchaseId=p.Id),0) OR (SELECT COUNT(*) FROM PurchaseLine WHERE PurchaseId=p.Id)<>(SELECT COUNT(*) FROM PurchaseLine l JOIN PurchaseLineDetails x ON x.PurchaseLineId=l.Id WHERE l.PurchaseId=p.Id)",
+                [],
+            )? == 0,
+            "INCONSISTENT_DATA",
+            "Una compra no coincide con sus importes originales. Conserva la base y solicita una revisión técnica.",
+        )?;
+    }
     // These checks also cover legacy records, without rewriting business amounts or history.
     let checks = [
         (
@@ -281,6 +300,10 @@ fn row_json(row: &Row<'_>) -> rusqlite::Result<Value> {
                     "discarded",
                     "wholesale",
                     "locked",
+                    "paidFromCash",
+                    "sourceExact",
+                    "byPack",
+                    "autoPrint",
                 ]
                 .contains(&key.as_str()) =>
             {

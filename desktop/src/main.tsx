@@ -6,6 +6,8 @@ import './dashboard.css';
 import './appearance.css';
 import './adaptive.css';
 import './business.css';
+import './records.css';
+import './documents.css';
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <App />

@@ -33,6 +33,8 @@ export interface Preferences {
   reducedMotion: boolean;
 }
 export interface Settings {
+  subtitle: string;
+  autoPrint: boolean;
   id: number;
   storeName: string;
   logoData: string | null;
@@ -52,6 +54,7 @@ export interface Settings {
   reducedMotion: boolean;
 }
 export interface Bootstrap {
+  uiContext: string | null;
   needsSetup: boolean;
   actor: Actor | null;
   settings: Settings | null;
@@ -64,6 +67,42 @@ export interface Bootstrap {
   storageError: UiFailure | null;
   databaseId?: string;
   sessionExpiresAt?: number | null;
+}
+export interface DocumentRequest {
+  kind: 'sale' | 'quote' | 'purchase';
+  id: number;
+  widthMm?: number;
+}
+export type DocumentDraw =
+  | {
+      type: 'text';
+      x: number;
+      y: number;
+      text: string;
+      size: number;
+      bold: boolean;
+      width: number;
+      color: number[];
+    }
+  | { type: 'rect'; x: number; y: number; width: number; height: number; color: number[] }
+  | { type: 'logo'; x: number; y: number; width: number; height: number };
+export interface BusinessDocument {
+  title: string;
+  kind: string;
+  pages: { width: number; height: number; margin: number; operations: DocumentDraw[] }[];
+  logoData: string | null;
+  warnings: string[];
+}
+export interface Printer {
+  name: string;
+  isDefault: boolean;
+  virtualPrinter: boolean;
+}
+export interface PrintJob {
+  jobId: number;
+  printer: string;
+  pages: number;
+  message: string;
 }
 export interface DashboardData {
   from: string;
@@ -163,10 +202,19 @@ export interface Sale {
   cancelled: boolean;
 }
 export interface SaleDetail {
+  creditBalanceCents: number;
   sale: Sale;
   lines: (ChargeLine & { id: number; returnedUnits: number; refundedCents: number })[];
   payments: Payment[];
-  returns: Record<string, unknown>[];
+  returns: {
+    id: number;
+    folio: string;
+    createdAt: string;
+    reason: string;
+    totalCents: number;
+    creditReductionCents: number;
+    refundMethod: number;
+  }[];
 }
 export interface Payment {
   method: number;
@@ -219,6 +267,7 @@ export interface CashMovement {
   reason: string;
 }
 export interface CashOverview {
+  movementCount: number;
   open: CashSession | null;
   expectedCents: number;
   movements: CashMovement[];
@@ -332,6 +381,103 @@ export class PosError extends Error {
     this.name = 'PosError';
   }
 }
+export interface Contact {
+  id: number;
+  name: string;
+  phone: string;
+  email: string;
+  address: string;
+  creditLimitCents: number;
+  active: boolean;
+  balanceCents?: number;
+}
+export interface CustomerLedger {
+  customer: Contact;
+  balanceCents: number;
+  entries: {
+    id: number;
+    createdAt: string;
+    saleFolio: string;
+    kind: string;
+    amountCents: number;
+    method: number | null;
+    reference: string;
+    userName: string;
+  }[];
+  sales: (Sale & { balanceCents: number; dueDate: string | null })[];
+}
+export interface Quote {
+  id: number;
+  folio: string;
+  createdAt: string;
+  validUntil: string;
+  customerId: number | null;
+  customerName: string;
+  notes: string;
+  totalCents: number;
+  taxCents: number;
+  saleId: number | null;
+  userId: number;
+}
+export interface QuoteDetail {
+  quote: Quote;
+  lines: {
+    id: number;
+    productId: number;
+    sku: string;
+    name: string;
+    unit: number;
+    quantityUnits: number;
+    priceCents: number;
+    totalCents: number;
+    taxBasisPoints: number;
+    stockUnits: number;
+    active: boolean;
+  }[];
+}
+export interface HeldSale {
+  id: number;
+  folio: string;
+  label: string;
+  userId: number;
+  userName: string;
+  customerId: number | null;
+  discountParts: number;
+  totalCents: number;
+  createdAt: string;
+  saleId: number | null;
+  discarded: boolean;
+}
+export interface Purchase {
+  id: number;
+  folio: string;
+  supplierId: number;
+  supplierName: string;
+  supplierReference: string;
+  createdAt: string;
+  totalCents: number;
+  paidFromCash: boolean | null;
+  sourceExact: boolean;
+  userName: string;
+}
+export interface PurchaseDetail {
+  purchase: Purchase;
+  lines: {
+    id: number;
+    productId: number;
+    name: string;
+    sku: string;
+    unit: number;
+    quantityUnits: number;
+    costCents: number;
+    enteredQuantityUnits: number | null;
+    enteredCostCents: number | null;
+    byPack: boolean | null;
+    packName: string | null;
+    packUnits: number | null;
+    totalCents: number | null;
+  }[];
+}
 export const normalizeError = (error: unknown): UiFailure => {
   if (error instanceof PosError) return error.failure;
   if (error && typeof error === 'object' && 'code' in error && 'message' in error)
@@ -345,6 +491,126 @@ export const normalizeError = (error: unknown): UiFailure => {
 };
 // This map is the frontend contract. Only named Rust services can access business data.
 export interface Calls {
+  document: [DocumentRequest, BusinessDocument];
+  exportDocument: [DocumentRequest, { path: string; bytes: number; pages: number } | null];
+  printers: [undefined, Printer[]];
+  printDocument: [{ document: DocumentRequest; printer: string }, PrintJob];
+  tutorial: [{ status: Preferences['tutorialStatus']; step: number }, Preferences];
+  chooseBusinessLogo: [undefined, { data: string } | null];
+  saveBusiness: [
+    Omit<
+      Settings,
+      | 'id'
+      | 'logoData'
+      | 'backupDirectory'
+      | 'automaticBackups'
+      | 'backupIntervalHours'
+      | 'darkMode'
+      | 'reducedMotion'
+    > & { logoAction: 'keep' | 'replace' | 'remove'; logoData: string | null },
+    Bootstrap,
+  ];
+  salesPage: [
+    {
+      from: string;
+      to: string;
+      search: string;
+      method: number | null;
+      status: string;
+      page: number;
+      sort: string;
+      descending: boolean;
+    },
+    {
+      items: (Sale & { refundedCents: number })[];
+      total: number;
+      totalCents: number;
+      refundedCents: number;
+      page: number;
+      pageSize: number;
+    },
+  ];
+  contact: [{ supplier: boolean; id: number }, Contact];
+  contacts: [{ supplier: boolean; search: string; archived: boolean }, Contact[]];
+  saveContact: [{ supplier: boolean; contact: Contact }, Contact];
+  customerLedger: [{ id: number }, CustomerLedger];
+  creditPayment: [
+    {
+      requestId: string;
+      customerId: number;
+      saleId: number;
+      amountCents: number;
+      method: number;
+      reference: string;
+    },
+    { balanceCents: number },
+  ];
+  quotes: [{ search: string }, Quote[]];
+  quote: [{ id: number }, QuoteDetail];
+  saveQuote: [
+    {
+      requestId: string;
+      id: number;
+      items: Item[];
+      customerId: number | null;
+      discountParts: number;
+      validUntil: string;
+      notes: string;
+    },
+    QuoteDetail,
+  ];
+  heldSales: [undefined, HeldSale[]];
+  heldSale: [
+    { id: number },
+    {
+      sale: HeldSale;
+      rows: { product: Product; quantityUnits: number; wholesale: boolean }[];
+      notices: string[];
+    },
+  ];
+  saveHeld: [
+    {
+      requestId: string;
+      id: number | null;
+      label: string;
+      items: Item[];
+      customerId: number | null;
+      discountParts: number;
+    },
+    HeldSale,
+  ];
+  discardHeld: [{ id: number }, { discarded: boolean }];
+  purchases: [{ search: string }, Purchase[]];
+  purchase: [{ id: number }, PurchaseDetail];
+  receivePurchase: [
+    {
+      requestId: string;
+      supplierId: number;
+      reference: string;
+      date: string;
+      items: { productId: number; quantityUnits: number; unitCostCents: number; byPack: boolean }[];
+      paidFromCash: boolean;
+    },
+    Purchase,
+  ];
+  returnSale: [
+    {
+      requestId: string;
+      saleId: number;
+      items: { saleLineId: number; quantityUnits: number }[];
+      reason: string;
+      method: number;
+      cancel: boolean;
+      expectedTotalCents: number;
+      expectedPaidRefundCents: number;
+    },
+    {
+      return: { id: number; folio: string; totalCents: number; creditReductionCents: number };
+      paidRefundCents: number;
+      cancelled: boolean;
+    },
+  ];
+  checkoutResult: [{ requestId: string }, SaleDetail | null];
   chooseImportFile: [undefined, ImportBook | null];
   importSheet: [{ sheet: string }, ImportBook];
   validateImport: [ImportOptions, ImportPreview];
@@ -403,14 +669,14 @@ export interface Calls {
   saveProduct: [Product, Product];
   adjustStock: [{ id: number; delta: number; reason: string }, Product];
   stockHistory: [{ id: number }, StockMovement[]];
-  price: [{ items: Item[]; discountParts: number }, Charge];
+  price: [{ items: Item[]; discountParts: number; quoteId?: number | null }, Charge];
   checkout: [Checkout, SaleDetail];
   sale: [{ id: number }, SaleDetail];
   sales: [{ from: string; to: string; page: number }, Sale[]];
   cashOverview: [undefined, CashOverview];
-  cashOpen: [{ openingCents: number }, CashOverview];
-  cashMovement: [{ amountCents: number; reason: string }, CashOverview];
-  cashClose: [{ countedCents: number; notes: string }, CashOverview];
+  cashOpen: [{ requestId: string; openingCents: number }, CashOverview];
+  cashMovement: [{ requestId: string; amountCents: number; reason: string }, CashOverview];
+  cashClose: [{ requestId: string; countedCents: number; notes: string }, CashOverview];
   users: [undefined, (Actor & { active: boolean })[]];
   saveUser: [
     {
@@ -429,17 +695,33 @@ export interface Calls {
     Preferences,
   ];
 }
+let uiContext: string | null = null;
 export async function api<K extends keyof Calls>(
   type: K,
   ...args: Calls[K][0] extends undefined ? [payload?: undefined] : [payload: Calls[K][0]]
 ): Promise<Calls[K][1]> {
+  const context = uiContext;
   try {
-    return await invoke('execute', {
+    const result = await invoke<Calls[K][1]>('execute', {
       request: args[0] === undefined ? { type } : { type, payload: args[0] },
+      context,
     });
+    if (context !== uiContext)
+      throw new PosError({
+        code: 'SESSION_CHANGED',
+        message: 'La sesión cambió. Vuelve a abrir esta operación desde tu cuenta.',
+        incidentId: crypto.randomUUID().slice(0, 8),
+        retryable: false,
+      });
+    if (result && typeof result === 'object' && 'uiContext' in result)
+      uiContext = typeof result.uiContext === 'string' ? result.uiContext : null;
+    return result;
   } catch (error) {
     const failure = normalizeError(error);
-    if (failure.code === 'SESSION_EXPIRED' || failure.code === 'SESSION_LOCKED')
+    if (
+      context === uiContext &&
+      (failure.code === 'SESSION_EXPIRED' || failure.code === 'SESSION_LOCKED')
+    )
       window.dispatchEvent(new CustomEvent('session-ended', { detail: failure }));
     throw new PosError(failure);
   }

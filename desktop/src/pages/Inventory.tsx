@@ -59,9 +59,11 @@ export const newProduct = (): Product => ({
 export function Inventory({
   actor,
   filters = {},
+  defaultTaxBasisPoints = 1600,
 }: {
   actor: Actor;
   filters?: Record<string, unknown>;
+  defaultTaxBasisPoints?: number;
 }) {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
@@ -239,7 +241,11 @@ export function Inventory({
               <RefreshCw size={16} />
             </Button>
             {editable && (
-              <Button onClick={() => setEditing(newProduct())}>
+              <Button
+                onClick={() =>
+                  setEditing({ ...newProduct(), taxBasisPoints: defaultTaxBasisPoints })
+                }
+              >
                 <Plus size={17} />
                 Nuevo producto
               </Button>

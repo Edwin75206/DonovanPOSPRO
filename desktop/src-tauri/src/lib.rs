@@ -20,5 +20,8 @@ pub mod returns;
 pub mod secure;
 pub mod storage;
 pub use engine::Engine;
+pub mod business;
+pub mod documents;
 pub mod exporting;
+pub mod history;
 pub mod importing;

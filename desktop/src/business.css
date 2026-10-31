@@ -614,6 +614,40 @@ fieldset:disabled select {
 .pos-dialog.import-dialog {
   max-width: min(70rem, calc(100vw - 2rem)) !important;
 }
+.pos-dialog.import-dialog.import-expanded {
+  width: min(70rem, calc(100vw - 2rem)) !important;
+}
+.data-grid .data-table th {
+  white-space: nowrap;
+}
+.stock-badge {
+  display: inline-flex;
+  padding: 0.3rem 0.6rem;
+  border-radius: 0.4rem;
+  white-space: nowrap;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+.stock-badge.normal {
+  color: var(--green);
+  background: var(--green-soft);
+}
+.stock-badge.empty {
+  color: var(--danger);
+  background: var(--red-soft);
+}
+.table-product strong,
+.table-product small {
+  display: block;
+}
+.table-product small {
+  font-size: 0.68rem;
+  color: var(--subtle);
+  margin-top: 0.3rem;
+}
+.data-grid .data-table td {
+  padding: 0.8rem 1rem;
+}
 .import-step {
   display: flex;
   align-items: center;

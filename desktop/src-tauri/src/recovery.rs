@@ -312,6 +312,7 @@ impl Engine {
             tx.execute("DELETE FROM UserSession", [])?;
             tx.execute("UPDATE User SET FailedAttempts=0,LockedUntil=NULL", [])?;
             tx.execute("UPDATE StoreSettings SET BackupDirectory=?1,PrinterName='',LogoPath=CASE WHEN LogoData IS NOT NULL THEN '' ELSE LogoPath END",[storage::display_path(&self.root.join("backups"))])?;
+            tx.execute("UPDATE StorePresentation SET AutoPrint=0", [])?;
             tx.execute("INSERT INTO AppMeta(Key,Value) VALUES ('lastLocalBackupAt','0') ON CONFLICT(Key) DO UPDATE SET Value='0'",[])?;
             tx.execute("INSERT INTO AppMeta(Key,Value) VALUES ('lastRestoreOperation',?1) ON CONFLICT(Key) DO UPDATE SET Value=excluded.Value",[plan_id])?;
             db::audit(

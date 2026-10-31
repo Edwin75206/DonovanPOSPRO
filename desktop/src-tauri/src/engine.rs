@@ -220,6 +220,7 @@ impl Engine {
             "SESSION_LOCKED",
             "La pantalla está bloqueada. Ingresa tu contraseña para continuar.",
         )?;
+        let last_seen = row["lastSeenAt"].as_i64().unwrap_or(0);
         let actor: Actor = serde_json::from_value(row)?;
         ensure(
             (0..=2).contains(&actor.role),
@@ -231,11 +232,27 @@ impl Engine {
             "FORBIDDEN",
             "Tu cuenta no tiene permiso para realizar esta operación. Solicita ayuda al administrador.",
         )?;
-        self.db()?.execute(
-            "UPDATE UserSession SET LastSeenAt=?1 WHERE TokenHash=?2",
-            rusqlite::params![self.now(), auth::digest(token)],
-        )?;
+        if self.now() > last_seen {
+            self.db()?.execute(
+                "UPDATE UserSession SET LastSeenAt=?1 WHERE TokenHash=?2",
+                rusqlite::params![self.now(), auth::digest(token)],
+            )?;
+        }
         Ok(actor)
+    }
+    /// Correlation only: this value cannot authenticate a user. It prevents a
+    /// queued command from acting on a different login or active database.
+    pub fn ui_context(&self) -> Option<String> {
+        self.session_token
+            .as_ref()
+            .map(|token| auth::digest(&format!("ui-context:{}:{token}", self.db_path.display())))
+    }
+    pub fn check_ui_context(&self, expected: Option<&str>) -> Result<()> {
+        ensure(
+            self.ui_context().as_deref() == expected,
+            "SESSION_CHANGED",
+            "La sesión cambió. Vuelve a abrir esta operación desde tu cuenta.",
+        )
     }
     pub fn bootstrap(&self) -> Result<Value> {
         let profile: Value = serde_json::from_str(include_str!(
@@ -243,11 +260,11 @@ impl Engine {
         ))?;
         if let Some(error) = &self.startup_error {
             return Ok(
-                json!({"storageError":error,"profile":profile,"version":"2.0.0","demo":self.demo}),
+                json!({"storageError":error,"profile":profile,"version":"2.0.0","demo":self.demo,"uiContext":self.ui_context()}),
             );
         }
         let setup = db::scalar(self.db()?, "SELECT COUNT(*) FROM User", [])? == 0;
-        let mut settings = db::all(self.db()?, "SELECT * FROM StoreSettings LIMIT 1", [])?
+        let mut settings = db::all(self.db()?, "SELECT s.*,COALESCE(p.Subtitle,'') AS Subtitle,COALESCE(p.AutoPrint,0) AS AutoPrint FROM StoreSettings s LEFT JOIN StorePresentation p ON p.StoreId=s.Id LIMIT 1", [])?
             .into_iter()
             .next();
         let actor = self.actor("sell").ok();
@@ -297,7 +314,7 @@ impl Engine {
             None
         };
         Ok(
-            json!({"needsSetup":setup,"settings":settings,"actor":actor,"preferences":preferences,"appearance":appearance,"profile":profile,"version":"2.0.0","demo":self.demo,"locked":locked,"storageError":null,"databaseId":database_id["value"],"sessionExpiresAt":expires}),
+            json!({"needsSetup":setup,"settings":settings,"actor":actor,"preferences":preferences,"appearance":appearance,"profile":profile,"version":"2.0.0","demo":self.demo,"locked":locked,"storageError":null,"databaseId":database_id["value"],"sessionExpiresAt":expires,"uiContext":self.ui_context()}),
         )
     }
     pub fn log_error(&self, module: &str, operation: &str, error: &AppError) {

@@ -27,4 +27,19 @@ La versión 1.0 WPF y sus pruebas permanecen en el repositorio como referencia f
 - Excel: asignación de columnas, revisión sin escritura, políticas explícitas de precio y existencia, transacción única e idempotencia. Se probaron duplicados, fórmulas, códigos numéricos, hoja dispersa fuera de límites y cambio de catálogo entre revisión y confirmación.
 - Exportación `.xlsx` conservando ceros iniciales y lectura posterior sin diferencias de precios o cantidades. La plantilla incluye instrucciones y el logotipo del negocio.
 
-Las pruebas de portabilidad anteriores corresponden al motor sobre carpetas aisladas. **No sustituyen la prueba pendiente de dos instalaciones reales con el instalador Windows.** Las pantallas de administración de datos e importación compilan; su revisión visual nativa, los módulos de interfaz restantes, la impresión y la validación final del instalador siguen en curso.
+Las pruebas de portabilidad anteriores corresponden al motor sobre carpetas aisladas. **No sustituyen la prueba pendiente de dos instalaciones reales con el instalador Windows.**
+
+## Operación de mostrador y documentos (31 de octubre de 2026)
+
+- Interfaz de clientes, proveedores, compras, crédito y abonos, cotizaciones, ventas suspendidas, historial y devoluciones conectada a servicios Rust. Los precios acordados de una cotización se muestran y cobran sin sustituirlos por el precio actual del catálogo.
+- La migración 4 conserva el desglose exacto de nuevas compras por empaque y agrega subtítulo comercial e impresión automática. Los registros históricos que no contienen ese desglose se identifican como tales.
+- Configuración del negocio, usuarios y permisos, tutorial opcional por perfil y avisos al salir con cambios pendientes integrados. La personalización individual no modifica el papel.
+- PDF nativo con tipografía incluida, texto seleccionable en español, logotipo transparente, tickets de 58/80 mm, cotizaciones y comprobantes de compra A4. Se revisaron visualmente los documentos y las cinco páginas de un ticket de 35 partidas largas.
+- Impresión mediante GDI y la cola de Windows verificada con Microsoft Print to PDF. El controlador imprime fuera del bloqueo de la base y no vuelve a ejecutar una venta. Esta prueba no representa una prueba en una impresora térmica física.
+- Exportación con nombres únicos y publicación del archivo completo sin sobrescribir documentos. Las impresoras virtuales usan la opción explícita Guardar PDF.
+- Aperturas, ingresos/egresos y cierres tienen referencias idempotentes. Se comprobó que un reintento no duplica dinero ni cierra una jornada abierta posteriormente.
+- El historial ordena en SQLite antes de paginar. Prueba con 62 ventas y permisos de otro usuario; se rechazan columnas de ordenamiento ajenas a la lista permitida.
+- Las respuestas y solicitudes en espera se vinculan a la sesión y a la base activa. Una respuesta de la cuenta anterior no entrega sus datos ni cierra la sesión nueva.
+- Suite completa del motor: 18 pruebas aprobadas antes del último ajuste de aislamiento de sesión. Después del ajuste se aprobaron las cuatro pruebas de seguridad, incluida la nueva prueba de solicitudes entre sesiones: 19 casos distintos comprobados. La interfaz tiene cinco pruebas aprobadas.
+
+Continúan pendientes los reportes y etiquetas, la revisión nativa completa de las pantallas recientes y la validación del instalador con dos instalaciones aisladas. La versión 2.0 todavía no se declara terminada.

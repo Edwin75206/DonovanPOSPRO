@@ -95,7 +95,7 @@ export function DataGrid<T extends { id?: number | string }>({
   return (
     <div className="data-grid">
       <div className="table-wrap">
-        <table>
+        <table className="data-table">
           <caption className="sr-only">{caption}</caption>
           <thead>
             {table.getHeaderGroups().map((group) => (

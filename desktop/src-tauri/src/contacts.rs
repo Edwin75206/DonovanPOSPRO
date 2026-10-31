@@ -41,6 +41,20 @@ pub struct CreditPayment {
     pub reference: String,
 }
 impl Engine {
+    pub fn contact(&self, supplier: bool, id: i64) -> Result<Value> {
+        self.actor(if supplier { "purchase" } else { "sell" })?;
+        let table = if supplier { "Supplier" } else { "Customer" };
+        let balance = if supplier {
+            "0"
+        } else {
+            "COALESCE((SELECT SUM(AmountCents) FROM CreditEntry WHERE CustomerId=c.Id),0)"
+        };
+        db::one(
+            self.db()?,
+            &format!("SELECT c.*,{balance} AS BalanceCents FROM {table} c WHERE Id=?1"),
+            [id],
+        )
+    }
     pub fn contacts(&self, supplier: bool, search: &str, archived: bool) -> Result<Value> {
         self.actor(if supplier { "purchase" } else { "sell" })?;
         ensure(search.len() <= 300, "VALIDATION", "Acorta la búsqueda.")?;

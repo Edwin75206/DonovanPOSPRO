@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useState, useRef } from 'react';
 import { listen } from '@tauri-apps/api/event';
+import { getCurrentWindow } from '@tauri-apps/api/window';
+import { toast } from 'sonner';
+import { requestWorkspaceLeave } from '@/lib/leaveGuard';
+import { hasActiveOperation } from '@/components/common';
 import { motion } from 'motion/react';
 import {
   ShoppingBasket,
@@ -19,6 +23,10 @@ import {
   Package,
   Settings,
   FolderOpen,
+  Users,
+  FileText,
+  ReceiptText,
+  Truck,
 } from 'lucide-react';
 import { Toaster } from 'sonner';
 import { api, type Bootstrap } from '@/lib/api';
@@ -30,15 +38,21 @@ import { Dashboard, type Navigate } from '@/pages/Dashboard';
 import { Appearance } from '@/pages/Appearance';
 import { Inventory } from '@/pages/Inventory';
 import { DataManager, RestoreDialog } from '@/pages/DataManager';
+import { Contacts } from '@/pages/Contacts';
+import { Quotes } from '@/pages/Quotes';
+import { Sales } from '@/pages/Sales';
+import { Purchases } from '@/pages/Purchases';
+import { Settings as SettingsPage } from '@/pages/Settings';
+import { HelpCenter, useTutorial } from '@/components/HelpCenter';
 import { Busy, Button, Modal, ErrorBoundary, reportError, Failure } from '@/components/common';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
 export default function App() {
   const [data, setData] = useState<Bootstrap | null>(null);
   const [initialError, setInitialError] = useState<ReturnType<typeof reportError> | null>(null);
-  const [help, setHelp] = useState(false);
   const [carts, setCarts] = useState<Record<string, Cart>>({});
   const [restore, setRestore] = useState(false);
+  const [quit, setQuit] = useState(false);
   const generation = useRef(0);
   const onSession = useCallback((next: Bootstrap) => {
     generation.current++;
@@ -66,6 +80,31 @@ export default function App() {
     [onSession],
   );
   const hasDraft = Object.values(carts).some((c) => c.rows.length > 0);
+  useEffect(() => {
+    let active = true;
+    let stop: (() => void) | undefined;
+    void getCurrentWindow()
+      .onCloseRequested((event) => {
+        event.preventDefault();
+        if (hasActiveOperation()) {
+          toast.info('Espera a que termine la operación antes de cerrar.');
+          return;
+        }
+        requestWorkspaceLeave(() => {
+          if (hasDraft) setQuit(true);
+          else void getCurrentWindow().destroy().catch(reportError);
+        });
+      })
+      .then((unlisten) => {
+        if (active) stop = unlisten;
+        else unlisten();
+      })
+      .catch(reportError);
+    return () => {
+      active = false;
+      stop?.();
+    };
+  }, [hasDraft]);
   useEffect(() => {
     bootstrap();
     window.addEventListener('session-ended', bootstrap);
@@ -143,7 +182,6 @@ export default function App() {
         onAppearance={(appearance) => setData({ ...data, appearance })}
         cart={cart}
         setCart={setCart}
-        onHelp={() => setHelp(true)}
       />
     );
   return (
@@ -157,21 +195,25 @@ export default function App() {
           onRestored={onDataChanged}
           hasDraft={hasDraft}
         />
+        <Toaster position="bottom-center" richColors closeButton duration={4500} />
         <Modal
-          open={help}
-          onClose={() => setHelp(false)}
-          title="Ayuda y tutoriales"
-          description="Un apoyo breve para tu jornada."
+          open={quit}
+          onClose={() => setQuit(false)}
+          title="Hay tickets sin guardar"
+          description="Vuelve al punto de venta y usa Guardar para continuarlos después. Las ventas ya cobradas están seguras."
         >
-          <div className="notice">
-            <p>
-              Para registrar una venta, abre caja, escanea el producto y presiona F8. El cobro se
-              confirma antes de imprimir; puedes reimprimir desde el historial sin duplicar una
-              venta.
-            </p>
+          <div className="dialog-actions">
+            <Button variant="outline" onClick={() => setQuit(false)}>
+              Volver al sistema
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void getCurrentWindow().destroy().catch(reportError)}
+            >
+              Salir y descartar borradores
+            </Button>
           </div>
         </Modal>
-        <Toaster position="bottom-center" richColors closeButton duration={4500} />
       </TooltipProvider>
     </VisualProvider>
   );
@@ -184,7 +226,6 @@ function Workspace({
   hasDraft,
   cart,
   setCart,
-  onHelp,
 }: {
   data: Bootstrap;
   onSession: (data: Bootstrap) => void;
@@ -193,8 +234,10 @@ function Workspace({
   hasDraft: boolean;
   cart: Cart;
   setCart: (value: Cart | ((v: Cart) => Cart)) => void;
-  onHelp: () => void;
 }) {
+  const tutorial = useTutorial(data);
+  const [help, setHelp] = useState(data.preferences?.tutorialStatus === 'pending');
+  const onHelp = useCallback(() => setHelp(true), []);
   const actor = data.actor!;
   const home = actor.role === 0 ? 'dashboard' : 'pos';
   const [page, setPage] = useState(home);
@@ -203,19 +246,22 @@ function Workspace({
   const visual = useVisual();
   const compact = visual.appearance.config.sidebar === 'compact';
   const navigate: Navigate = useCallback((next, params = {}) => {
-    setPage(next);
-    setFilters(params);
+    requestWorkspaceLeave(() => {
+      setPage(next);
+      setFilters(params);
+    });
   }, []);
   useEffect(() => {
     const goHome = () => navigate(home);
     const key = (e: KeyboardEvent) => {
+      if (document.body.classList.contains('driver-active')) return;
       if (e.key === 'F2' && !document.querySelector('[role=dialog]')) {
         e.preventDefault();
         navigate('pos');
       }
       if (e.key === 'F1') {
         e.preventDefault();
-        onHelp();
+        if (!document.querySelector('[role=dialog]') && !hasActiveOperation()) onHelp();
       }
     };
     window.addEventListener('go-home', goHome);
@@ -234,6 +280,10 @@ function Workspace({
     { id: 'pos', name: 'Punto de venta', icon: ShoppingBasket },
     { id: 'inventory', name: actor.role === 1 ? 'Productos' : 'Inventario', icon: Package },
     { id: 'cash', name: 'Caja', icon: Wallet },
+    { id: 'sales', name: 'Ventas', icon: ReceiptText },
+    { id: 'quotes', name: 'Cotizaciones', icon: FileText },
+    { id: 'customers', name: 'Clientes', icon: Users },
+    ...(actor.role !== 1 ? [{ id: 'purchases', name: 'Compras', icon: Truck }] : []),
     { id: 'appearance', name: 'Apariencia', icon: Palette },
     ...(actor.role === 0 ? [{ id: 'settings', name: 'Configuración', icon: Settings }] : []),
   ];
@@ -243,7 +293,12 @@ function Workspace({
     inventory: 'Productos e inventario',
     cash: 'Caja',
     appearance: 'Apariencia y personalización',
-    settings: 'Administración de datos',
+    settings: 'Configuración del negocio',
+    sales: 'Historial de ventas',
+    quotes: 'Cotizaciones',
+    customers: 'Clientes y cuentas',
+    purchases: 'Compras y proveedores',
+    suppliers: 'Proveedores',
   };
   let pageContent;
   switch (page) {
@@ -263,14 +318,59 @@ function Workspace({
           setCart={setCart}
           onCash={() => navigate('cash')}
           onSaved={() => {}}
+          onHistory={() => navigate('sales')}
+          onQuotes={() => navigate('quotes')}
         />
       );
       break;
     case 'inventory':
-      pageContent = <Inventory actor={actor} filters={filters} />;
+      pageContent = (
+        <Inventory
+          actor={actor}
+          filters={filters}
+          defaultTaxBasisPoints={data.settings?.defaultTaxBasisPoints}
+        />
+      );
       break;
     case 'cash':
       pageContent = <Cash />;
+      break;
+    case 'customers':
+    case 'credit':
+      pageContent = <Contacts actor={actor} />;
+      break;
+    case 'sales':
+      pageContent = <Sales data={data} filters={filters} />;
+      break;
+    case 'purchases':
+      pageContent =
+        actor.role !== 1 ? (
+          <Purchases data={data} onSuppliers={() => navigate('suppliers')} />
+        ) : (
+          <NotFound onHome={() => navigate(home)} />
+        );
+      break;
+    case 'suppliers':
+      pageContent =
+        actor.role !== 1 ? (
+          <Contacts actor={actor} supplier />
+        ) : (
+          <NotFound onHome={() => navigate(home)} />
+        );
+      break;
+    case 'quotes':
+      pageContent = (
+        <Quotes
+          data={data}
+          hasCart={cart.rows.length > 0}
+          onSale={() => navigate('pos')}
+          onLoad={(next) => {
+            if (cart.rows.length) return;
+            setCart(next);
+            navigate('pos');
+          }}
+        />
+      );
       break;
     case 'appearance':
       pageContent = <Appearance data={data} onSaved={onAppearance} />;
@@ -278,7 +378,13 @@ function Workspace({
     case 'settings':
       pageContent =
         actor.role === 0 ? (
-          <DataManager data={data} onChanged={onDataChanged} hasDraft={hasDraft} />
+          <SettingsPage
+            data={data}
+            onChanged={onDataChanged}
+            onSession={onSession}
+            hasDraft={hasDraft}
+            filters={filters}
+          />
         ) : (
           <NotFound onHome={() => navigate(home)} />
         );
@@ -288,6 +394,23 @@ function Workspace({
   }
   return (
     <div className={`app-shell ${compact ? 'compact' : ''}`}>
+      <HelpCenter
+        open={help}
+        data={data}
+        preferences={tutorial.preferences}
+        onClose={() => {
+          setHelp(false);
+          if (tutorial.preferences?.tutorialStatus === 'pending') tutorial.skip();
+        }}
+        onStart={(resume) =>
+          requestWorkspaceLeave(() => {
+            setPage(home);
+            setFilters({});
+            setHelp(false);
+            tutorial.start(resume);
+          })
+        }
+      />
       <aside className="sidebar" data-tour="navigation">
         <div className="business-identity">
           <Logo data={data} />
@@ -302,6 +425,7 @@ function Workspace({
             <Tooltip key={item.id}>
               <TooltipTrigger asChild>
                 <button
+                  data-tour={`nav-${item.id}`}
                   aria-label={item.name}
                   aria-current={page === item.id ? 'page' : undefined}
                   className={page === item.id ? 'active' : ''}
@@ -443,14 +567,26 @@ function Workspace({
         </Button>
         <Button
           variant="outline"
-          onClick={() => void api('lock').then(onSession).catch(reportError)}
+          onClick={() => {
+            if (hasActiveOperation()) {
+              toast.info('Espera a que termine la operación.');
+              return;
+            }
+            void api('lock').then(onSession).catch(reportError);
+          }}
         >
           <LockKeyhole size={16} />
           Bloquear pantalla
         </Button>
         <Button
           variant="outline"
-          onClick={() => void api('logout').then(onSession).catch(reportError)}
+          onClick={() => {
+            if (hasActiveOperation()) {
+              toast.info('Espera a que termine la operación.');
+              return;
+            }
+            void api('logout').then(onSession).catch(reportError);
+          }}
         >
           <LogOut size={16} />
           Cerrar sesión / cambiar de usuario

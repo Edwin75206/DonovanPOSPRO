@@ -23,8 +23,23 @@ pub struct ReturnInput {
     pub method: i64,
     pub cancel: bool,
 }
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewedReturn {
+    #[serde(flatten)]
+    pub input: ReturnInput,
+    pub expected_total_cents: i64,
+    pub expected_paid_refund_cents: i64,
+}
 impl Engine {
     pub fn return_sale(&mut self, input: ReturnInput) -> Result<Value> {
+        self.return_sale_checked(input, None)
+    }
+    pub fn return_sale_checked(
+        &mut self,
+        input: ReturnInput,
+        expected: Option<(i64, i64)>,
+    ) -> Result<Value> {
         let actor = self.actor("return")?;
         let reason = text(&input.reason, "Motivo", 300)?;
         let hash = operations::fingerprint(&input)?;
@@ -144,6 +159,13 @@ impl Engine {
             }
         }
         let paid_refund = total - credit_reduction;
+        ensure(
+            expected.is_none_or(|(expected_total, expected_paid)| {
+                expected_total == total && expected_paid == paid_refund
+            }),
+            "RETURN_CHANGED",
+            "La venta o su saldo cambió. Cierra esta revisión y vuelve a consultar los importes antes de devolver.",
+        )?;
         if paid_refund > 0 && input.method == 0 {
             let cash = commerce::open_cash(&tx)?;
             commerce::cash_move(

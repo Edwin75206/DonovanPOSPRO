@@ -562,6 +562,11 @@ impl Engine {
         let mut price_changes = 0;
         let mut stock_changes = 0;
         let mut added = 0;
+        let default_tax = db::scalar(
+            self.db()?,
+            "SELECT DefaultTaxBasisPoints FROM StoreSettings LIMIT 1",
+            [],
+        )?;
         for (row, cells) in &book.rows {
             let result: Result<(Product, i64, Option<Product>)> = (|| {
                 let sku = mapped(cells, &options, "sku")?
@@ -591,7 +596,14 @@ impl Engine {
                     "INVALID_ROW",
                     "La clave no existe. Selecciona agregar y actualizar para crearla.",
                 )?;
-                let (p, delta) = apply(cells, &options, before.clone().unwrap_or_default())?;
+                let (p, delta) = apply(
+                    cells,
+                    &options,
+                    before.clone().unwrap_or_else(|| Product {
+                        tax_basis_points: default_tax,
+                        ..Default::default()
+                    }),
+                )?;
                 if let Some(old) = &before {
                     if p.unit != old.unit {
                         ensure(

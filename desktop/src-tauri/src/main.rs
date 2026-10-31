@@ -63,7 +63,7 @@ fn main() {
                         .to_logical::<f64>(monitor.scale_factor());
                     window.set_size(tauri::LogicalSize::new(
                         1366f64.min(available.width - 16.),
-                        850f64.min(available.height - 16.),
+                        850f64.min((available.height - 64.).max(400.)),
                     ))?;
                     window.center()?;
                 }

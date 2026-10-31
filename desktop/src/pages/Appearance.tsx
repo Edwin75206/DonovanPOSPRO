@@ -24,6 +24,7 @@ import {
   type AppearanceState,
 } from '@/lib/appearance';
 import { Button, Field, Failure, PageTitle, useOperation } from '@/components/common';
+import { useLeaveGuard } from '@/lib/leaveGuard';
 const colors = [
   '#c82d2b',
   '#2565a9',
@@ -98,6 +99,7 @@ export function Appearance({
     JSON.stringify(c) !== JSON.stringify(source.config) ||
     draft.backgroundData !== source.backgroundData;
   const preview = themeTokens(c, previewDark);
+  const leaveGuard = useLeaveGuard(dirty);
   const preset = presets.find((p) => p.id === c.preset) ?? presets[0];
   const cancel = () => {
     setDraft(source);
@@ -126,6 +128,7 @@ export function Appearance({
     );
   return (
     <main className="page-scroll appearance-page">
+      {leaveGuard}
       <PageTitle
         eyebrow="CONFIGURACIÓN PERSONAL"
         title="Apariencia y personalización"

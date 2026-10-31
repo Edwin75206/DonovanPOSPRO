@@ -1,3 +1,4 @@
+import { PaymentForm } from './PaymentForm';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
@@ -10,7 +11,6 @@ import {
   ArrowRight,
   Check,
   ReceiptText,
-  Printer,
   Tag,
   SlidersHorizontal,
   ChevronLeft,
@@ -46,8 +46,10 @@ import {
   Empty,
 } from '@/components/common';
 import { money, quantity, units, parseScaled } from '@/lib/utils';
-import { Logo } from './Auth';
+import { DocumentDialog, autoPrintSale } from '@/components/DocumentViewer';
 import { toast } from 'sonner';
+import { CustomerPicker, SaveDraft, HeldSales } from './CartActions';
+import { useVisual } from '@/lib/appearance';
 export interface CartRow {
   product: Product;
   quantityUnits: number;
@@ -60,6 +62,8 @@ export interface Cart {
   customerId: number | null;
   quoteId: number | null;
   heldSaleId: number | null;
+  customerName: string | null;
+  sourceLabel: string | null;
 }
 export const freshCart = (): Cart => ({
   rows: [],
@@ -68,6 +72,8 @@ export const freshCart = (): Cart => ({
   customerId: null,
   quoteId: null,
   heldSaleId: null,
+  customerName: null,
+  sourceLabel: null,
 });
 export function ProductArt({ category }: { category: string }) {
   const Icon =
@@ -96,12 +102,16 @@ export function Register({
   setCart,
   onCash,
   onSaved,
+  onHistory,
+  onQuotes,
 }: {
   data: Bootstrap;
   cart: Cart;
   setCart: (value: Cart | ((v: Cart) => Cart)) => void;
   onCash: () => void;
   onSaved: () => void;
+  onHistory: () => void;
+  onQuotes: () => void;
 }) {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
@@ -122,6 +132,14 @@ export function Register({
   const [receipt, setReceipt] = useState(false);
   const [discount, setDiscount] = useState(false);
   const [highlight, setHighlight] = useState<number | null>(null);
+  const [customerPicker, setCustomerPicker] = useState(false);
+  const [saveDraft, setSaveDraft] = useState<'held' | 'quote' | null>(null);
+  const [held, setHeld] = useState(false);
+  const [clear, setClear] = useState(false);
+  const [showBreakdown, setShowBreakdown] = useState(false);
+  const [checkoutBusy, setCheckoutBusy] = useState(false);
+  const visual = useVisual();
+  const fixedQuote = cart.quoteId !== null;
   const searchRef = useRef<HTMLInputElement>(null);
   const queryId = useRef(0);
   const priceId = useRef(0);
@@ -162,8 +180,9 @@ export function Register({
       return;
     }
     setPricing(true);
+    setCharge(null);
     const timer = setTimeout(() => {
-      void api('price', { items, discountParts: cart.discountParts })
+      void api('price', { items, discountParts: cart.discountParts, quoteId: cart.quoteId })
         .then((result) => {
           if (current === priceId.current) {
             setCharge(result);
@@ -178,12 +197,21 @@ export function Register({
         });
     }, 80);
     return () => clearTimeout(timer);
-  }, [JSON.stringify(items), cart.discountParts]);
+  }, [JSON.stringify(items), cart.discountParts, cart.quoteId]);
   const add = useCallback(
     (product: Product) => {
+      if (fixedQuote) {
+        toast.info(
+          'Esta venta conserva las partidas de la cotización. Finalízala antes de iniciar otra.',
+        );
+        return;
+      }
       setCart((current) => {
         const existing = current.rows.find((x) => x.product.id === product.id);
-        const next = (existing?.quantityUnits ?? 0) + 10000;
+        const initial = [1, 2, 3].includes(product.unit)
+          ? Math.min(10000, product.stockUnits)
+          : 10000;
+        const next = (existing?.quantityUnits ?? 0) + initial;
         if (next > product.stockUnits) {
           toast.error(
             `Solo hay ${quantity(product.stockUnits)} ${units[product.unit]} disponibles.`,
@@ -196,14 +224,14 @@ export function Register({
             ? current.rows.map((x) =>
                 x.product.id === product.id ? { ...x, quantityUnits: next } : x,
               )
-            : [...current.rows, { product, quantityUnits: 10000, wholesale: false }],
+            : [...current.rows, { product, quantityUnits: initial, wholesale: false }],
         };
       });
       setHighlight(product.id);
       setTimeout(() => setHighlight(null), 240);
       searchRef.current?.focus();
     },
-    [setCart],
+    [setCart, fixedQuote],
   );
   const scan = useCallback(
     async (code: string) => {
@@ -235,7 +263,7 @@ export function Register({
     [add],
   );
   const beginCheckout = useCallback(async () => {
-    if (!cart.rows.length || checkout) return;
+    if (!cart.rows.length || checkout || pricing) return;
     if (!cash?.open) {
       toast.info('Abre la caja antes de cobrar.', {
         action: { label: 'Ir a caja', onClick: onCash },
@@ -251,6 +279,7 @@ export function Register({
           wholesale: r.wholesale,
         })),
         discountParts: cart.discountParts,
+        quoteId: cart.quoteId,
       });
       setCharge(current);
       setCheckout(true);
@@ -259,11 +288,16 @@ export function Register({
     } finally {
       setPricing(false);
     }
-  }, [cart, cash, checkout, onCash]);
+  }, [cart, cash, checkout, pricing, onCash]);
   useEffect(() => {
     let buffer = '';
     let last = 0;
     const key = (event: KeyboardEvent) => {
+      if (
+        document.querySelector('[role=dialog]') ||
+        document.body.classList.contains('driver-active')
+      )
+        return;
       if (event.key === 'F8') {
         event.preventDefault();
         void beginCheckout();
@@ -311,7 +345,11 @@ export function Register({
             <span className="eyebrow">VENTA DE MOSTRADOR</span>
             <h1>¿Qué vamos a llevar?</h1>
           </div>
-          <button className={`cash-status ${cash?.open ? 'online' : 'offline'}`} onClick={onCash}>
+          <button
+            data-tour="cash-status"
+            className={`cash-status ${cash?.open ? 'online' : 'offline'}`}
+            onClick={onCash}
+          >
             <span />
             {cash?.open ? 'Caja abierta' : 'Abrir caja'}
             <ArrowUpRight size={14} />
@@ -383,8 +421,8 @@ export function Register({
             <motion.button
               key={p.id}
               layout="position"
-              transition={{ duration: 0.16 }}
-              whileTap={{ scale: 0.985 }}
+              transition={{ duration: visual.duration }}
+              whileTap={{ scale: visual.duration ? 0.985 : 1 }}
               className={`product-card ${highlight === p.id ? 'just-added' : ''} ${p.stockUnits <= 0 ? 'out-of-stock' : ''}`}
               onClick={() => add(p)}
               disabled={p.stockUnits <= 0}
@@ -461,21 +499,33 @@ export function Register({
               className="icon-button"
               aria-label="Vaciar carrito"
               onClick={() => {
-                if (window.confirm('¿Vaciar este carrito? No se ha registrado ningún cobro.'))
-                  setCart(freshCart());
+                setClear(true);
               }}
             >
               <Trash2 size={17} />
             </button>
           )}
         </div>
-        <div className="customer-picker">
+        <button
+          className="customer-picker"
+          disabled={fixedQuote}
+          onClick={() => setCustomerPicker(true)}
+        >
           <span className="avatar small">PG</span>
           <div>
-            <b>Público en general</b>
-            <small>Cliente de mostrador</small>
+            <b>{cart.customerName || 'Público en general'}</b>
+            <small>
+              {fixedQuote
+                ? `Cotización ${cart.sourceLabel}`
+                : cart.customerId
+                  ? 'Cambiar cliente'
+                  : 'Seleccionar cliente'}
+            </small>
           </div>
-        </div>
+        </button>
+        {fixedQuote && (
+          <p className="quote-lock">Precios y cantidades acordados · {cart.sourceLabel}</p>
+        )}
         <div className="cart-rows">
           <AnimatePresence initial={false}>
             {cart.rows.map((row, index) => {
@@ -488,7 +538,7 @@ export function Register({
                   initial={{ opacity: 0, x: 12 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.16 }}
+                  transition={{ duration: visual.duration }}
                 >
                   <div className="cart-row-title">
                     <span>{String(index + 1).padStart(2, '0')}</span>
@@ -496,6 +546,7 @@ export function Register({
                     <button
                       aria-label={`Quitar ${row.product.name}`}
                       className="icon-button"
+                      disabled={fixedQuote}
                       onClick={() =>
                         setCart((c) => ({
                           ...c,
@@ -508,10 +559,13 @@ export function Register({
                   </div>
                   <div className="cart-row-price">
                     <span>
-                      {money(row.wholesale ? row.product.wholesaleCents : row.product.priceCents)} /{' '}
-                      {units[row.product.unit]}
+                      {money(
+                        line?.priceCents ??
+                          (row.wholesale ? row.product.wholesaleCents : row.product.priceCents),
+                      )}{' '}
+                      / {units[row.product.unit]}
                     </span>
-                    {can(data.actor!, 'discount') && (
+                    {can(data.actor!, 'discount') && !fixedQuote && (
                       <button
                         onClick={() =>
                           setCart((c) => ({
@@ -533,14 +587,22 @@ export function Register({
                     <div className="quantity-control">
                       <button
                         aria-label={`Restar ${row.product.name}`}
+                        disabled={fixedQuote}
                         onClick={() =>
-                          changeQty(row.product.id, Math.max(10000, row.quantityUnits - 10000))
+                          changeQty(
+                            row.product.id,
+                            Math.max(
+                              [0, 4, 5].includes(row.product.unit) ? 10000 : 1,
+                              row.quantityUnits - 10000,
+                            ),
+                          )
                         }
                       >
                         <Minus size={13} />
                       </button>
                       <input
                         type="number"
+                        disabled={fixedQuote}
                         min={0.0001}
                         max={100000000}
                         step={[0, 4, 5].includes(row.product.unit) ? 1 : 0.0001}
@@ -552,6 +614,7 @@ export function Register({
                       />
                       <button
                         aria-label={`Sumar ${row.product.name}`}
+                        disabled={fixedQuote}
                         onClick={() => changeQty(row.product.id, row.quantityUnits + 10000)}
                       >
                         <Plus size={13} />
@@ -578,12 +641,19 @@ export function Register({
         </div>
         <div className="cart-summary">
           <div className="cart-tools">
-            {can(data.actor!, 'discount') && (
+            {can(data.actor!, 'discount') && !fixedQuote && (
               <button onClick={() => setDiscount(!discount)}>
                 <Tag size={14} />
                 Descuento
               </button>
             )}
+            <button
+              className="breakdown-toggle"
+              onClick={() => setShowBreakdown(!showBreakdown)}
+              aria-expanded={showBreakdown}
+            >
+              Desglose
+            </button>
             <span>
               {cart.rows.length ? 'Revisa las cantidades antes de cobrar' : 'Venta local · MXN'}
             </span>
@@ -602,7 +672,7 @@ export function Register({
               />
             </Field>
           )}
-          <dl>
+          <dl className={showBreakdown ? 'breakdown-open' : ''}>
             <div>
               <dt>Subtotal sin IVA</dt>
               <dd>{money(total - (charge?.taxCents ?? 0))}</dd>
@@ -626,7 +696,7 @@ export function Register({
               key={total}
               initial={{ opacity: 0.6, y: 3 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.14 }}
+              transition={{ duration: visual.duration }}
             >
               {money(total)}
             </motion.strong>
@@ -634,7 +704,7 @@ export function Register({
           <Button
             className="checkout-button"
             onClick={() => void beginCheckout()}
-            disabled={!cart.rows.length || pricing}
+            disabled={!cart.rows.length || pricing || !charge}
             data-tour="checkout"
           >
             <span>
@@ -643,11 +713,34 @@ export function Register({
             </span>
             <kbd>F8</kbd>
           </Button>
+          <div className="cart-secondary-actions" data-tour="cart-tools">
+            <button
+              disabled={!cart.rows.length || fixedQuote || pricing || !charge}
+              onClick={() => setSaveDraft('held')}
+            >
+              <Pause size={14} /> Guardar
+            </button>
+            <button
+              disabled={!cart.rows.length || fixedQuote || pricing || !charge}
+              onClick={() => setSaveDraft('quote')}
+            >
+              <ReceiptText size={14} /> Cotizar
+            </button>
+            <button onClick={() => setHeld(true)}>
+              <History size={14} /> En espera
+            </button>
+          </div>
+          <div className="cart-links">
+            <button onClick={onHistory}>Historial de ventas</button>
+            <button onClick={onQuotes}>Mis cotizaciones</button>
+          </div>
         </div>
       </section>
       <Modal
         open={checkout && !!charge}
-        onClose={() => setCheckout(false)}
+        onClose={() => {
+          if (!checkoutBusy) setCheckout(false);
+        }}
         title="Un paso más y queda listo."
         description="Revisa el importe y registra cómo pagó el cliente."
         className="checkout-dialog"
@@ -656,16 +749,87 @@ export function Register({
           <PaymentForm
             charge={charge}
             cart={cart}
+            allowCredit={can(data.actor!, 'credit')}
+            onBusy={setCheckoutBusy}
             onSuccess={(sale) => {
               setCheckout(false);
               setLastSale(sale);
               setCart(freshCart());
+              autoPrintSale(data, sale.sale.id);
               void fetchProducts();
               void api('cashOverview').then(setCash).catch(reportError);
               onSaved();
             }}
           />
         )}
+      </Modal>
+      {customerPicker && (
+        <CustomerPicker
+          actor={data.actor!}
+          onClose={() => setCustomerPicker(false)}
+          onSelect={(customer) => {
+            setCart((c) => ({
+              ...c,
+              customerId: customer?.id ?? null,
+              customerName: customer?.name ?? null,
+            }));
+            setCustomerPicker(false);
+          }}
+        />
+      )}
+      {saveDraft && (
+        <SaveDraft
+          cart={cart}
+          kind={saveDraft}
+          onClose={() => setSaveDraft(null)}
+          onSaved={() => {
+            const kind = saveDraft;
+            setSaveDraft(null);
+            setCart(freshCart());
+            if (kind === 'quote') onQuotes();
+            else searchRef.current?.focus();
+          }}
+        />
+      )}
+      {held && (
+        <HeldSales
+          actor={data.actor!}
+          hasCart={cart.rows.length > 0}
+          onClose={() => setHeld(false)}
+          onLoad={(next) => {
+            setCart(next);
+            setHeld(false);
+            toast.success('Venta recuperada. Revisa el ticket antes de cobrar.');
+          }}
+        />
+      )}
+      <Modal
+        open={clear}
+        onClose={() => setClear(false)}
+        title="¿Vaciar el ticket actual?"
+        description={
+          fixedQuote
+            ? 'La cotización se conserva y podrás recuperarla después.'
+            : cart.heldSaleId
+              ? 'La venta guardada se conserva con sus últimos datos guardados.'
+              : 'Se quitarán estas partidas del carrito.'
+        }
+      >
+        <div className="dialog-actions">
+          <Button variant="outline" onClick={() => setClear(false)}>
+            Conservar ticket
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={() => {
+              setCart(freshCart());
+              setClear(false);
+              searchRef.current?.focus();
+            }}
+          >
+            Vaciar ticket
+          </Button>
+        </div>
       </Modal>
       <Modal
         open={!!lastSale && !receipt}
@@ -693,7 +857,7 @@ export function Register({
               <Button
                 onClick={() => {
                   setLastSale(null);
-                  searchRef.current?.focus();
+                  requestAnimationFrame(() => searchRef.current?.focus());
                 }}
               >
                 Siguiente venta
@@ -703,216 +867,17 @@ export function Register({
           </>
         )}
       </Modal>
-      <Modal
-        open={receipt && !!lastSale}
-        onClose={() => {
-          setReceipt(false);
-          setLastSale(null);
-          searchRef.current?.focus();
-        }}
-        title="Comprobante de venta"
-        description="La venta ya está guardada. Reimprimir no genera otro cobro."
-        className="receipt-dialog"
-      >
-        {lastSale && (
-          <>
-            <Ticket data={data} detail={lastSale} />
-            <Button
-              className="no-print"
-              onClick={() => {
-                try {
-                  window.print();
-                } catch {
-                  toast.error(
-                    'No pudimos imprimir el ticket. La venta sí se guardó correctamente.',
-                  );
-                }
-              }}
-            >
-              <Printer size={17} />
-              Imprimir
-            </Button>
-          </>
-        )}
-      </Modal>
-    </div>
-  );
-}
-function PaymentForm({
-  charge,
-  cart,
-  onSuccess,
-}: {
-  charge: Charge;
-  cart: Cart;
-  onSuccess: (sale: SaleDetail) => void;
-}) {
-  const [method, setMethod] = useState(0);
-  const [received, setReceived] = useState(String(charge.totalCents / 100));
-  const [reference, setReference] = useState('');
-  const op = useOperation();
-  const change = parseScaled(received) - charge.totalCents;
-  return (
-    <form
-      className="payment-layout"
-      onSubmit={(e) => {
-        e.preventDefault();
-        const request: Checkout = {
-          requestId: cart.requestId,
-          items: cart.rows.map((r) => ({
-            productId: r.product.id,
-            quantityUnits: r.quantityUnits,
-            wholesale: r.wholesale,
-          })),
-          payments: [{ method, amountCents: charge.totalCents, reference }],
-          tenderedCents: method === 0 ? parseScaled(received) : 0,
-          discountParts: cart.discountParts,
-          customerId: cart.customerId,
-          dueDate: null,
-          quoteId: cart.quoteId,
-          heldSaleId: cart.heldSaleId,
-        };
-        void op.run(() => api('checkout', request), onSuccess);
-      }}
-    >
-      <section className="payment-overview">
-        <span className="eyebrow">TOTAL DE LA VENTA</span>
-        <h2>{money(charge.totalCents)}</h2>
-        <p>{cart.rows.length} partidas · IVA incluido</p>
-        <div className="payment-items">
-          {charge.lines.map((l) => (
-            <div key={l.productId}>
-              <span>
-                {quantity(l.quantityUnits)} × {l.name}
-              </span>
-              <b>{money(l.totalCents)}</b>
-            </div>
-          ))}
-        </div>
-        <div className="payment-safe">
-          <ShieldCheck size={18} />
-          <span>La venta se confirma al registrar el pago.</span>
-        </div>
-      </section>
-      <section className="payment-fields">
-        <span className="field-label">Método de pago</span>
-        <div className="payment-methods">
-          {['Efectivo', 'Tarjeta', 'Transferencia'].map((name, i) => (
-            <button
-              type="button"
-              className={method === i ? 'active' : ''}
-              key={name}
-              onClick={() => setMethod(i)}
-            >
-              {name}
-              {method === i && <Check size={14} />}
-            </button>
-          ))}
-        </div>
-        {method === 0 ? (
-          <>
-            <Field label="Efectivo recibido">
-              <div className="money-input">
-                <span>$</span>
-                <input
-                  autoFocus
-                  type="number"
-                  min={charge.totalCents / 100}
-                  step="0.01"
-                  required
-                  value={received}
-                  onFocus={(e) => e.currentTarget.select()}
-                  onChange={(e) => setReceived(e.target.value)}
-                />
-                <span>MXN</span>
-              </div>
-            </Field>
-            <button
-              type="button"
-              className="text-button"
-              onClick={() => setReceived(String(charge.totalCents / 100))}
-            >
-              Importe exacto
-            </button>
-            <div className={`change-banner ${change < 0 ? 'negative' : ''}`}>
-              <span>{change < 0 ? 'Falta por recibir' : 'Cambio'}</span>
-              <b>{money(Math.abs(change))}</b>
-            </div>
-          </>
-        ) : (
-          <Field label="Referencia (opcional)">
-            <input
-              value={reference}
-              onChange={(e) => setReference(e.target.value)}
-              placeholder="Folio de la operación"
-              maxLength={200}
-            />
-          </Field>
-        )}
-        <Failure error={op.error} />
-        <Button type="submit" className="wide" disabled={op.busy || (method === 0 && change < 0)}>
-          {op.busy ? 'Registrando venta…' : 'Confirmar pago'}
-          <Check size={18} />
-        </Button>
-        <p className="payment-hint">Si la impresión falla, podrás reimprimir desde el historial.</p>
-      </section>
-    </form>
-  );
-}
-export function Ticket({ data, detail }: { data: Bootstrap; detail: SaleDetail }) {
-  return (
-    <div className="ticket-paper" style={{ width: `${data.settings?.ticketWidthMm ?? 80}mm` }}>
-      <Logo data={data} />
-      <h3>{data.settings?.storeName}</h3>
-      <p>
-        {data.settings?.address}
-        <br />
-        {data.settings?.phone}
-      </p>
-      <p>
-        <b>{detail.sale.folio}</b>
-        <br />
-        {detail.sale.createdAt}
-        <br />
-        Atendió: {detail.sale.cashier}
-        <br />
-        {detail.sale.customerName}
-      </p>
-      <hr />
-      {detail.lines.map((l) => (
-        <div className="ticket-line" key={l.id}>
-          <strong>{l.name}</strong>
-          <span>
-            {quantity(l.quantityUnits)} × {money(l.priceCents)}
-          </span>
-          <b>{money(l.totalCents)}</b>
-        </div>
-      ))}
-      <hr />
-      <div className="ticket-total">
-        <b>TOTAL</b>
-        <b>{money(detail.sale.totalCents)}</b>
-      </div>
-      <div className="ticket-total">
-        <span>IVA incluido</span>
-        <span>{money(detail.sale.taxCents)}</span>
-      </div>
-      {detail.payments.map((p, i) => (
-        <div className="ticket-total" key={i}>
-          <span>{['Efectivo', 'Tarjeta', 'Transferencia', 'Crédito'][p.method]}</span>
-          <span>{money(p.amountCents)}</span>
-        </div>
-      ))}
-      <div className="ticket-total">
-        <span>Cambio</span>
-        <span>{money(detail.sale.changeCents)}</span>
-      </div>
-      <hr />
-      <p>
-        {data.settings?.ticketFooter}
-        <br />
-        <small>Comprobante de venta · No es CFDI</small>
-      </p>
+      {receipt && lastSale && (
+        <DocumentDialog
+          data={data}
+          request={{ kind: 'sale', id: lastSale.sale.id }}
+          onClose={() => {
+            setReceipt(false);
+            setLastSale(null);
+            requestAnimationFrame(() => searchRef.current?.focus());
+          }}
+        />
+      )}
     </div>
   );
 }

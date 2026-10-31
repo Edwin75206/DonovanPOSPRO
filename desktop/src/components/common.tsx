@@ -1,4 +1,4 @@
-import { Component, useState, type ReactNode } from 'react';
+import { Component, useRef, useState, type ReactNode } from 'react';
 import {
   AlertCircle,
   ArrowRight,
@@ -13,26 +13,36 @@ import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { normalizeError, type UiFailure } from '@/lib/api';
 export { Button };
+let activeOperations = 0;
+export const hasActiveOperation = () => activeOperations > 0;
 export function reportError(error: unknown) {
   const e = normalizeError(error);
   toast.error(e.message, { description: `Referencia ${e.incidentId}`, duration: 7000 });
   return e;
 }
 export function useOperation() {
+  const inFlight = useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<UiFailure | null>(null);
   async function run<T>(action: () => Promise<T>, success?: (result: T) => void) {
-    if (busy) return;
+    if (inFlight.current) return;
+    inFlight.current = true;
+    activeOperations++;
+    let counted = true;
     setBusy(true);
     setError(null);
     try {
       const result = await action();
+      activeOperations--;
+      counted = false;
       success?.(result);
       return result;
     } catch (e) {
       setError(normalizeError(e));
       return undefined;
     } finally {
+      inFlight.current = false;
+      if (counted) activeOperations--;
       setBusy(false);
     }
   }

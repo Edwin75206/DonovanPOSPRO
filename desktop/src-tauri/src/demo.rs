@@ -232,14 +232,30 @@ impl Engine {
                 tendered_cents: if i % 3 == 0 { 0 } else { price },
                 ..Default::default()
             })?;
+            let clock_text = self.now_string();
+            let seconds_today = clock_text[11..13].parse::<i64>().unwrap_or(0) * 3600
+                + clock_text[14..16].parse::<i64>().unwrap_or(0) * 60
+                + clock_text[17..19].parse::<i64>().unwrap_or(0);
             let time = crate::engine::stamp(
-                self.now() - (6 - (i / 3)) as i64 * 86400 - (i % 3) as i64 * 3600,
+                self.now()
+                    - (5 - i / 3) as i64 * 86400
+                    - (2 - i % 3) as i64 * 300.min(seconds_today / 2),
             );
             self.db()?.execute(
                 "UPDATE Sale SET CreatedAt=?1 WHERE Id=?2",
                 rusqlite::params![time, sale["sale"]["id"].as_i64()],
             )?;
+            let folio = sale["sale"]["folio"].as_str().unwrap_or("");
+            self.db()?.execute(
+                "UPDATE CashMovement SET CreatedAt=?1 WHERE Reference=?2",
+                rusqlite::params![time, folio],
+            )?;
+            self.db()?.execute(
+                "UPDATE StockMovement SET CreatedAt=?1 WHERE Reference=?2",
+                rusqlite::params![time, folio],
+            )?;
         }
+        self.db()?.execute("UPDATE CashSession SET OpenedAt=(SELECT MIN(CreatedAt) FROM Sale) WHERE ClosedAt IS NULL",[])?;
         Ok(())
     }
     pub fn demo_login(&mut self, role: i64) -> Result<Value> {

@@ -299,7 +299,10 @@ fn legacy_database_is_copied_migrated_and_keeps_original_accounts_and_file() {
         .confirm_recovery(plan["planId"].as_str().unwrap(), "admin", ADMIN_PASSWORD)
         .unwrap();
     assert_eq!(storage::hash_file(&legacy).unwrap(), before);
-    assert_eq!(db::schema(target.db().unwrap()).unwrap(), 3);
+    assert_eq!(
+        db::schema(target.db().unwrap()).unwrap(),
+        db::SCHEMA_VERSION
+    );
     assert_eq!(
         db::scalar(
             target.db().unwrap(),

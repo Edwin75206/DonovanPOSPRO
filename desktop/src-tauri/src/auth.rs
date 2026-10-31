@@ -223,7 +223,9 @@ impl Engine {
         if let Some(mut token) = self.session_token.take() {
             token.zeroize();
         }
-        secure::remove(&self.session_path())?;
+        if let Err(error) = secure::remove(&self.session_path()) {
+            self.log_error("security", "Cerrar archivo de sesión", &error);
+        }
         self.bootstrap()
     }
     pub fn lock_screen(&mut self) -> Result<Value> {
@@ -341,6 +343,20 @@ impl Engine {
         )?;
         tx.commit()?;
         Ok(json!({"saved":true,"reauthenticate":id==actor.id}))
+    }
+    pub fn tutorial(&mut self, status: &str, step: i64) -> Result<Value> {
+        let actor = self.actor("sell")?;
+        let preferences = db::one(
+            self.db()?,
+            "SELECT * FROM UserPreferences WHERE UserId=?1",
+            [actor.id],
+        )?;
+        self.preferences(
+            status,
+            step,
+            preferences["theme"].as_str().unwrap_or("system"),
+            preferences["reducedMotion"] == true,
+        )
     }
     pub fn preferences(
         &mut self,

@@ -1,0 +1,22 @@
+CREATE TABLE StorePresentation (
+ StoreId INTEGER PRIMARY KEY REFERENCES StoreSettings(Id) ON DELETE CASCADE,
+ Subtitle TEXT NOT NULL DEFAULT '',
+ AutoPrint INTEGER NOT NULL DEFAULT 0 CHECK(AutoPrint IN (0,1))
+);
+CREATE TABLE PurchaseDetails (
+ PurchaseId INTEGER PRIMARY KEY REFERENCES Purchase(Id) ON DELETE RESTRICT,
+ PaidFromCash INTEGER NOT NULL CHECK(PaidFromCash IN (0,1))
+);
+CREATE TABLE PurchaseLineDetails (
+ PurchaseLineId INTEGER PRIMARY KEY REFERENCES PurchaseLine(Id) ON DELETE RESTRICT,
+ ProductName TEXT NOT NULL,
+ ProductSku TEXT NOT NULL,
+ Unit INTEGER NOT NULL CHECK(Unit BETWEEN 0 AND 5),
+ EnteredQuantityUnits INTEGER NOT NULL CHECK(EnteredQuantityUnits>0),
+ EnteredCostCents INTEGER NOT NULL CHECK(EnteredCostCents>=0),
+ ByPack INTEGER NOT NULL CHECK(ByPack IN (0,1)),
+ PackName TEXT NOT NULL,
+ PackUnits INTEGER NOT NULL CHECK(PackUnits>0),
+ TotalCents INTEGER NOT NULL CHECK(TotalCents>=0)
+);
+PRAGMA user_version=4;

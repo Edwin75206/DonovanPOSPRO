@@ -1,34 +1,49 @@
 import { useEffect, useState } from 'react';
-import { Wallet, ArrowDownLeft, ArrowUpRight, Check, Plus, LockKeyhole } from 'lucide-react';
-import { api, type CashOverview } from '@/lib/api';
 import {
-  Button,
-  PageTitle,
-  Field,
-  Modal,
-  Failure,
-  useOperation,
-  reportError,
-  Empty,
-} from '@/components/common';
-import { money, parseScaled } from '@/lib/utils';
+  Wallet,
+  ArrowDownLeft,
+  ArrowUpRight,
+  Check,
+  Plus,
+  LockKeyhole,
+  RefreshCw,
+} from 'lucide-react';
+import { api, normalizeError, type CashOverview, type UiFailure } from '@/lib/api';
+import { Button, PageTitle, Field, Modal, Failure, useOperation, Empty } from '@/components/common';
+import { money, parseScaled, dateTime } from '@/lib/utils';
+import { DataGrid } from '@/components/DataGrid';
 export function Cash() {
   const [data, setData] = useState<CashOverview | null>(null);
   const [modal, setModal] = useState<'open' | 'move' | 'close' | null>(null);
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
+  const [requestId, setRequestId] = useState(() => crypto.randomUUID());
+  const [kind, setKind] = useState<'in' | 'out'>('in');
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<UiFailure | null>(null);
   const op = useOperation();
-  useEffect(() => {
-    void api('cashOverview').then(setData).catch(reportError);
-  }, []);
+  const refresh = () => {
+    setLoading(true);
+    setLoadError(null);
+    void api('cashOverview')
+      .then(setData)
+      .catch((error) => {
+        setLoadError(normalizeError(error));
+        setData(null);
+      })
+      .finally(() => setLoading(false));
+  };
+  useEffect(refresh, []);
   const open = (action: typeof modal) => {
     setModal(action);
     setAmount('');
     setReason('');
+    setRequestId(crypto.randomUUID());
+    setKind('in');
     op.setError(null);
   };
   return (
-    <div className="page-scroll">
+    <div className="page-scroll page-container">
       <PageTitle
         eyebrow="EFECTIVO Y JORNADA"
         title="Cada peso, en su lugar."
@@ -46,17 +61,24 @@ export function Cash() {
               </Button>
             </>
           ) : (
-            <Button onClick={() => open('open')}>
+            <Button disabled={loading || !data} onClick={() => open('open')}>
               <Wallet size={17} />
               Abrir caja
             </Button>
           )
         }
       />
-      <div className="cash-summary-grid">
+      <div className="records-toolbar">
+        <Button variant="outline" disabled={loading} onClick={refresh}>
+          <RefreshCw size={16} />
+          {loading ? 'Actualizando caja…' : 'Actualizar caja'}
+        </Button>
+      </div>
+      <Failure error={loadError} retry={refresh} />
+      <div className="cash-summary-grid" aria-busy={loading}>
         <div className="cash-main-card">
           <span>EFECTIVO ESPERADO</span>
-          <h2>{money(data?.expectedCents)}</h2>
+          <h2>{data ? money(data.expectedCents) : '—'}</h2>
           <p>
             {data?.open ? `${data.open.folio} · Abierta ${data.open.openedAt}` : 'Sin caja abierta'}
           </p>
@@ -64,12 +86,12 @@ export function Cash() {
         </div>
         <div className="metric-card">
           <span>Fondo inicial</span>
-          <strong>{money(data?.open?.openingCents)}</strong>
+          <strong>{data ? money(data.open?.openingCents) : '—'}</strong>
           <small>Con lo que comenzó la jornada</small>
         </div>
         <div className="metric-card">
           <span>Movimientos</span>
-          <strong>{data?.movements.length ?? 0}</strong>
+          <strong>{data?.movementCount ?? 0}</strong>
           <small>Ingresos, ventas y egresos registrados</small>
         </div>
       </div>
@@ -79,39 +101,40 @@ export function Cash() {
           <span>{data?.open ? 'Jornada en curso' : 'Sin jornada activa'}</span>
         </div>
         {data?.movements.length ? (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Hora</th>
-                <th>Movimiento</th>
-                <th>Referencia</th>
-                <th>Motivo</th>
-                <th className="numeric">Importe</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.movements.map((row) => (
-                <tr key={row.id}>
-                  <td>{row.createdAt}</td>
-                  <td>
-                    <span
-                      className={`movement-label ${row.amountCents < 0 ? 'negative' : 'positive'}`}
-                    >
-                      {row.amountCents < 0 ? (
-                        <ArrowUpRight size={14} />
-                      ) : (
-                        <ArrowDownLeft size={14} />
-                      )}{' '}
-                      {row.kind}
-                    </span>
-                  </td>
-                  <td>{row.reference}</td>
-                  <td>{row.reason || '—'}</td>
-                  <td className="numeric">{money(row.amountCents)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataGrid
+            rows={data.movements}
+            caption="Movimientos de la caja abierta"
+            columns={[
+              {
+                id: 'date',
+                label: 'Fecha',
+                value: (row) => row.createdAt,
+                render: (row) => dateTime(row.createdAt),
+              },
+              {
+                id: 'kind',
+                label: 'Movimiento',
+                value: (row) => row.kind,
+                render: (row) => (
+                  <span
+                    className={`movement-label ${row.amountCents < 0 ? 'negative' : 'positive'}`}
+                  >
+                    {row.amountCents < 0 ? <ArrowUpRight size={14} /> : <ArrowDownLeft size={14} />}{' '}
+                    {row.kind}
+                  </span>
+                ),
+              },
+              { id: 'reference', label: 'Referencia', value: (row) => row.reference },
+              { id: 'reason', label: 'Motivo', value: (row) => row.reason },
+              {
+                id: 'amount',
+                label: 'Importe',
+                value: (row) => row.amountCents,
+                render: (row) => money(row.amountCents),
+                align: 'right',
+              },
+            ]}
+          />
         ) : (
           <Empty title={data?.open ? 'Tu caja está lista.' : 'Comienza abriendo la caja.'}>
             {data?.open
@@ -120,38 +143,55 @@ export function Cash() {
           </Empty>
         )}
       </section>
+      {(data?.movementCount ?? 0) > 1000 && (
+        <p className="muted">
+          Se muestran los últimos 1,000 movimientos. El efectivo esperado incluye toda la jornada.
+        </p>
+      )}
       <section className="surface">
         <div className="section-heading">
           <h2>Cierres anteriores</h2>
         </div>
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Folio</th>
-              <th>Cierre</th>
-              <th className="numeric">Esperado</th>
-              <th className="numeric">Contado</th>
-              <th className="numeric">Diferencia</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data?.history.map((row) => (
-              <tr key={row.id}>
-                <td>{row.folio}</td>
-                <td>{row.closedAt}</td>
-                <td className="numeric">{money(row.expectedCents ?? 0)}</td>
-                <td className="numeric">{money(row.countedCents ?? 0)}</td>
-                <td className="numeric">
-                  {money((row.countedCents ?? 0) - (row.expectedCents ?? 0))}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataGrid
+          rows={data?.history ?? []}
+          caption="Últimos 200 cierres de caja"
+          columns={[
+            { id: 'folio', label: 'Folio', value: (row) => row.folio },
+            {
+              id: 'date',
+              label: 'Cierre',
+              value: (row) => row.closedAt,
+              render: (row) => dateTime(row.closedAt ?? ''),
+            },
+            {
+              id: 'expected',
+              label: 'Esperado',
+              value: (row) => row.expectedCents,
+              render: (row) => money(row.expectedCents ?? 0),
+              align: 'right',
+            },
+            {
+              id: 'counted',
+              label: 'Contado',
+              value: (row) => row.countedCents,
+              render: (row) => money(row.countedCents ?? 0),
+              align: 'right',
+            },
+            {
+              id: 'difference',
+              label: 'Diferencia',
+              value: (row) => (row.countedCents ?? 0) - (row.expectedCents ?? 0),
+              render: (row) => money((row.countedCents ?? 0) - (row.expectedCents ?? 0)),
+              align: 'right',
+            },
+          ]}
+        />
       </section>
       <Modal
         open={!!modal}
-        onClose={() => setModal(null)}
+        onClose={() => {
+          if (!op.busy) setModal(null);
+        }}
         title={
           modal === 'open'
             ? 'Abre tu caja'
@@ -163,7 +203,7 @@ export function Cash() {
           modal === 'close'
             ? 'Cuenta el efectivo físico y registra el resultado. El sistema conserva cualquier diferencia.'
             : modal === 'move'
-              ? 'Un importe positivo registra una entrada; uno negativo, una salida de efectivo.'
+              ? 'Elige si recibes o retiras efectivo y registra el motivo.'
               : 'Indica cuánto efectivo hay antes de comenzar.'
         }
       >
@@ -173,10 +213,18 @@ export function Cash() {
             void op.run(
               () =>
                 modal === 'open'
-                  ? api('cashOpen', { openingCents: parseScaled(amount) })
+                  ? api('cashOpen', { requestId, openingCents: parseScaled(amount) })
                   : modal === 'close'
-                    ? api('cashClose', { countedCents: parseScaled(amount), notes: reason })
-                    : api('cashMovement', { amountCents: parseScaled(amount), reason }),
+                    ? api('cashClose', {
+                        requestId,
+                        countedCents: parseScaled(amount),
+                        notes: reason,
+                      })
+                    : api('cashMovement', {
+                        requestId,
+                        amountCents: parseScaled(amount) * (kind === 'out' ? -1 : 1),
+                        reason,
+                      }),
               (v) => {
                 setData(v);
                 setModal(null);
@@ -184,13 +232,39 @@ export function Cash() {
             );
           }}
         >
+          {modal === 'move' && (
+            <div className="dialog-actions" role="group" aria-label="Tipo de movimiento">
+              <Button
+                type="button"
+                disabled={op.busy}
+                variant={kind === 'in' ? 'default' : 'outline'}
+                aria-pressed={kind === 'in'}
+                onClick={() => setKind('in')}
+              >
+                <ArrowDownLeft size={17} />
+                Ingreso
+              </Button>
+              <Button
+                type="button"
+                disabled={op.busy}
+                variant={kind === 'out' ? 'default' : 'outline'}
+                aria-pressed={kind === 'out'}
+                onClick={() => setKind('out')}
+              >
+                <ArrowUpRight size={17} />
+                Egreso
+              </Button>
+            </div>
+          )}
           <Field
             label={
               modal === 'close'
                 ? 'Efectivo contado'
                 : modal === 'open'
                   ? 'Fondo inicial'
-                  : 'Importe (+ entrada / − salida)'
+                  : kind === 'in'
+                    ? 'Importe que recibes'
+                    : 'Importe que retiras'
             }
           >
             <input
@@ -198,7 +272,9 @@ export function Cash() {
               type="number"
               step="0.01"
               required
-              min={modal === 'move' ? undefined : 0}
+              min={modal === 'move' ? 0.01 : 0}
+              max="1000000000"
+              disabled={op.busy}
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
             />
@@ -206,6 +282,7 @@ export function Cash() {
           {modal !== 'open' && (
             <Field label={modal === 'move' ? 'Motivo' : 'Notas del cierre'}>
               <textarea
+                disabled={op.busy}
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 required={modal === 'move'}

@@ -9,6 +9,31 @@ use donovan_core::{
     quotes::HeldInput,
 };
 #[test]
+fn queued_commands_cannot_cross_login_boundaries() {
+    let mut rig = rig();
+    let app = &mut rig.app;
+    let original = app.ui_context().unwrap();
+    app.check_ui_context(Some(&original)).unwrap();
+    assert_eq!(
+        app.check_ui_context(None).unwrap_err().code,
+        "SESSION_CHANGED"
+    );
+    app.logout().unwrap();
+    app.check_ui_context(None).unwrap();
+    assert_eq!(
+        app.check_ui_context(Some(&original)).unwrap_err().code,
+        "SESSION_CHANGED"
+    );
+    app.login("negociante.uno", SELLER_PASSWORD).unwrap();
+    let next = app.ui_context().unwrap();
+    assert_ne!(original, next);
+    assert_eq!(
+        app.check_ui_context(Some(&original)).unwrap_err().code,
+        "SESSION_CHANGED"
+    );
+    app.check_ui_context(Some(&next)).unwrap();
+}
+#[test]
 fn locked_session_survives_restart_and_activity_never_extends_24_hours() {
     let Rig {
         mut app,

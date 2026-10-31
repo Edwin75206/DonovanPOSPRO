@@ -5,6 +5,6 @@
  "identifier":"com.donovansystems.pos",
  "mainBinaryName":"DonovanPOS",
  "build":{"beforeDevCommand":"npm run dev","devUrl":"http://127.0.0.1:1420","beforeBuildCommand":"npm run build","frontendDist":"../dist"},
- "app":{"windows":[{"label":"main","title":"Donovan POS Pro","width":1366,"height":850,"minWidth":960,"minHeight":600,"center":true,"backgroundColor":"#f5f4f0"}],"security":{"csp":"default-src 'self'; connect-src ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'self'"}},
+ "app":{"windows":[{"label":"main","title":"Donovan POS Pro","width":1366,"height":850,"minWidth":800,"minHeight":450,"visible":false,"center":true,"backgroundColor":"#f5f4f0"}],"security":{"csp":"default-src 'self'; connect-src ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'self'"}},
  "bundle":{"active":true,"targets":["nsis"],"publisher":"Donovan Systems","copyright":"© 2026 Edwin Donovan Castañeda Calderón","shortDescription":"Punto de venta local para ferreterías","category":"Business","icon":["../../assets/branding/app.ico"],"windows":{"webviewInstallMode":{"type":"offlineInstaller","silent":true},"nsis":{"installMode":"currentUser","languages":["Spanish"],"displayLanguageSelector":false}}}
 }

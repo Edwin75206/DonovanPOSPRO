@@ -1,0 +1,7 @@
+CREATE TABLE UserAppearance (
+ UserId INTEGER PRIMARY KEY REFERENCES User(Id) ON DELETE CASCADE,
+ Version INTEGER NOT NULL DEFAULT 1 CHECK(Version=1),
+ ConfigJson TEXT NOT NULL,
+ BackgroundData BLOB NULL
+);
+PRAGMA user_version=3;

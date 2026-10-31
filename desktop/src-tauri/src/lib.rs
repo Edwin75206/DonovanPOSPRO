@@ -1,12 +1,24 @@
+pub mod appearance;
 pub mod auth;
 pub mod catalog;
+#[cfg(feature = "desktop")]
+pub mod commands;
 pub mod commerce;
+pub mod contacts;
 pub mod db;
+pub mod demo;
 pub mod engine;
 pub mod error;
 pub mod models;
 pub mod money;
+pub mod operations;
+pub mod purchasing;
+pub mod quotes;
+pub mod recovery;
+pub mod reporting;
+pub mod returns;
 pub mod secure;
-pub mod demo;
-#[cfg(feature="desktop")] pub mod commands;
+pub mod storage;
 pub use engine::Engine;
+pub mod exporting;
+pub mod importing;

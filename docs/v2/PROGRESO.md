@@ -14,4 +14,17 @@ La versión 1.0 WPF y sus pruebas permanecen en el repositorio como referencia f
 
 ![Confirmación real de la primera venta](images/primera-venta.png)
 
-La migración de módulos adicionales, la prueba A/B de restauración y la validación final del instalador continúan después de este hito.
+## Motor comercial y portabilidad local (31 de octubre de 2026)
+
+- Compra por presentaciones con costo promedio, cotización con precio acordado, conversión única, crédito, abonos, devolución parcial, cancelación y venta suspendida comprobados en pruebas de integración. Las operaciones fallidas revierten inventario, caja y documentos en conjunto.
+- Caso de redondeo comprobado: devolución de tres unidades con reembolsos de 67, 66 y 67 centavos; reducción de crédito y devolución de lo pagado sin exceder el importe original.
+- Sesión bloqueada conservada después de reiniciar; límite fijo de 24 horas, revocación de tokens y permisos de cajero comprobados desde Rust. Los costos no se entregan al vendedor.
+- Apariencia independiente por usuario: seis temas, modo de Windows, color, fondo local, densidad, animaciones y escala de letra. La migración 3 conserva las preferencias en SQLite y no modifica la identidad de los documentos.
+- Respaldo SQLite consistente que incluye operaciones confirmadas en WAL, logotipo, usuarios y preferencias. El archivo contiene manifiesto y base con comprobación SHA-256; no transporta la sesión de Windows.
+- Restauración probada entre dos carpetas de datos aisladas: autenticación con las cuentas conservadas, reinicio y una nueva venta en el destino, sin modificar la instalación de origen.
+- Rechazo de copia corrupta y SQLite ajeno; fallo simulado al cambiar el archivo de activación mantiene utilizable la base anterior y conserva el respaldo preventivo. Una base configurada desaparecida no se reemplaza por otra vacía.
+- Migración de una base con el esquema WPF original: mantiene el archivo de origen sin cambios, las contraseñas y las preferencias de tema y movimiento.
+- Excel: asignación de columnas, revisión sin escritura, políticas explícitas de precio y existencia, transacción única e idempotencia. Se probaron duplicados, fórmulas, códigos numéricos, hoja dispersa fuera de límites y cambio de catálogo entre revisión y confirmación.
+- Exportación `.xlsx` conservando ceros iniciales y lectura posterior sin diferencias de precios o cantidades. La plantilla incluye instrucciones y el logotipo del negocio.
+
+Las pruebas de portabilidad anteriores corresponden al motor sobre carpetas aisladas. **No sustituyen la prueba pendiente de dos instalaciones reales con el instalador Windows.** Las pantallas de administración de datos e importación compilan; su revisión visual nativa, los módulos de interfaz restantes, la impresión y la validación final del instalador siguen en curso.

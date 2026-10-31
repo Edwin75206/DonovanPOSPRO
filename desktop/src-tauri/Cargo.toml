@@ -26,7 +26,7 @@ tauri-build = { version = "2", optional = true }
 [dependencies]
 tauri = { version = "2", optional = true }
 rfd = { version = "0.15", optional = true }
-rusqlite = { version = "0.38", features = ["bundled", "backup", "functions"] }
+rusqlite = { version = "0.38", features = ["bundled", "backup", "functions", "limits"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 chrono = { version = "0.4", features = ["serde"] }
@@ -41,13 +41,14 @@ zip = { version = "4", default-features = false, features = ["deflate"] }
 unicode-normalization = "0.1"
 fs2 = "0.4"
 calamine = "0.31"
+quick-xml = "0.38"
 rust_xlsxwriter = "0.92"
 lopdf = "0.38"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 barcoders = "2"
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Security_Cryptography", "Win32_Foundation", "Win32_System_Memory"] }
+windows-sys = { version = "0.61", features = ["Win32_Security_Cryptography", "Win32_Foundation", "Win32_System_Memory", "Win32_Storage_FileSystem"] }
 
 [dev-dependencies]
 tempfile = "3"

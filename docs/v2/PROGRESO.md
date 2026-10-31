@@ -1,4 +1,4 @@
-# Reconstrucción 2.0 y evolución 2.1 — registro de validación
+# Reconstrucción 2.0 y evolución 2.1–2.2 — registro de validación
 
 La versión 1.0 WPF y sus pruebas permanecen en el repositorio como referencia funcional. La nueva aplicación vive en `desktop` y usa Tauri 2, React, TypeScript y servicios Rust con SQLite. Este archivo registra hitos comprobados; no representa una declaración de entrega final.
 
@@ -74,3 +74,12 @@ La entrega y los límites de estas pruebas se describen en [VALIDACION.md](VALID
 - La instalación final registró V-000019 por $564.25, con $1,000.00 recibidos y $435.75 de cambio. Al cerrar se verificaron una sola venta nueva, el descuento exacto de inventario y la integridad de SQLite.
 - Se guardaron capturas reales de tres partidas, cobro a 1366 × 768, confirmación, ticket y modo oscuro. El dashboard del administrador conserva sus indicadores y gráficas.
 - El instalador final se abrió y verificó, rechazó una actualización de su copia en uso y conservó los datos al reinstalar y desinstalar. La entrega y los límites están en [VALIDACION-2.1.md](VALIDACION-2.1.md).
+
+## Mostrador con búsqueda F2 y lista de venta 2.2 (31 de octubre de 2026)
+
+- La tabla de artículos pasa a ser el área principal. El código se captura directamente y F2 abre el buscador con categorías, marcas y existencias de SQLite. Se mantienen cantidades editables, total fijo, F8, cotizaciones y ventas en espera.
+- La selección manual, las lecturas repetidas, los campos protegidos frente a ráfagas y el retorno del foco se comprobaron con eventos de teclado. Cerrar el buscador invalida sus respuestas pendientes.
+- El cobro muestra una confirmación integrada y deja la siguiente venta lista, sin otro paso. Se conservan las transacciones, la idempotencia y los permisos existentes; el esquema permanece en versión 5.
+- Se aprobaron 20 pruebas de interfaz y 27 del motor. Una venta nativa con tres productos, 2.5 metros de cable y efectivo produjo V-000019 por $564.25, con cambio de $435.75. SQLite confirmó una sola venta nueva y el inventario correcto; se exportó y revisó el ticket completo.
+- La copia instalada recuperó ese comprobante y conservó el Dashboard administrativo. El paquete pasó instalación, rechazo de actualización en uso, reinstalación y desinstalación, con hashes de datos conservados. Se entregan capturas reales, PDF y registros en `artifacts/v2.2/entrega`.
+- Los límites de hardware y entorno se mantienen documentados en [VALIDACION-2.2.md](VALIDACION-2.2.md); falta la prueba con el lector y la térmica físicos del negocio.

@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Minus, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Product } from '@/lib/api';
-import { addQuantity, validQuantity } from '@/lib/register';
+import { addQuantity, ScanBuffer, validQuantity } from '@/lib/register';
 import { parseScaled, quantity, units } from '@/lib/utils';
 
 export function QuantityEditor({
@@ -11,14 +11,19 @@ export function QuantityEditor({
   disabled,
   onChange,
   onValidity,
+  onDone,
 }: {
   product: Product;
   value: number;
   disabled: boolean;
   onChange: (value: number) => void;
   onValidity: (valid: boolean) => void;
+  onDone?: () => void;
 }) {
   const [text, setText] = useState(String(value / 10000));
+  const scanShield = useRef(new ScanBuffer());
+  const beforeBurst = useRef(value);
+  const previousKey = useRef(0);
   useEffect(
     () =>
       setText((current) =>
@@ -64,13 +69,37 @@ export function QuantityEditor({
         disabled={disabled}
         aria-label={`Cantidad de ${product.name}`}
         value={text}
-        onFocus={(e) => e.currentTarget.select()}
+        onFocus={(e) => {
+          scanShield.current.reset();
+          beforeBurst.current = value;
+          previousKey.current = 0;
+          e.currentTarget.select();
+        }}
         onChange={(e) => commit(e.target.value)}
         onBlur={reset}
         onKeyDown={(e) => {
+          const now = performance.now();
+          if (now - previousKey.current > 70 || !previousKey.current) beforeBurst.current = value;
+          previousKey.current = now;
+          const code = scanShield.current.key(
+            e.key,
+            now,
+            true,
+            e.ctrlKey || e.altKey || e.metaKey || e.nativeEvent.isComposing || e.repeat,
+          );
+          if (code) {
+            e.preventDefault();
+            e.stopPropagation();
+            onChange(beforeBurst.current);
+            setText(String(beforeBurst.current / 10000));
+            onValidity(true);
+            toast.info('Lectura pausada al editar cantidades. La cantidad anterior se conserva.');
+            return;
+          }
           if (e.key === 'Enter' || e.key === 'Escape') {
             e.preventDefault();
             e.currentTarget.blur();
+            onDone?.();
           }
         }}
       />

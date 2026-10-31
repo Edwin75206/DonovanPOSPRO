@@ -39,6 +39,8 @@ pub enum Request {
     Products {
         search: String,
         category: String,
+        #[serde(default)]
+        brand: String,
         status: String,
         page: i64,
     },
@@ -254,9 +256,10 @@ fn dispatch(engine: &mut Engine, window: &tauri::WebviewWindow, request: Request
         Request::Products {
             search,
             category,
+            brand,
             status,
             page,
-        } => engine.products(&search, &category, &status, page),
+        } => engine.products_by_brand(&search, &category, &brand, &status, page),
         Request::SaveProduct(input) => engine.save_product(input),
         Request::ProductForCode { code } => engine.product_for_code(&code),
         Request::AdjustStock { id, delta, reason } => engine.adjust_stock(id, delta, &reason),

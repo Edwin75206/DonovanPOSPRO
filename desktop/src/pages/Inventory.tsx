@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { StockIndicator } from '@/components/StockIndicator';
 import {
   Plus,
   Search,
@@ -180,20 +181,7 @@ export function Inventory({
         value: (p) => p.stockUnits,
         align: 'right',
         render: (p) => (
-          <span
-            className={`stock-status ${p.stockUnits === 0 ? 'empty' : p.stockUnits <= p.minimumUnits ? 'low' : ''}`}
-          >
-            <b>
-              {quantity(p.stockUnits)} {units[p.unit]}
-            </b>
-            <small>
-              {p.stockUnits === 0
-                ? 'Agotado'
-                : p.stockUnits <= p.minimumUnits
-                  ? 'Stock bajo'
-                  : `Mín. ${quantity(p.minimumUnits)}`}
-            </small>
-          </span>
+          <StockIndicator product={p} />
         ),
       },
       {

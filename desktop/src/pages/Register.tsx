@@ -1,63 +1,39 @@
 import { PaymentForm } from './PaymentForm';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import { motion } from 'motion/react';
 import {
   Search,
   ScanBarcode,
-  Plus,
-  Minus,
   Trash2,
-  ShoppingBag,
   ArrowRight,
   Check,
   ReceiptText,
   Tag,
-  SlidersHorizontal,
-  ChevronLeft,
-  ChevronRight,
-  Hammer,
-  PaintRoller,
-  Zap,
-  Construction,
-  Wrench,
-  ShieldCheck,
-  ArrowUpRight,
   Pause,
   History,
-  LayoutGrid,
-  List,
-  PackageCheck,
-  AlertTriangle,
-  PackageX,
+  UserRound,
+  X,
 } from 'lucide-react';
 import {
   api,
   can,
+  normalizeError,
   type Bootstrap,
   type Product,
-  type ProductPage,
   type Charge,
   type SaleDetail,
-  type Checkout,
   type CashOverview,
 } from '@/lib/api';
-import {
-  Button,
-  Modal,
-  Field,
-  Failure,
-  useOperation,
-  reportError,
-  Empty,
-} from '@/components/common';
+import { Button, Modal, Field, Failure, reportError } from '@/components/common';
 import { money, quantity, units, parseScaled } from '@/lib/utils';
 import { DocumentDialog, autoPrintSale } from '@/components/DocumentViewer';
 import { toast } from 'sonner';
 import { CustomerPicker, SaveDraft, HeldSales } from './CartActions';
 import { useVisual } from '@/lib/appearance';
-import { QuantityEditor } from '@/components/QuantityEditor';
 import { RegisterCash, RegisterRecent } from './RegisterTools';
-import { addQuantity, previewAmounts, ScanBuffer, stockState, validQuantity } from '@/lib/register';
+import { addQuantity, previewAmounts, ScanBuffer, validQuantity } from '@/lib/register';
+import { ProductPicker } from './ProductPicker';
+import { RegisterLines } from './RegisterLines';
 export interface CartRow {
   product: Product;
   quantityUnits: number;
@@ -85,27 +61,6 @@ export const freshCart = (): Cart => ({
   customerName: null,
   sourceLabel: null,
 });
-export function ProductArt({ category }: { category: string }) {
-  const Icon =
-    category === 'Construcción'
-      ? Construction
-      : category === 'Pintura'
-        ? PaintRoller
-        : category === 'Electricidad'
-          ? Zap
-          : category === 'Seguridad'
-            ? ShieldCheck
-            : category === 'Herramientas'
-              ? Hammer
-              : Wrench;
-  return (
-    <span
-      className={`product-art art-${['Construcción', 'Pintura', 'Electricidad', 'Seguridad', 'Herramientas'].indexOf(category)}`}
-    >
-      <Icon strokeWidth={1.5} />
-    </span>
-  );
-}
 export function Register({
   data,
   cart,
@@ -114,6 +69,7 @@ export function Register({
   onSaved,
   onHistory,
   onQuotes,
+  searchRequest = 0,
 }: {
   data: Bootstrap;
   cart: Cart;
@@ -122,18 +78,14 @@ export function Register({
   onSaved: () => void;
   onHistory: () => void;
   onQuotes: () => void;
+  searchRequest?: number;
 }) {
-  const [search, setSearch] = useState('');
-  const [category, setCategory] = useState('');
-  const [page, setPage] = useState(0);
-  const [products, setProducts] = useState<ProductPage>({
-    items: [],
-    total: 0,
-    page: 0,
-    pageSize: 60,
-    categories: [],
-  });
-  const [searchBusy, setSearchBusy] = useState(false);
+  const [codeText, setCodeText] = useState('');
+  const [picker, setPicker] = useState(false);
+  const [scanError, setScanError] = useState('');
+  const scanPending = useRef(0);
+  const checkoutStarting = useRef(false);
+  const previousSearchRequest = useRef(0);
   const [charge, setCharge] = useState<Charge | null>(null);
   const [pricing, setPricing] = useState(false);
   const [cash, setCash] = useState<CashOverview | null>(null);
@@ -149,10 +101,7 @@ export function Register({
   const [clear, setClear] = useState(false);
   const [quickCash, setQuickCash] = useState(false);
   const [recent, setRecent] = useState(false);
-  const [showBreakdown, setShowBreakdown] = useState(false);
   const [checkoutBusy, setCheckoutBusy] = useState(false);
-  const [view, setView] = useState<'cards' | 'list'>('cards');
-  const [selection, setSelection] = useState(-1);
   const [invalidRows, setInvalidRows] = useState<Set<number>>(new Set());
   const [scanBusy, setScanBusy] = useState(0);
   const scanner = useRef(new ScanBuffer());
@@ -178,11 +127,6 @@ export function Register({
   const visual = useVisual();
   const fixedQuote = cart.quoteId !== null;
   const searchRef = useRef<HTMLInputElement>(null);
-  const catalogRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    catalogRef.current?.querySelector('.keyboard-selected')?.scrollIntoView?.({ block: 'nearest' });
-  }, [selection]);
-  const queryId = useRef(0);
   const priceId = useRef(0);
   const [error, setError] = useState<ReturnType<typeof reportError> | null>(null);
   const items = cart.rows.map((r) => ({
@@ -190,29 +134,6 @@ export function Register({
     quantityUnits: r.quantityUnits,
     wholesale: r.wholesale,
   }));
-  const fetchProducts = useCallback(async () => {
-    const current = ++queryId.current;
-    setSearchBusy(true);
-    try {
-      const result = await api('products', { search, category, status: 'active', page });
-      if (current === queryId.current) {
-        setProducts(result);
-        setError(null);
-      }
-    } catch (e) {
-      if (current === queryId.current) setError(reportError(e));
-    } finally {
-      if (current === queryId.current) setSearchBusy(false);
-    }
-  }, [search, category, page]);
-  useEffect(() => {
-    setSelection(-1);
-    const timer = setTimeout(() => void fetchProducts(), search ? 90 : 0);
-    return () => {
-      clearTimeout(timer);
-      queryId.current++;
-    };
-  }, [fetchProducts]);
   useEffect(() => {
     void api('cashOverview').then(setCash).catch(reportError);
     searchRef.current?.focus();
@@ -250,7 +171,7 @@ export function Register({
         toast.info(
           'Esta venta conserva las partidas de la cotización. Finalízala antes de iniciar otra.',
         );
-        return;
+        return false;
       }
       const existing = cartRef.current.rows.find((x) => x.product.id === product.id);
       const next = addQuantity(product, existing?.quantityUnits);
@@ -260,7 +181,7 @@ export function Register({
             ? `${product.name}: agotado.`
             : `Solo hay ${quantity(product.stockUnits)} ${units[product.unit]} disponibles; revisa tu ticket.`,
         );
-        return;
+        return false;
       }
       updateCart((current) => {
         return {
@@ -272,7 +193,9 @@ export function Register({
             : [...current.rows, { product, quantityUnits: next, wholesale: false }],
         };
       });
-      setAddedMessage(`${product.name} · ${quantity(next)} ${units[product.unit]} en tu ticket`);
+      setLastSale(null);
+      setScanError('');
+      setAddedMessage(`Agregado: ${product.name}`);
       setHighlight(product.id);
       setTimeout(() => setHighlight((current) => (current === product.id ? null : current)), 420);
       const active = document.activeElement;
@@ -281,14 +204,16 @@ export function Register({
         !active?.matches('input,textarea,select,[contenteditable=true]')
       )
         searchRef.current?.focus();
+      return true;
     },
     [updateCart, fixedQuote],
   );
   const scan = useCallback(
     (code: string) => {
-      if (!code.trim()) return;
-      setSearch('');
-      setPage(0);
+      if (!code.trim() || checkoutStarting.current) return;
+      setCodeText('');
+      setScanError('');
+      scanPending.current++;
       setScanBusy((n) => n + 1);
       scanQueue.current = scanQueue.current
         .then(async () => {
@@ -298,10 +223,11 @@ export function Register({
             if (!mounted.current || document.querySelector('[role=dialog]')) return;
             add(found);
           } catch (e) {
-            if (mounted.current) reportError(e);
+            if (mounted.current) setScanError(normalizeError(e).message);
           }
         })
         .finally(() => {
+          scanPending.current--;
           if (mounted.current) setScanBusy((n) => Math.max(0, n - 1));
         });
     },
@@ -312,7 +238,8 @@ export function Register({
       !cart.rows.length ||
       checkout ||
       pricing ||
-      scanBusy ||
+      scanPending.current ||
+      checkoutStarting.current ||
       cart.rows.some((r) => invalidRows.has(r.product.id))
     )
       return;
@@ -324,6 +251,8 @@ export function Register({
       setQuickCash(true);
       return;
     }
+    const snapshot = cartRef.current;
+    checkoutStarting.current = true;
     try {
       setPricing(true);
       const current = await api('price', {
@@ -335,14 +264,43 @@ export function Register({
         discountParts: cart.discountParts,
         quoteId: cart.quoteId,
       });
+      if (!mounted.current || snapshot !== cartRef.current) {
+        if (mounted.current)
+          toast.info('La venta cambió. Revisa las cantidades y vuelve a cobrar.');
+        return;
+      }
       setCharge(current);
       setCheckout(true);
     } catch (e) {
       reportError(e);
     } finally {
+      checkoutStarting.current = false;
       setPricing(false);
     }
   }, [cart, cash, checkout, pricing, scanBusy, invalidRows, onCash]);
+  const openPicker = useCallback(() => {
+    if (fixedQuote || scanPending.current || checkoutStarting.current) return;
+    scanner.current.reset();
+    setPicker(true);
+  }, [fixedQuote]);
+  useEffect(() => {
+    if (searchRequest && previousSearchRequest.current !== searchRequest) {
+      previousSearchRequest.current = searchRequest;
+      openPicker();
+    }
+  }, [searchRequest, openPicker]);
+  useEffect(() => {
+    if (!addedMessage) return;
+    const timer = setTimeout(() => setAddedMessage(''), 2400);
+    return () => clearTimeout(timer);
+  }, [addedMessage, highlight]);
+  useEffect(() => {
+    setInvalidRows(new Set());
+    setDiscount(false);
+    setCodeText('');
+    setScanError('');
+    scanner.current.reset();
+  }, [cart.requestId]);
   useEffect(() => {
     const buffer = scanner.current;
     const key = (event: KeyboardEvent) => {
@@ -351,6 +309,12 @@ export function Register({
         document.body.classList.contains('driver-active')
       ) {
         buffer.reset();
+        return;
+      }
+      if (event.key === 'F2') {
+        event.preventDefault();
+        event.stopPropagation();
+        openPicker();
         return;
       }
       if (event.key === 'F8') {
@@ -367,7 +331,11 @@ export function Register({
       const editable = (event.target as HTMLElement)?.closest(
         'input,textarea,select,[contenteditable=true]',
       );
-      const allowed = !checkout && !receipt && (!editable || event.target === searchRef.current);
+      const allowed =
+        !checkout &&
+        !receipt &&
+        !checkoutStarting.current &&
+        (!editable || event.target === searchRef.current);
       const code = buffer.key(
         event.key,
         performance.now(),
@@ -389,10 +357,11 @@ export function Register({
       window.removeEventListener('blur', reset);
       window.removeEventListener('focusin', reset);
     };
-  }, [beginCheckout, scan, checkout, receipt]);
+  }, [beginCheckout, scan, checkout, receipt, openPicker]);
   const changeQty = (id: number, value: number) => {
     const product = cartRef.current.rows.find((r) => r.product.id === id)?.product;
     if (!product || !validQuantity(product, value)) return;
+    setAddedMessage('');
     updateCart((c) => ({
       ...c,
       rows: c.rows.map((r) => (r.product.id === id ? { ...r, quantityUnits: value } : r)),
@@ -404,482 +373,281 @@ export function Register({
   const total = charge?.totalCents ?? preview?.totalCents ?? 0;
   const pendingQuantity = cart.rows.some((r) => invalidRows.has(r.product.id));
   return (
-    <div className="register">
-      <section className="register-catalog">
-        <div className="register-heading">
-          <div>
-            <span className="eyebrow">VENTA DE MOSTRADOR</span>
-            <h1>Todo listo para vender.</h1>
-          </div>
+    <div className="counter-register" data-tour="register">
+      <header className="counter-heading">
+        <div>
+          <h1>Venta de mostrador</h1>
+          <p>
+            {data.actor?.name}
+            <span>·</span>
+            <span className="counter-reference">
+              Ref. {cart.requestId.slice(0, 6).toUpperCase()}
+            </span>
+          </p>
+        </div>
+        <div className="counter-context">
           <button
-            data-tour="cash-status"
-            className={`cash-status ${cash?.open ? 'online' : 'offline'}`}
+            className={'counter-cash ' + (cash?.open ? 'is-open' : 'is-closed')}
             onClick={() => setQuickCash(true)}
+            disabled={!cash}
           >
             <span />
-            {cash?.open ? 'Caja abierta' : 'Abrir caja'}
-            <ArrowUpRight size={14} />
+            {cash?.open ? 'Caja abierta' : cash ? 'Abrir caja' : 'Consultando caja…'}
+          </button>
+          <button
+            className="counter-customer"
+            disabled={fixedQuote}
+            onClick={() => setCustomerPicker(true)}
+            data-tour="customer"
+          >
+            <UserRound size={17} />
+            <span>{cart.customerName || 'Público en general'}</span>
+            <span className="customer-change">Cambiar</span>
           </button>
         </div>
-        <div className="scan-search" data-tour="product-search">
-          <ScanBarcode size={24} />
+      </header>
+      <div className="counter-capture" data-tour="product-search">
+        <div className="code-input">
+          <ScanBarcode size={22} />
           <input
             ref={searchRef}
-            aria-label="Buscar o escanear producto"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setSearchBusy(true);
-              setPage(0);
-              setSelection(-1);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-                e.preventDefault();
-                setSelection((n) =>
-                  Math.max(
-                    0,
-                    Math.min(products.items.length - 1, n + (e.key === 'ArrowDown' ? 1 : -1)),
-                  ),
-                );
-              }
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                if (selection >= 0 && products.items[selection] && !searchBusy)
-                  add(products.items[selection]);
-                else if (
-                  products.items.some(
-                    (p) =>
-                      p.barcode === search.trim() ||
-                      p.sku.toLowerCase() === search.trim().toLowerCase(),
-                  )
-                )
-                  scan(search);
-                else if (products.items.length) {
-                  setSelection(0);
-                  toast.info(
-                    'Selecciona el producto con las flechas y pulsa Enter para agregarlo.',
-                  );
-                }
-              }
-            }}
-            placeholder="Escanea un código o busca por nombre, marca, medida…"
             autoComplete="off"
-          />
-          <kbd>F3</kbd>
-          {search && (
-            <button
-              className="icon-button"
-              aria-label="Limpiar búsqueda"
-              onClick={() => {
-                setSearch('');
-                searchRef.current?.focus();
-              }}
-            >
-              ×
-            </button>
-          )}
-        </div>
-        <div className="category-strip" aria-label="Categorías de productos">
-          <button
-            aria-pressed={!category}
-            className={!category ? 'active' : ''}
-            onClick={() => {
-              setCategory('');
-              setPage(0);
-            }}
-          >
-            Todos <span>{products.categories.reduce((s, c) => s + c.count, 0)}</span>
-          </button>
-          {products.categories.map((c) => (
-            <button
-              key={c.name}
-              aria-pressed={category === c.name}
-              className={category === c.name ? 'active' : ''}
-              onClick={() => {
-                setCategory(c.name);
-                setPage(0);
-              }}
-            >
-              {c.name}
-            </button>
-          ))}
-        </div>
-        <div className="catalog-meta">
-          <span>
-            {searchBusy
-              ? 'Buscando…'
-              : `${products.total} ${products.total === 1 ? 'producto' : 'productos'}`}{' '}
-            · IVA incluido
-          </span>
-          <div className="catalog-view" aria-label="Vista del catálogo">
-            <button
-              aria-label="Ver tarjetas"
-              aria-pressed={view === 'cards'}
-              onClick={() => setView('cards')}
-            >
-              <LayoutGrid size={16} />
-            </button>
-            <button
-              aria-label="Ver lista compacta"
-              aria-pressed={view === 'list'}
-              onClick={() => setView('list')}
-            >
-              <List size={17} />
-            </button>
-          </div>
-        </div>
-        <div className="scan-feedback" role="status" aria-live="polite">
-          <Check size={14} />
-          {scanBusy
-            ? 'Leyendo código…'
-            : addedMessage || 'Escanea y sigue · Flechas y Enter para elegir · F8 para cobrar'}
-        </div>
-        <Failure error={error} retry={() => void fetchProducts()} />
-        <div ref={catalogRef} className={`product-grid catalog-${view}`} aria-busy={searchBusy}>
-          {products.items.map((p, productIndex) => {
-            const inCart = cart.rows.find((r) => r.product.id === p.id)?.quantityUnits ?? 0;
-            const stock = stockState(p, inCart);
-            const StatusIcon =
-              stock.state === 'empty'
-                ? PackageX
-                : stock.state === 'low'
-                  ? AlertTriangle
-                  : PackageCheck;
-            return (
-              <motion.button
-                key={p.id}
-                layout="position"
-                transition={{ duration: visual.duration }}
-                whileTap={{ scale: visual.duration ? 0.985 : 1 }}
-                className={`product-card ${selection === productIndex ? 'keyboard-selected' : ''} ${highlight === p.id ? 'just-added' : ''} ${p.stockUnits <= 0 ? 'out-of-stock' : ''}`}
-                onClick={() => add(p)}
-                disabled={stock.available <= 0}
-                aria-label={`${p.name}, ${money(p.priceCents)} por ${units[p.unit]}, ${stock.label}. Agregar`}
-              >
-                <div className="product-card-top">
-                  <ProductArt category={p.category} />
-                  {!!inCart && <span className="in-ticket">{quantity(inCart)} en ticket</span>}
-                </div>
-                <span className="product-brand">{p.brand || p.category}</span>
-                <strong>{p.name}</strong>
-                <small>{p.size || p.sku}</small>
-                <span className={`product-stock stock-${stock.state}`}>
-                  <StatusIcon size={13} />
-                  {stock.label}
-                </span>
-                <div className="product-card-bottom">
-                  <span>
-                    <b>{money(p.priceCents)}</b>
-                    <small> / {units[p.unit]}</small>
-                  </span>
-                  <span className="add-product">
-                    <Plus size={15} />
-                    <span>Agregar</span>
-                  </span>
-                </div>
-              </motion.button>
-            );
-          })}
-          {products.items.length === 0 && !searchBusy && (
-            <Empty
-              title={
-                search ? 'No encontramos ese producto.' : 'Tu catálogo está listo para comenzar.'
+            value={codeText}
+            disabled={fixedQuote}
+            aria-label="Capturar código de producto"
+            placeholder="Escanea un código de barras…"
+            maxLength={100}
+            onChange={(e) => setCodeText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && codeText.trim()) {
+                e.preventDefault();
+                scan(codeText);
               }
-            >
-              {search
-                ? 'Prueba con una palabra, marca o medida diferente.'
-                : 'Agrega productos o importa tu lista desde Excel.'}
-            </Empty>
-          )}
+            }}
+          />
+          <kbd>Enter</kbd>
         </div>
-        {products.total > 60 && (
-          <div className="pagination">
-            <span>
-              Página {page + 1} de {Math.ceil(products.total / 60)}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page === 0}
-              onClick={() => setPage(page - 1)}
-            >
-              <ChevronLeft size={15} />
-              Anterior
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={(page + 1) * 60 >= products.total}
-              onClick={() => setPage(page + 1)}
-            >
-              Siguiente
-              <ChevronRight size={15} />
-            </Button>
-          </div>
-        )}
-      </section>
-      <section className="cart-panel" data-tour="cart">
-        <div className="cart-heading">
-          <div className="cart-icon">
-            <ShoppingBag size={20} />
-          </div>
-          <div>
-            <h2>Ticket actual</h2>
-            <span>
-              {cart.rows.length} {cart.rows.length === 1 ? 'partida' : 'partidas'} · Venta en curso
-            </span>
-          </div>
-          {cart.rows.length > 0 && (
-            <button
-              className="icon-button"
-              aria-label="Vaciar carrito"
-              onClick={() => {
-                setClear(true);
-              }}
-            >
-              <Trash2 size={17} />
-            </button>
-          )}
-        </div>
-        <button
-          className="customer-picker"
-          disabled={fixedQuote}
-          onClick={() => setCustomerPicker(true)}
+        <Button
+          className="find-product-button"
+          onClick={openPicker}
+          disabled={fixedQuote || scanBusy > 0}
         >
-          <span className="avatar small">PG</span>
+          <Search size={19} />
+          Buscar producto <kbd>F2</kbd>
+        </Button>
+      </div>
+      <div
+        className={'counter-status ' + (scanError ? 'has-code-error' : '')}
+        role="status"
+        aria-live="polite"
+      >
+        {scanBusy ? (
+          <span>Identificando código…</span>
+        ) : scanError ? (
+          <>
+            <span>{scanError}</span>
+            <button onClick={openPicker}>Buscar con F2</button>
+          </>
+        ) : addedMessage ? (
+          <span className="added-confirmation">
+            <Check size={15} />
+            {addedMessage}
+          </span>
+        ) : (
+          <span>
+            <ScanBarcode size={14} />
+            Lector listo · Enter o Tab al terminar el código
+          </span>
+        )}
+        <span>
+          {cart.rows.length} {cart.rows.length === 1 ? 'artículo' : 'artículos'} en la venta
+        </span>
+      </div>
+      {fixedQuote && (
+        <p className="quote-lock">{cart.sourceLabel} · Precios y cantidades acordados.</p>
+      )}
+      {cart.editingQuote && (
+        <p className="quote-lock">
+          Editando {cart.sourceLabel} · Guarda los cambios antes de vender.
+        </p>
+      )}
+      <RegisterLines
+        cart={cart}
+        charge={charge}
+        lineCents={preview?.lineCents}
+        locked={fixedQuote}
+        canDiscount={can(data.actor!, 'discount')}
+        highlight={highlight}
+        invalidRows={invalidRows}
+        onQuantity={changeQty}
+        onCapture={() => searchRef.current?.focus()}
+        onValidity={(id, valid) =>
+          setInvalidRows((current) => {
+            const next = new Set(current);
+            if (valid) next.delete(id);
+            else next.add(id);
+            return next;
+          })
+        }
+        onRemove={(id) => {
+          updateCart((c) => ({ ...c, rows: c.rows.filter((r) => r.product.id !== id) }));
+          setInvalidRows((current) => {
+            const next = new Set(current);
+            next.delete(id);
+            return next;
+          });
+          setAddedMessage('');
+          searchRef.current?.focus();
+        }}
+        onWholesale={(id) =>
+          updateCart((c) => ({
+            ...c,
+            rows: c.rows.map((r) => (r.product.id === id ? { ...r, wholesale: !r.wholesale } : r)),
+          }))
+        }
+      />
+      <Failure error={error} />
+      {lastSale && (
+        <motion.div
+          className="counter-sale-confirmation"
+          role="status"
+          initial={{ opacity: 0, y: 5 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: visual.duration }}
+        >
+          <span className="confirmation-check">
+            <Check size={20} />
+          </span>
           <div>
-            <b>{cart.customerName || 'Público en general'}</b>
-            <small>
-              {fixedQuote
-                ? `Cotización ${cart.sourceLabel}`
-                : cart.customerId
-                  ? 'Cambiar cliente'
-                  : 'Seleccionar cliente'}
-            </small>
+            <strong>Venta registrada · {lastSale.sale.folio}</strong>
+            <span>{money(lastSale.sale.totalCents)} · Lista para la siguiente venta</span>
           </div>
-        </button>
-        {fixedQuote && (
-          <p className="quote-lock">Precios y cantidades acordados · {cart.sourceLabel}</p>
-        )}
-        {cart.editingQuote && (
-          <p className="quote-lock">
-            Editando {cart.sourceLabel} · Precios actuales. Guarda los cambios antes de vender.
-          </p>
-        )}
-        <div className="cart-rows">
-          <AnimatePresence initial={false}>
-            {cart.rows.map((row, index) => {
-              const line = charge?.lines.find((l) => l.productId === row.product.id);
-              return (
-                <motion.div
-                  layout
-                  key={row.product.id}
-                  className={`cart-row ${highlight === row.product.id ? 'just-added' : ''}`}
-                  initial={{ opacity: 0, x: 12 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: visual.duration }}
-                >
-                  <div className="cart-row-title">
-                    <span>{String(index + 1).padStart(2, '0')}</span>
-                    <strong>{row.product.name}</strong>
-                    <button
-                      aria-label={`Quitar ${row.product.name}`}
-                      className="icon-button"
-                      disabled={fixedQuote}
-                      onClick={() =>
-                        setCart((c) => ({
-                          ...c,
-                          rows: c.rows.filter((x) => x.product.id !== row.product.id),
-                        }))
-                      }
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                  <div className="cart-row-price">
-                    <span>
-                      {money(
-                        line?.priceCents ??
-                          (row.wholesale ? row.product.wholesaleCents : row.product.priceCents),
-                      )}{' '}
-                      / {units[row.product.unit]}
-                    </span>
-                    {can(data.actor!, 'discount') && !fixedQuote && (
-                      <button
-                        onClick={() =>
-                          setCart((c) => ({
-                            ...c,
-                            rows: c.rows.map((x) =>
-                              x.product.id === row.product.id
-                                ? { ...x, wholesale: !x.wholesale }
-                                : x,
-                            ),
-                          }))
-                        }
-                      >
-                        {row.wholesale ? 'Mayoreo' : 'Menudeo'}
-                        <SlidersHorizontal size={11} />
-                      </button>
-                    )}
-                  </div>
-                  <div className="cart-row-controls">
-                    <QuantityEditor
-                      product={row.product}
-                      value={row.quantityUnits}
-                      disabled={fixedQuote}
-                      onChange={(value) => changeQty(row.product.id, value)}
-                      onValidity={(valid) =>
-                        setInvalidRows((current) => {
-                          const next = new Set(current);
-                          if (valid) next.delete(row.product.id);
-                          else next.add(row.product.id);
-                          return next;
-                        })
-                      }
-                    />
-                    <b>
-                      {line
-                        ? money(line.totalCents)
-                        : preview
-                          ? money(preview.lineCents[index])
-                          : '…'}
-                    </b>
-                  </div>
-                  {invalidRows.has(row.product.id) && (
-                    <small className="quantity-warning">
-                      Indica {row.product.unit === 0 ? 'piezas enteras' : 'una cantidad válida'};
-                      máximo {quantity(row.product.stockUnits)} {units[row.product.unit]}.
-                    </small>
-                  )}
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
-          {!cart.rows.length && (
-            <div className="cart-empty">
-              <ScanBarcode size={38} strokeWidth={1.25} />
-              <h3>Todo comienza con un producto.</h3>
-              <p>
-                Escanea su código o selecciónalo
-                <br />
-                del catálogo para agregarlo aquí.
-              </p>
-              <span>El buscador está listo para tu lector.</span>
+          {lastSale.sale.tenderedCents > 0 && (
+            <div className="confirmation-change">
+              <span>Cambio a entregar</span>
+              <strong>{money(lastSale.sale.changeCents)}</strong>
             </div>
           )}
+          <Button variant="outline" onClick={() => setReceipt(true)}>
+            <ReceiptText size={17} />
+            Ver e imprimir ticket
+          </Button>
+          <button
+            className="icon-button"
+            aria-label="Ocultar confirmación de venta"
+            onClick={() => setLastSale(null)}
+          >
+            <X size={16} />
+          </button>
+        </motion.div>
+      )}
+      <footer className="counter-summary" data-tour="cart">
+        <div className="counter-tools" data-tour="cart-tools">
+          <div>
+            <button
+              disabled={!cart.rows.length || fixedQuote || pendingQuantity || !!scanBusy || pricing}
+              onClick={() => setSaveDraft('held')}
+            >
+              <Pause size={15} />
+              Poner en espera
+            </button>
+            <button
+              disabled={!cart.rows.length || fixedQuote || pendingQuantity || !!scanBusy || pricing}
+              onClick={() => setSaveDraft('quote')}
+            >
+              <ReceiptText size={15} />
+              Cotizar
+            </button>
+            <button onClick={() => setHeld(true)}>
+              <History size={15} />
+              En espera
+            </button>
+            <button onClick={() => setRecent(true)}>Ventas recientes</button>
+            <button onClick={onQuotes}>Cotizaciones</button>
+          </div>
+          <button
+            className="clear-sale"
+            disabled={!cart.rows.length || !!scanBusy}
+            onClick={() => setClear(true)}
+          >
+            <Trash2 size={14} />
+            Vaciar
+          </button>
         </div>
-        <div className="cart-summary">
-          <div className="cart-tools">
+        <div className="counter-totals">
+          <div className="counter-breakdown">
+            <dl>
+              <div>
+                <dt>Subtotal sin IVA</dt>
+                <dd>
+                  {charge ? money(total - charge.taxCents) : cart.rows.length ? '…' : money(0)}
+                </dd>
+              </div>
+              <div>
+                <dt>IVA incluido</dt>
+                <dd>{charge ? money(charge.taxCents) : cart.rows.length ? '…' : money(0)}</dd>
+              </div>
+              {!!cart.discountParts && (
+                <div>
+                  <dt>Descuento incluido</dt>
+                  <dd>−{money(charge?.discountCents ?? preview?.discountCents ?? 0)}</dd>
+                </div>
+              )}
+            </dl>
             {can(data.actor!, 'discount') && !fixedQuote && (
-              <button onClick={() => setDiscount(!discount)}>
-                <Tag size={14} />
-                Descuento
+              <button className="counter-discount" onClick={() => setDiscount(!discount)}>
+                <Tag size={13} />
+                {discount ? 'Cerrar descuento' : 'Aplicar descuento'}
               </button>
             )}
-            <button
-              className="breakdown-toggle"
-              onClick={() => setShowBreakdown(!showBreakdown)}
-              aria-expanded={showBreakdown}
-            >
-              Desglose
-            </button>
-            <span>
-              {cart.rows.length ? 'Revisa las cantidades antes de cobrar' : 'Venta local · MXN'}
-            </span>
-          </div>
-          {discount && (
-            <Field label="Descuento sobre el total (%)">
-              <input
-                type="number"
-                min={0}
-                max={100}
-                step={0.01}
-                value={cart.discountParts / 10000}
-                onChange={(e) =>
-                  setCart((c) => ({ ...c, discountParts: parseScaled(e.target.value, 10000) }))
-                }
-              />
-            </Field>
-          )}
-          <dl className={showBreakdown ? 'breakdown-open' : ''}>
-            <div>
-              <dt>Subtotal sin IVA</dt>
-              <dd>{charge ? money(total - charge.taxCents) : cart.rows.length ? '…' : money(0)}</dd>
-            </div>
-            <div>
-              <dt>IVA incluido</dt>
-              <dd>{charge ? money(charge.taxCents) : cart.rows.length ? '…' : money(0)}</dd>
-            </div>
-            {!!charge?.discountCents && (
-              <div>
-                <dt>Descuento aplicado</dt>
-                <dd>−{money(charge.discountCents)}</dd>
-              </div>
+            {discount && (
+              <Field label="Descuento sobre el total (%)">
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.01}
+                  value={cart.discountParts / 10000}
+                  onChange={(e) =>
+                    updateCart((c) => ({ ...c, discountParts: parseScaled(e.target.value, 10000) }))
+                  }
+                />
+              </Field>
             )}
-          </dl>
-          <div className="cart-total">
+          </div>
+          <div className="counter-total">
             <span>
-              Total a pagar<small>Pesos mexicanos</small>
+              Total a pagar <small>MXN</small>
             </span>
             <motion.strong
-              key={charge ? total : 'pending'}
-              initial={{ opacity: 0.6, y: 3 }}
-              animate={{ opacity: 1, y: 0 }}
+              key={total}
+              initial={{ opacity: 0.7 }}
+              animate={{ opacity: 1 }}
               transition={{ duration: visual.duration }}
             >
               {charge || preview ? money(total) : cart.rows.length ? '…' : money(0)}
             </motion.strong>
           </div>
           <Button
-            className="checkout-button"
-            onClick={() => void beginCheckout()}
-            disabled={!cart.rows.length || pricing || !charge || scanBusy > 0 || pendingQuantity}
+            className="counter-checkout"
             data-tour="checkout"
+            disabled={!cart.rows.length || pricing || !!scanBusy || pendingQuantity || !!error}
+            onClick={() => void beginCheckout()}
           >
-            <span>
-              {pendingQuantity
-                ? 'Revisa la cantidad'
-                : pricing
-                  ? 'Validando…'
-                  : cart.editingQuote
-                    ? 'Guardar cotización'
-                    : 'Cobrar venta'}
-              <ArrowRight size={18} />
-            </span>
+            {cart.editingQuote ? 'Guardar cotización' : 'Cobrar'}
             <kbd>F8</kbd>
+            <ArrowRight size={20} />
           </Button>
-          <div className="cart-secondary-actions" data-tour="cart-tools">
-            <button
-              disabled={
-                !cart.rows.length ||
-                fixedQuote ||
-                !!cart.editingQuote ||
-                pricing ||
-                !charge ||
-                pendingQuantity
-              }
-              onClick={() => setSaveDraft('held')}
-            >
-              <Pause size={14} /> Guardar
-            </button>
-            <button
-              disabled={!cart.rows.length || fixedQuote || pricing || !charge || pendingQuantity}
-              onClick={() => setSaveDraft('quote')}
-            >
-              <ReceiptText size={14} /> {cart.editingQuote ? 'Vigencia y notas' : 'Cotizar'}
-            </button>
-            <button onClick={() => setHeld(true)}>
-              <History size={14} /> En espera
-            </button>
-          </div>
-          <div className="cart-links">
-            <button onClick={() => setRecent(true)}>Ventas recientes</button>
-            <button onClick={onQuotes}>Mis cotizaciones</button>
-          </div>
         </div>
-      </section>
+      </footer>
+      {picker && (
+        <ProductPicker
+          rows={cart.rows}
+          onSelect={add}
+          onClose={() => setPicker(false)}
+          returnFocusRef={searchRef}
+        />
+      )}
       {quickCash && (
         <RegisterCash
           cash={cash}
@@ -903,6 +671,7 @@ export function Register({
         title="Cobrar y entregar."
         description="Confirma el pago. Tu ticket permanece en esta pantalla."
         className="checkout-dialog"
+        returnFocusRef={searchRef}
       >
         {charge && (
           <PaymentForm
@@ -913,9 +682,8 @@ export function Register({
             onSuccess={(sale) => {
               setCheckout(false);
               setLastSale(sale);
-              setCart(freshCart());
+              updateCart(() => freshCart());
               autoPrintSale(data, sale.sale.id);
-              void fetchProducts();
               void api('cashOverview').then(setCash).catch(reportError);
               onSaved();
             }}
@@ -964,6 +732,7 @@ export function Register({
       )}
       <Modal
         open={clear}
+        returnFocusRef={searchRef}
         onClose={() => setClear(false)}
         title="¿Vaciar el ticket actual?"
         description={
@@ -989,44 +758,6 @@ export function Register({
             Vaciar ticket
           </Button>
         </div>
-      </Modal>
-      <Modal
-        open={!!lastSale && !receipt}
-        onClose={() => setLastSale(null)}
-        title="Venta registrada"
-        description="El cobro y las existencias se guardaron correctamente."
-        className="success-dialog"
-      >
-        {lastSale && (
-          <>
-            <div className="success-check">
-              <Check size={28} />
-            </div>
-            <span className="eyebrow">{lastSale.sale.folio}</span>
-            <h2 className="sale-success-total">{money(lastSale.sale.totalCents)}</h2>
-            {lastSale.sale.tenderedCents > 0 && (
-              <div className="change-banner">
-                <span>Cambio para el cliente</span>
-                <b>{money(lastSale.sale.changeCents)}</b>
-              </div>
-            )}
-            <div className="success-actions">
-              <Button variant="outline" onClick={() => setReceipt(true)}>
-                <ReceiptText size={17} />
-                Ver e imprimir ticket
-              </Button>
-              <Button
-                onClick={() => {
-                  setLastSale(null);
-                  requestAnimationFrame(() => searchRef.current?.focus());
-                }}
-              >
-                Siguiente venta
-                <ArrowRight size={17} />
-              </Button>
-            </div>
-          </>
-        )}
       </Modal>
       {quoteDocument !== null && (
         <DocumentDialog

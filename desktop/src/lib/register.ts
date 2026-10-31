@@ -13,8 +13,8 @@ export function stockState(product: Product, inCart = 0) {
           ? 'Todo en tu ticket'
           : 'Agotado'
         : state === 'low'
-          ? `Últimas ${quantity(available)} ${units[product.unit]}`
-          : `${quantity(available)} ${units[product.unit]} disponibles`,
+          ? `Stock bajo · ${quantity(available)} ${units[product.unit]}`
+          : `Disponible · ${quantity(available)} ${units[product.unit]}`,
   };
 }
 export function validQuantity(product: Product, value: number) {

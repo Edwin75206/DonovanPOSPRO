@@ -51,7 +51,7 @@ function stepsFor(role: number): DriveStep[] {
           [
             'product-search',
             'Encuentra y agrega',
-            'Escanea el código o escribe nombre, marca o medida. F3 lleva el cursor directamente al buscador.',
+            'Escanea para agregar directamente. F2 abre la búsqueda por nombre, marca o medida; Enter elige y Escape vuelve a la venta. F3 enfoca la captura de códigos.',
           ],
           [
             'cart',
@@ -215,8 +215,8 @@ export function HelpCenter({
       <h3>Atajos para avanzar más rápido</h3>
       <div className="shortcut-grid">
         {[
-          ['F2', 'Ir al punto de venta'],
-          ['F3', 'Buscar productos en el mostrador'],
+          ['F2', 'Buscar y agregar un producto'],
+          ['F3', 'Volver a la captura de códigos'],
           ['F8', 'Abrir el cobro de la venta'],
           ['F1', 'Abrir esta ayuda'],
         ].map(([key, text]) => (

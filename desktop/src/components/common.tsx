@@ -1,4 +1,4 @@
-import { Component, useRef, useState, type ReactNode } from 'react';
+import { Component, useRef, useState, type ReactNode, type RefObject } from 'react';
 import {
   AlertCircle,
   ArrowRight,
@@ -99,6 +99,8 @@ export function Modal({
   description,
   children,
   className = '',
+  initialFocusRef,
+  returnFocusRef,
 }: {
   open: boolean;
   onClose: () => void;
@@ -106,6 +108,8 @@ export function Modal({
   description?: string;
   children: ReactNode;
   className?: string;
+  initialFocusRef?: RefObject<HTMLElement | null>;
+  returnFocusRef?: RefObject<HTMLElement | null>;
 }) {
   return (
     <Dialog
@@ -114,7 +118,21 @@ export function Modal({
         if (!v) onClose();
       }}
     >
-      <DialogContent className={`pos-dialog ${className}`}>
+      <DialogContent
+        className={`pos-dialog ${className}`}
+        onOpenAutoFocus={(event) => {
+          if (initialFocusRef) {
+            event.preventDefault();
+            initialFocusRef.current?.focus();
+          }
+        }}
+        onCloseAutoFocus={(event) => {
+          if (returnFocusRef) {
+            event.preventDefault();
+            returnFocusRef.current?.focus();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}

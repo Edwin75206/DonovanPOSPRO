@@ -150,6 +150,28 @@ fn exact_scans_search_categories_and_permissions() {
     for search in ["Cemento", "CEMEX", "Construccion", "50 kg"] {
         assert_eq!(app.products(search, "", "active", 0).unwrap()["total"], 1);
     }
+    let by_brand = app
+        .products_by_brand("50 kg", "Construcción", "CEMEX", "active", 0)
+        .unwrap();
+    assert_eq!(by_brand["total"], 1);
+    assert_eq!(by_brand["brands"][0]["name"], "CEMEX");
+    assert_eq!(
+        app.products_by_brand("", "", "Otra marca", "active", 0)
+            .unwrap()["total"],
+        0
+    );
+    assert_eq!(
+        app.products_by_brand("", "", "' OR 1=1 --", "active", 0)
+            .unwrap()["total"],
+        0
+    );
+    assert_eq!(
+        app.products_by_brand("", "", "CEMEX", "active", 1).unwrap()["items"]
+            .as_array()
+            .unwrap()
+            .len(),
+        0
+    );
     assert_eq!(
         app.products("", "Construcción", "active", 0).unwrap()["total"],
         1

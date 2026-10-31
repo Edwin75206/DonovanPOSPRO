@@ -18,7 +18,7 @@ cargo test --manifest-path src-tauri/Cargo.toml --no-default-features
 npm run tauri build -- --bundles nsis
 ```
 
-Salidas: `src-tauri/target/release/DonovanPOS.exe` y `src-tauri/target/release/bundle/nsis/Donovan POS Pro_2.1.0_x64-setup.exe`. El instalador incluye WebView2 offline; su compilación descarga ese redistribuible si todavía no existe en la caché. La instalación del cliente utiliza el archivo incluido. La configuración sigue la [documentación oficial de Tauri](https://v2.tauri.app/distribute/windows-installer/).
+Salidas: `src-tauri/target/release/DonovanPOS.exe` y `src-tauri/target/release/bundle/nsis/Donovan POS Pro_2.2.0_x64-setup.exe`. El instalador incluye WebView2 offline; su compilación descarga ese redistribuible si todavía no existe en la caché. La instalación del cliente utiliza el archivo incluido. La configuración sigue la [documentación oficial de Tauri](https://v2.tauri.app/distribute/windows-installer/).
 
 `npm run tauri bundle -- --bundles nsis` vuelve a empaquetar un ejecutable ya compilado. Debe usarse únicamente si ese ejecutable y `dist` corresponden al código que se pretende distribuir. El nombre de binario de Cargo, `default-run` y `mainBinaryName` deben permanecer alineados en `DonovanPOS`.
 

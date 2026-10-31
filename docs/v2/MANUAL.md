@@ -1,6 +1,6 @@
 # Donovan POS Pro — guía de uso
 
-Construrama Chicontla · Donovan Systems · Versión 2.1
+Construrama Chicontla · Donovan Systems · Versión 2.2
 
 ## Instalar y empezar
 
@@ -21,20 +21,23 @@ La sesión persiste al cerrar y abrir el programa, hasta un máximo fijo de 24 h
 ## Hacer una venta
 
 1. En el mostrador, pulsa **Abrir caja** e indica el efectivo inicial. Puedes hacerlo sin cambiar de módulo.
-2. Escanea un código con terminación Enter o Tab: el artículo se agrega automáticamente. Una lectura repetida aumenta la cantidad. Para una búsqueda escrita, elige el resultado con un clic o con flechas y Enter.
-3. Revisa precio, unidad y existencia en las tarjetas o en la lista compacta. Las categorías proceden del catálogo. Ajusta cantidades directamente en el ticket; metros, kilos y litros admiten hasta cuatro decimales. Los precios muestran IVA incluido. Los descuentos y el mayoreo requieren permiso.
-4. Pulsa **Cobrar venta** o F8. Selecciona el método de pago, o combina métodos. Para efectivo, indica lo recibido y revisa el cambio. El crédito requiere cliente, límite disponible y vencimiento.
-5. Confirma el cobro. La pantalla muestra el folio guardado y el cambio cuando hay efectivo. Si la impresión falla, la venta sigue registrada: reimprime el mismo folio desde **Ventas recientes**, sin volver a cobrar. Pulsa **Siguiente venta** para continuar.
+2. Escanea un código con terminación Enter o Tab: el artículo se agrega directamente a la tabla, sin abrir el buscador. Una lectura repetida aumenta la cantidad de esa fila. También puedes escribir una clave o código completo en el campo de captura y pulsar Enter.
+3. Para buscar por nombre, marca o medida, pulsa **Buscar producto — F2**. El campo recibe el foco. Las categorías y marcas proceden de SQLite. Consulta precio, unidad y existencia; elige con flechas y Enter, o haz clic en el resultado. El buscador se cierra al agregar. Escape lo cierra sin modificar la venta; el foco vuelve a la captura.
+4. Ajusta cantidades con los botones −/+, o escríbelas directamente en la fila. Metros, kilos y litros admiten hasta cuatro decimales; piezas y presentaciones enteras no admiten fracciones. Enter termina la edición y vuelve al lector. Los precios muestran IVA incluido; descuentos y mayoreo requieren permiso. Vaciar toda la venta pide confirmación.
+5. Pulsa **Cobrar** o F8. Selecciona el método de pago, o combina métodos. Para efectivo, indica lo recibido y revisa el cambio. El crédito requiere cliente, límite disponible y vencimiento.
+6. Confirma el pago. La pantalla muestra el folio y el cambio. La nueva venta ya está lista: no necesitas pulsar otro botón para seguir escaneando. **Ver e imprimir ticket** abre el comprobante guardado. Si falla la impresión, reimprime el mismo folio desde **Ventas recientes**, sin repetir el cobro.
 
-**Existencias:** la tarjeta muestra lo que queda disponible después de las cantidades en tu ticket. «Últimas» indica que se alcanzó el mínimo; «Agotado» bloquea agregar; «Todo en tu ticket» indica que ya agregaste toda la existencia. El administrador configura el mínimo en Productos/Inventario. El motor vuelve a comprobar disponibilidad al confirmar.
+**Existencias:** cada resultado y cada partida muestran lo que queda disponible después de las cantidades de esta venta. «Stock bajo» indica que se alcanzó el mínimo; «Agotado» bloquea agregar; «Todo en tu ticket» indica que ya agregaste toda la existencia. Los estados usan texto e iconos, además de color. Inventario usa los mismos indicadores sobre el stock registrado. El administrador configura el mínimo por producto. Las cantidades del carrito no reservan existencias: Rust vuelve a comprobarlas dentro de la transacción de cobro.
 
-**Lector USB:** configúralo como teclado HID, sin prefijo, con sufijo Enter (recomendado) o Tab y distribución de teclado igual a Windows. F3 enfoca el buscador. La detección de ráfagas admite separaciones de hasta 70 ms; un lector más lento puede usar el buscador y Enter con el código completo. No se incorporan artículos mientras está abierto un diálogo o se edita otro campo. Prueba tu lector y sus códigos antes de operar.
+**Lector USB:** configúralo como teclado HID, sin prefijo, con sufijo Enter (recomendado) o Tab y distribución de teclado igual a Windows. F3 enfoca la captura. La detección requiere al menos cuatro caracteres con separaciones máximas de 70 ms; un lector más lento puede utilizar el campo de captura y Enter con el código completo. Dentro del buscador, una ráfaga consulta el código exacto, incluso si hay otro filtro seleccionado. Un código inexistente nunca agrega una coincidencia aproximada.
+
+La captura global se pausa al editar otro campo o abrir otros diálogos. Cantidades y cobro tienen protección local: una ráfaga reconocida conserva el valor anterior y no confirma el pago. La temporización no identifica físicamente el dispositivo; configura y prueba el lector real antes de operar. Para introducir manualmente un número muy largo con rapidez, revisa el valor y confirma con un clic. No escanees mientras escribes contraseñas o notas.
 
 **Efectivo y pagos mixtos:** Exacto y las denominaciones rápidas rellenan el dinero entregado. En Mixto, los importes aplicados deben sumar el total; «Efectivo recibido» puede exceder solamente la parte en efectivo y de ahí se calcula el cambio. Tarjeta y transferencia son registros manuales, no conexiones a una terminal bancaria.
 
-**Atajos:** F2 abre el punto de venta; F3 enfoca la búsqueda; F8 abre el cobro; F1 abre la ayuda. Durante la edición de una cotización, F8 abre su guardado. F5 y Ctrl+R no recargan la aplicación para proteger el ticket en curso.
+**Atajos:** F2 abre el buscador de productos; desde otro módulo lleva primero al punto de venta. F3 enfoca la captura de códigos; F8 abre el cobro; F1 abre la ayuda. Durante la edición de una cotización, F8 abre su guardado. F5 y Ctrl+R no recargan la aplicación para proteger el ticket en curso.
 
-**Guardar** deja una venta en espera en SQLite sin cobrar ni apartar existencias. Recupera el carrito desde **En espera** incluso después de reiniciar; la aplicación revisa precios y disponibilidad. Buscar, filtrar o cambiar de vista conserva el ticket actual. Un carrito que no se haya guardado no es un respaldo frente a un corte de energía: guarda el trabajo pendiente antes de cerrar o cambiar de base.
+**Poner en espera** guarda la venta en SQLite sin cobrar ni apartar existencias. Recupérala desde **En espera** incluso después de reiniciar; la aplicación revisa precios y disponibilidad. Abrir el buscador, filtrar o cerrarlo conserva el ticket actual. Un carrito que no se haya guardado no es un respaldo frente a un corte de energía: guarda el trabajo pendiente antes de cerrar o cambiar de base.
 
 ## Cotizaciones
 

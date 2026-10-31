@@ -28,6 +28,8 @@ export function PaymentForm({
   const op = useOperation();
   const submitting = useRef(false);
   const scanShield = useRef(new ScanBuffer());
+  const previousKey = useRef(0);
+  const beforeScan = useRef({ received, amounts, reference, dueDate });
   const creditAvailable = allowCredit && !!cart.customerId;
   const methods = ['Efectivo', 'Tarjeta', 'Transferencia', 'Crédito'];
   const payments =
@@ -54,27 +56,30 @@ export function PaymentForm({
   return (
     <form
       className="payment-layout"
-      onFocusCapture={() => scanShield.current.reset()}
+      onFocusCapture={() => {
+        scanShield.current.reset();
+        previousKey.current = 0;
+      }}
       onKeyDownCapture={(event) => {
-        const input = event.target as HTMLInputElement;
+        const now = performance.now();
+        if (now - previousKey.current > 70 || !previousKey.current)
+          beforeScan.current = { received, amounts, reference, dueDate };
+        previousKey.current = now;
         const code = scanShield.current.key(
           event.key,
-          performance.now(),
-          input.tagName === 'INPUT',
+          now,
+          true,
           event.ctrlKey || event.altKey || event.metaKey || event.nativeEvent.isComposing,
         );
         if (code) {
           event.preventDefault();
           event.stopPropagation();
-          if (input.dataset.paymentField === 'received') setReceived('');
-          if (input.dataset.paymentIndex !== undefined)
-            setAmounts((current) =>
-              current.map((value, index) =>
-                index === Number(input.dataset.paymentIndex) ? '' : value,
-              ),
-            );
+          setReceived(beforeScan.current.received);
+          setAmounts(beforeScan.current.amounts);
+          setReference(beforeScan.current.reference);
+          setDueDate(beforeScan.current.dueDate);
           toast.info(
-            'Lectura pausada durante el cobro. Revisa el importe y confirma con el botón.',
+            'Lectura pausada durante el cobro. Tus importes se conservan; confirma con el botón.',
           );
         }
       }}

@@ -275,9 +275,9 @@ function Workspace({
     const goHome = () => navigate(home);
     const key = (e: KeyboardEvent) => {
       if (document.body.classList.contains('driver-active')) return;
-      if (e.key === 'F2' && !document.querySelector('[role=dialog]')) {
+      if (e.key === 'F2' && page !== 'pos' && !document.querySelector('[role=dialog]')) {
         e.preventDefault();
-        navigate('pos');
+        navigate('pos', { searchProduct: Date.now() });
       }
       if (e.key === 'F1') {
         e.preventDefault();
@@ -290,7 +290,7 @@ function Workspace({
       window.removeEventListener('go-home', goHome);
       window.removeEventListener('keydown', key);
     };
-  }, [home, navigate, onHelp]);
+  }, [home, navigate, onHelp, page]);
   const saveVisual = (config: AppearanceState['config']) =>
     void api('saveAppearance', { config, backgroundAction: 'keep', backgroundData: null })
       .then(onAppearance)
@@ -337,6 +337,7 @@ function Workspace({
         <Register
           data={data}
           cart={cart}
+          searchRequest={Number(filters.searchProduct) || 0}
           setCart={setCart}
           onCash={() => navigate('cash')}
           onSaved={() => {}}
@@ -564,7 +565,7 @@ function Workspace({
             MXN · Español (México)<b>Donovan Systems</b>
           </span>
           <span>
-            F1 Ayuda · F2 Venta · F3 Buscar · F8{' '}
+            F1 Ayuda · F2 Buscar producto · F3 Escanear · F8{' '}
             {cart.editingQuote ? 'Guardar cotización' : 'Cobrar'}
             <span>v{data.version}</span>
           </span>

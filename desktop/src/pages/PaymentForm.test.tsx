@@ -91,6 +91,6 @@ describe('Cash at the register', () => {
     for (const key of '7500000000001') fireEvent.keyDown(input, { key });
     fireEvent.keyDown(input, { key: 'Enter' });
     expect(api).not.toHaveBeenCalled();
-    expect((input as HTMLInputElement).value).toBe('');
+    expect((input as HTMLInputElement).value).toBe('170.5');
   });
 });

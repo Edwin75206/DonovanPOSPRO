@@ -285,6 +285,7 @@ export interface ProductPage {
   page: number;
   pageSize: number;
   categories: { name: string; count: number }[];
+  brands?: { name: string; count: number }[];
 }
 export interface StockMovement {
   id: number;
@@ -707,7 +708,10 @@ export interface Calls {
   lock: [undefined, Bootstrap];
   unlock: [{ password: string }, Bootstrap];
   demoLogin: [{ role: number }, Bootstrap];
-  products: [{ search: string; category: string; status: string; page: number }, ProductPage];
+  products: [
+    { search: string; category: string; brand?: string; status: string; page: number },
+    ProductPage,
+  ];
   product: [{ id: number }, Product];
   inventory: [
     {

@@ -2,16 +2,17 @@
 
 Punto de venta de escritorio para ferretería, desarrollado para Windows por **Donovan Systems**. Autor del proyecto: **Ing. Edwin Donovan Castañeda Calderón**. Interfaz en español de México, moneda MXN y funcionamiento local sin conexión a Internet.
 
-## Versión activa: 2.1 para Windows
+## Versión activa: 2.2 para Windows
 
 La aplicación actual está en [`desktop`](desktop/README.md): Tauri 2, React/TypeScript y servicios Rust con SQLite. El cliente instala un solo paquete x64 con WebView2 offline incluido; no necesita Node.js, .NET ni herramientas de desarrollo.
 
-La entrega está en `artifacts/v2.1/entrega`: `DonovanPOS-2.1.0-x64-Setup.exe`, `DonovanPOS.exe`, instrucciones, documentación, capturas reales y comprobantes SHA-256. Para instalar en otro equipo, usa el instalador y restaura un respaldo desde la propia aplicación.
+La entrega está en `artifacts/v2.2/entrega`: `DonovanPOS-2.2.0-x64-Setup.exe`, `DonovanPOS.exe`, instrucciones, documentación, capturas reales y comprobantes SHA-256. Para instalar en otro equipo, usa el instalador y restaura un respaldo desde la propia aplicación.
 
-El punto de venta reúne búsqueda y lector HID, categorías del catálogo, existencias, cantidades fraccionarias, carrito, cobro con F8, cotizaciones y ventas en espera. Configuración incorpora **Impresoras y tickets**, con vista previa, papel de 58/80 mm, márgenes, copias y logo monocromático. El dashboard ejecutivo se conserva para el administrador.
+El mostrador concentra la venta en una tabla compacta con cantidades editables y total permanente. El lector agrega directamente; **F2** abre el buscador con categorías, marcas y existencias; **F8** abre el cobro. Al confirmar, la captura queda lista de inmediato para el siguiente cliente. Se conservan cotizaciones, ventas en espera, impresión configurable de 58/80 mm, PDF, reimpresión y el dashboard ejecutivo del administrador.
 
-- [Manual de operación 2.1](docs/v2/MANUAL.md).
+- [Manual de operación 2.2](docs/v2/MANUAL.md).
 - [Base local, migraciones, SQLiteStudio y portabilidad](docs/v2/DATOS-Y-PORTABILIDAD.md).
+- [Validación del mostrador 2.2](docs/v2/VALIDACION-2.2.md).
 - [Validación de caja e impresión 2.1](docs/v2/VALIDACION-2.1.md).
 - [Validación de la reconstrucción 2.0 y portabilidad](docs/v2/VALIDACION.md).
 - [Compilación y arquitectura nativa](desktop/README.md).

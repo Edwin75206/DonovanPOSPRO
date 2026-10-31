@@ -167,6 +167,16 @@ impl Engine {
     pub fn products(&self, search: &str, category: &str, status: &str, page: i64) -> Result<Value> {
         self.product_page(search, category, status, page, "name", false)
     }
+    pub fn products_by_brand(
+        &self,
+        search: &str,
+        category: &str,
+        brand: &str,
+        status: &str,
+        page: i64,
+    ) -> Result<Value> {
+        self.filtered_product_page(search, category, brand, status, page, "name", false)
+    }
     pub fn get_product(&self, id: i64) -> Result<Value> {
         let actor = self.actor("sell")?;
         let mut p = product(self.db()?, id)?;
@@ -184,9 +194,24 @@ impl Engine {
         sort: &str,
         descending: bool,
     ) -> Result<Value> {
+        self.filtered_product_page(search, category, "", status, page, sort, descending)
+    }
+    fn filtered_product_page(
+        &self,
+        search: &str,
+        category: &str,
+        brand: &str,
+        status: &str,
+        page: i64,
+        sort: &str,
+        descending: bool,
+    ) -> Result<Value> {
         let actor = self.actor("sell")?;
         ensure(
-            search.chars().count() <= 200 && page >= 0 && page <= 100000,
+            search.chars().count() <= 200
+                && brand.chars().count() <= 200
+                && page >= 0
+                && page <= 100000,
             "VALIDATION",
             "Acorta la búsqueda o regresa a la primera página.",
         )?;
@@ -229,18 +254,18 @@ impl Engine {
             .map(|s| format!("\"{s}\"*"))
             .collect();
         let query = tokens.join(" AND ");
-        let where_sql = "WHERE (?1='' OR p.Id IN (SELECT rowid FROM ProductSearch WHERE ProductSearch MATCH ?1) OR p.Sku=?2 COLLATE NOCASE OR p.Barcode=?2) AND (?3='' OR p.Category=?3) AND ((?4='archived' AND p.Active=0) OR (?4<>'archived' AND p.Active=1)) AND (?4<>'low' OR p.StockUnits<=p.MinimumUnits) AND (?4<>'empty' OR p.StockUnits=0)";
+        let where_sql = "WHERE (?1='' OR p.Id IN (SELECT rowid FROM ProductSearch WHERE ProductSearch MATCH ?1) OR p.Sku=?2 COLLATE NOCASE OR p.Barcode=?2) AND (?3='' OR p.Category=?3) AND ((?4='archived' AND p.Active=0) OR (?4<>'archived' AND p.Active=1)) AND (?4<>'low' OR p.StockUnits<=p.MinimumUnits) AND (?4<>'empty' OR p.StockUnits=0) AND (?5='' OR p.Brand=?5)";
         let total = db::scalar(
             self.db()?,
             &format!("SELECT COUNT(*) FROM Product p {where_sql}"),
-            params![query, search.trim(), category, status],
+            params![query, search.trim(), category, status, brand],
         )?;
         let mut items = db::all(
             self.db()?,
             &format!(
-                "SELECT p.* FROM Product p {where_sql} ORDER BY CASE WHEN p.Sku=?2 COLLATE NOCASE OR p.Barcode=?2 THEN 0 ELSE 1 END,{order} {direction},p.Id LIMIT 60 OFFSET ?5"
+                "SELECT p.* FROM Product p {where_sql} ORDER BY CASE WHEN p.Sku=?2 COLLATE NOCASE OR p.Barcode=?2 THEN 0 ELSE 1 END,{order} {direction},p.Id LIMIT 60 OFFSET ?6"
             ),
-            params![query, search.trim(), category, status, page * 60],
+            params![query, search.trim(), category, status, brand, page * 60],
         )?;
         if !actor.can("catalog") {
             for item in &mut items {
@@ -252,7 +277,14 @@ impl Engine {
             "SELECT Category AS name,COUNT(*) AS count FROM Product WHERE Active=1 GROUP BY Category ORDER BY Category",
             [],
         )?;
-        Ok(json!({"items":items,"total":total,"page":page,"pageSize":60,"categories":categories}))
+        let brands = db::all(
+            self.db()?,
+            "SELECT Brand AS name,COUNT(*) AS count FROM Product WHERE Active=1 AND trim(Brand)<>'' GROUP BY Brand ORDER BY Brand",
+            [],
+        )?;
+        Ok(
+            json!({"items":items,"total":total,"page":page,"pageSize":60,"categories":categories,"brands":brands}),
+        )
     }
     pub fn save_product(&mut self, mut p: Product) -> Result<Value> {
         let actor = self.actor("catalog")?;

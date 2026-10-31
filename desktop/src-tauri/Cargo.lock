@@ -1012,7 +1012,7 @@ dependencies = [
 
 [[package]]
 name = "donovan-pos"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "barcoders",
  "base64 0.22.1",

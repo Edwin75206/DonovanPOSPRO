@@ -11,14 +11,14 @@ fn main() {
     );
     let root = PathBuf::from(&args[2]).canonicalize().unwrap();
     let allowed = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../artifacts/v2.1/preview")
+        .join("../../artifacts/v2.2/preview")
         .canonicalize()
         .unwrap();
     assert_eq!(root.parent(), Some(allowed.as_path()));
     uuid::Uuid::parse_str(root.file_name().unwrap().to_str().unwrap()).unwrap();
     let marker: Value =
         serde_json::from_slice(&fs::read(root.join("qa-manifest.json")).unwrap()).unwrap();
-    assert_eq!(marker["purpose"], "DonovanPOS 2.1 native UI QA");
+    assert_eq!(marker["purpose"], "DonovanPOS 2.2 native UI QA");
     assert!(["seller", "admin"].contains(&args[3].as_str()));
     let data = root.join(format!("data-{}", args[3]));
     if args[1] == "prepare" {

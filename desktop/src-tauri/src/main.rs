@@ -27,6 +27,8 @@ fn main() {
     let result = tauri::Builder::default()
         .manage(state.clone())
         .setup(move |app| {
+            #[cfg(windows)]
+            let desktop_state=state.clone();
             let handle = app.handle().clone();
             std::thread::spawn(move || {
                 let mut next_attempt = std::time::Instant::now();
@@ -56,6 +58,23 @@ fn main() {
                 }
             });
             if let Some(window) = app.get_webview_window("main") {
+                #[cfg(windows)]
+                window.with_webview(move |webview| {
+                    use windows_core::Interface;
+                    use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Settings3;
+                    let result:windows_core::Result<()>=(||unsafe {
+                        let settings=webview.controller().CoreWebView2()?.Settings()?;
+                        settings.SetAreDefaultContextMenusEnabled(false)?;
+                        settings.SetIsZoomControlEnabled(false)?;
+                        settings.cast::<ICoreWebView2Settings3>()?.SetAreBrowserAcceleratorKeysEnabled(false)?;
+                        Ok(())
+                    })();
+                    if let Err(error)=result {
+                        if let Ok(guard)=desktop_state.engine.lock() {
+                            if let Some(Ok(engine))=guard.as_ref() {engine.log_error("interface","desktop-keyboard",&donovan_core::error::AppError::internal("DESKTOP_KEYS","No pudimos preparar todos los controles de teclado de Windows.",error));}
+                        }
+                    }
+                })?;
                 if let Some(monitor) = window.current_monitor()? {
                     let available = monitor
                         .work_area()

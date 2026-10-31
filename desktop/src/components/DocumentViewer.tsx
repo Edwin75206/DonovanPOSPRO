@@ -52,6 +52,7 @@ export function autoPrintSale(data: Bootstrap, id: number) {
     ).catch(() => {});
 }
 export function PaperPreview({ document }: { document: BusinessDocument }) {
+  const logoSource=document.logoData?`data:image/${document.logoData.startsWith('/9j/')?'jpeg':'png'};base64,${document.logoData}`:undefined;
   return (
     <div className={`paper-preview ${document.kind === 'sale' ? 'paper-roll' : 'paper-a4'}`}>
       {document.pages.map((page, index) => (
@@ -84,7 +85,7 @@ export function PaperPreview({ document }: { document: BusinessDocument }) {
                     y={op.y}
                     width={op.width}
                     height={op.height}
-                    href={`data:image/${document.logoData.startsWith('/9j/') ? 'jpeg' : 'png'};base64,${document.logoData}`}
+                    href={logoSource}
                     preserveAspectRatio="xMidYMid meet"
                   />
                 ) : null;
@@ -136,7 +137,10 @@ export function DocumentDialog({
     };
   }, []);
   const selection = { ...request, widthMm: width };
-  const document = useResource(() => api('document', selection), [request.kind, request.id, width]);
+  const document = useResource(
+    () => api('document', selection),
+    [request.kind, request.id, width, request.copies, JSON.stringify(request.report)],
+  );
   const printers = useResource(() => api('printers'), []);
   const exportOp = useOperation();
   const selected = printers.data?.find((p) => (printer ? p.name === printer : p.isDefault));
@@ -161,7 +165,13 @@ export function DocumentDialog({
         if (!exportOp.busy) onClose();
       }}
       title={document.data?.title ?? 'Preparando documento'}
-      description="Vista previa del documento. Puedes volver a imprimir sin registrar otra operación."
+      description={
+        request.kind === 'labels'
+          ? 'Etiquetas con el precio actual. Usa papel A4 a tamaño real.'
+          : request.kind === 'report'
+            ? 'Revisa el periodo, los filtros y los totales antes de compartir el reporte.'
+            : 'Vista previa del documento. Puedes volver a imprimir sin registrar otra operación.'
+      }
       className="document-dialog"
     >
       <div className="document-controls">
@@ -169,7 +179,10 @@ export function DocumentDialog({
           <Field label="Ancho del ticket">
             <select
               value={width}
-              onChange={(e) => setWidth(Number(e.target.value))}
+              onChange={(e) => {
+                setWidth(Number(e.target.value));
+                setPrintJob(null);
+              }}
               disabled={exportOp.busy}
             >
               <option value={58}>58 mm</option>
@@ -180,7 +193,10 @@ export function DocumentDialog({
         <Field label="Impresora de Windows">
           <select
             value={printer}
-            onChange={(e) => setPrinter(e.target.value)}
+            onChange={(e) => {
+              setPrinter(e.target.value);
+              setPrintJob(null);
+            }}
             disabled={exportOp.busy}
           >
             <option value="">Predeterminada de Windows</option>

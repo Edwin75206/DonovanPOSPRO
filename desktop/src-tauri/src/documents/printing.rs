@@ -232,18 +232,29 @@ pub fn print(source: &BusinessDocument, selected: &str, output: Option<&Path>) -
         }
         let apply_size = |width: f32, height: f32| -> Result<()> {
             let mode = &mut *mode_ptr;
+            let landscape = source.kind == "report" && width > height;
+            let (paper_width, paper_height) = if landscape {
+                (height, width)
+            } else {
+                (width, height)
+            };
             mode.dmFields |=
                 DM_ORIENTATION | DM_PAPERSIZE | DM_PAPERWIDTH | DM_PAPERLENGTH | DM_COPIES;
-            mode.Anonymous1.Anonymous1.dmOrientation = DMORIENT_PORTRAIT as i16;
+            mode.Anonymous1.Anonymous1.dmOrientation = if landscape {
+                DMORIENT_LANDSCAPE
+            } else {
+                DMORIENT_PORTRAIT
+            } as i16;
             mode.Anonymous1.Anonymous1.dmCopies = 1;
-            mode.Anonymous1.Anonymous1.dmPaperSize =
-                if (width / MM - 210.0).abs() < 0.1 && (height / MM - 297.0).abs() < 0.1 {
-                    DMPAPER_A4 as i16
-                } else {
-                    DMPAPER_USER as i16
-                };
-            mode.Anonymous1.Anonymous1.dmPaperWidth = (width / MM * 10.0).round() as i16;
-            mode.Anonymous1.Anonymous1.dmPaperLength = (height / MM * 10.0).round() as i16;
+            mode.Anonymous1.Anonymous1.dmPaperSize = if (paper_width / MM - 210.0).abs() < 0.1
+                && (paper_height / MM - 297.0).abs() < 0.1
+            {
+                DMPAPER_A4 as i16
+            } else {
+                DMPAPER_USER as i16
+            };
+            mode.Anonymous1.Anonymous1.dmPaperWidth = (paper_width / MM * 10.0).round() as i16;
+            mode.Anonymous1.Anonymous1.dmPaperLength = (paper_height / MM * 10.0).round() as i16;
             if DocumentPropertiesW(
                 null_mut(),
                 handle.0,
@@ -334,11 +345,33 @@ pub fn print(source: &BusinessDocument, selected: &str, output: Option<&Path>) -
                 "PRINTER_PAPER",
                 "El papel configurado es demasiado pequeño. Revisa el ancho y tamaño en las propiedades de la impresora o guarda el PDF.",
             )?;
-            let left = (usable_w - content_w * scale) / 2.0;
+            let physical_x = GetDeviceCaps(dc.0, PHYSICALOFFSETX as i32) as f32 * 72.0 / dpi_x;
+            let left = if source.kind == "labels" {
+                page.margin - physical_x
+            } else {
+                (usable_w - content_w * scale) / 2.0
+            };
             let physical_y = GetDeviceCaps(dc.0, PHYSICALOFFSETY as i32) as f32 * 72.0 / dpi_y;
-            let top = (page.margin - physical_y)
-                .max(0.0)
-                .min((usable_h - content_h * scale).max(0.0));
+            let top = if source.kind == "labels" {
+                page.margin - physical_y
+            } else {
+                (page.margin - physical_y)
+                    .max(0.0)
+                    .min((usable_h - content_h * scale).max(0.0))
+            };
+            if source.kind == "labels" {
+                let paper_w = GetDeviceCaps(dc.0, PHYSICALWIDTH as i32) as f32 * 72.0 / dpi_x;
+                let paper_h = GetDeviceCaps(dc.0, PHYSICALHEIGHT as i32) as f32 * 72.0 / dpi_y;
+                ensure(
+                    scale >= 0.999
+                        && left >= 0.0
+                        && top >= 0.0
+                        && (paper_w - page.width).abs() < MM
+                        && (paper_h - page.height).abs() < MM,
+                    "PRINTER_PAPER",
+                    "Las etiquetas requieren papel A4 al 100%. Revisa el tamaño de papel o guarda el PDF para imprimirlo sin ajustar.",
+                )?;
+            }
             let px = |x: f32| ((left + (x - page.margin) * scale) * dpi_x / 72.0).round() as i32;
             let py = |y: f32| ((top + (y - page.margin) * scale) * dpi_y / 72.0).round() as i32;
             if StartPage(dc.0) <= 0 {

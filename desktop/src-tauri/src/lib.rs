@@ -16,6 +16,7 @@ pub mod purchasing;
 pub mod quotes;
 pub mod recovery;
 pub mod reporting;
+pub mod reports;
 pub mod returns;
 pub mod secure;
 pub mod storage;

@@ -1,7 +1,9 @@
+mod labels;
 pub mod layout;
 pub mod pdf;
 #[cfg(windows)]
 pub mod printing;
+mod report;
 use crate::{
     Engine, db,
     error::{AppError, Result, ensure},
@@ -13,12 +15,14 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{fs::OpenOptions, io::Write, path::Path};
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DocumentRequest {
     pub kind: String,
     pub id: i64,
     pub width_mm: Option<i64>,
+    pub report: Option<crate::reports::ReportQuery>,
+    pub copies: Option<i64>,
 }
 fn s<'a>(value: &'a Value, key: &str) -> &'a str {
     value[key].as_str().unwrap_or("")
@@ -26,7 +30,7 @@ fn s<'a>(value: &'a Value, key: &str) -> &'a str {
 fn n(value: &Value, key: &str) -> i64 {
     value[key].as_i64().unwrap_or(0)
 }
-fn date(value: &str) -> String {
+pub(crate) fn date(value: &str) -> String {
     chrono::NaiveDateTime::parse_from_str(value, "%Y-%m-%d %H:%M:%S%.f")
         .map(|date| date.format("%d/%m/%Y · %H:%M").to_string())
         .or_else(|_| {
@@ -95,6 +99,21 @@ impl Engine {
         )?;
         let logo = settings["logoData"].as_str().map(str::to_owned);
         match request.kind.as_str() {
+            "report" => {
+                let query = request.report.as_ref().ok_or_else(|| {
+                    AppError::rule("VALIDATION", "Selecciona un reporte y sus fechas.")
+                })?;
+                let report = self.report(query)?;
+                report::build(&report, &settings)
+            }
+            "labels" => {
+                self.actor("catalog")?;
+                labels::build(
+                    &crate::catalog::product(self.db()?, request.id)?,
+                    &settings,
+                    request.copies.unwrap_or(16),
+                )
+            }
             "sale" => {
                 let detail = self.sale(request.id)?;
                 let sale = &detail["sale"];
@@ -335,7 +354,7 @@ impl Engine {
                     9.0,
                     false,
                 );
-                paper.pair("Fecha", s(purchase, "createdAt"), 9.0, false);
+                paper.pair("Fecha", &date(s(purchase, "createdAt")), 9.0, false);
                 paper.space(12.0);
                 let columns = [0.44, 0.20, 0.18, 0.18];
                 paper.table_row(
@@ -394,6 +413,7 @@ impl Engine {
         )?;
         let document = self.business_document(request)?;
         let bytes = pdf::encode(&document)?;
+        storage::require_space(folder, bytes.len() as u64)?;
         let stem: String = document
             .title
             .chars()

@@ -27,6 +27,7 @@ import {
   FileText,
   ReceiptText,
   Truck,
+  ChartNoAxesCombined,
 } from 'lucide-react';
 import { Toaster } from 'sonner';
 import { api, type Bootstrap } from '@/lib/api';
@@ -42,12 +43,31 @@ import { Contacts } from '@/pages/Contacts';
 import { Quotes } from '@/pages/Quotes';
 import { Sales } from '@/pages/Sales';
 import { Purchases } from '@/pages/Purchases';
+import { Reports } from '@/pages/Reports';
 import { Settings as SettingsPage } from '@/pages/Settings';
 import { HelpCenter, useTutorial } from '@/components/HelpCenter';
 import { Busy, Button, Modal, ErrorBoundary, reportError, Failure } from '@/components/common';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
 export default function App() {
+  useEffect(() => {
+    // Desktop actions stay in the app. Reloading a webview would discard drafts.
+    const guard = (event: KeyboardEvent) => {
+      if (
+        event.key === 'F5' ||
+        ((event.ctrlKey || event.metaKey) && ['r', 'p'].includes(event.key.toLowerCase())) ||
+        (event.altKey && ['ArrowLeft', 'ArrowRight'].includes(event.key))
+      )
+        event.preventDefault();
+    };
+    const context = (event: MouseEvent) => event.preventDefault();
+    window.addEventListener('keydown', guard, true);
+    window.addEventListener('contextmenu', context);
+    return () => {
+      window.removeEventListener('keydown', guard, true);
+      window.removeEventListener('contextmenu', context);
+    };
+  }, []);
   const [data, setData] = useState<Bootstrap | null>(null);
   const [initialError, setInitialError] = useState<ReturnType<typeof reportError> | null>(null);
   const [carts, setCarts] = useState<Record<string, Cart>>({});
@@ -284,6 +304,7 @@ function Workspace({
     { id: 'quotes', name: 'Cotizaciones', icon: FileText },
     { id: 'customers', name: 'Clientes', icon: Users },
     ...(actor.role !== 1 ? [{ id: 'purchases', name: 'Compras', icon: Truck }] : []),
+    ...(actor.role === 0 ? [{ id: 'reports', name: 'Reportes', icon: ChartNoAxesCombined }] : []),
     { id: 'appearance', name: 'Apariencia', icon: Palette },
     ...(actor.role === 0 ? [{ id: 'settings', name: 'Configuración', icon: Settings }] : []),
   ];
@@ -299,6 +320,7 @@ function Workspace({
     customers: 'Clientes y cuentas',
     purchases: 'Compras y proveedores',
     suppliers: 'Proveedores',
+    reports: 'Reportes del negocio',
   };
   let pageContent;
   switch (page) {
@@ -327,6 +349,7 @@ function Workspace({
       pageContent = (
         <Inventory
           actor={actor}
+          business={data}
           filters={filters}
           defaultTaxBasisPoints={data.settings?.defaultTaxBasisPoints}
         />
@@ -334,6 +357,14 @@ function Workspace({
       break;
     case 'cash':
       pageContent = <Cash />;
+      break;
+    case 'reports':
+      pageContent =
+        actor.role === 0 ? (
+          <Reports data={data} filters={filters} />
+        ) : (
+          <NotFound onHome={() => navigate(home)} />
+        );
       break;
     case 'customers':
     case 'credit':
@@ -533,7 +564,9 @@ function Workspace({
             MXN · Español (México)<b>Donovan Systems</b>
           </span>
           <span>
-            F1 Ayuda · F2 Venta · F3 Buscar · F8 Cobrar<span>v{data.version}</span>
+            F1 Ayuda · F2 Venta · F3 Buscar · F8{' '}
+            {cart.editingQuote ? 'Guardar cotización' : 'Cobrar'}
+            <span>v{data.version}</span>
           </span>
         </footer>
       </div>

@@ -13,6 +13,12 @@
 .document-dialog {
   width: min(60rem, 96vw) !important;
   max-height: 94dvh !important;
+  display: flex !important;
+  flex-direction: column;
+  overflow-y: auto !important;
+}
+.document-dialog > * {
+  flex-shrink: 0;
 }
 .document-controls {
   display: flex;
@@ -25,11 +31,13 @@
   min-width: 14rem;
 }
 .paper-preview {
-  background: color-mix(in srgb, var(--muted) 65%, var(--background));
+  background: color-mix(in srgb, var(--surface) 65%, var(--background));
   border: 1px solid var(--border);
   border-radius: 1rem;
   padding: 1.4rem;
   max-height: 58dvh;
+  min-height: 8rem;
+  flex: 1 1 auto;
   overflow: auto;
   overscroll-behavior: contain;
 }
@@ -57,7 +65,7 @@
 }
 .paper-preview figcaption {
   text-align: center;
-  color: var(--muted-foreground);
+  color: var(--subtle);
   font-size: 0.75rem;
   margin-top: 0.7rem;
 }
@@ -71,7 +79,7 @@
 .document-actions {
   position: sticky;
   bottom: -1px;
-  background: var(--card);
+  background: var(--surface);
   padding-top: 0.8rem;
   margin-top: 0;
 }

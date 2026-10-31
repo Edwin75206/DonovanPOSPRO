@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, ArrowRight, Plus, FileText, Printer } from 'lucide-react';
+import { Search, ArrowRight, Plus, FileText, Printer, PencilLine } from 'lucide-react';
 import { api, type Quote, type QuoteDetail, type Product, type Bootstrap } from '@/lib/api';
 import { DocumentDialog } from '@/components/DocumentViewer';
 import { useResource } from '@/lib/useResource';
@@ -154,6 +154,7 @@ function QuoteViewer({
   const op = useOperation();
   const quote = detail.data?.quote;
   const [paper, setPaper] = useState(false);
+  const [editing, setEditing] = useState(false);
   return (
     <Modal
       open
@@ -207,8 +208,8 @@ function QuoteViewer({
             </p>
           ) : quote && quote.validUntil < today() ? (
             <p className="notice">
-              La cotización venció. Crea una nueva propuesta con precios y existencias actuales
-              desde el punto de venta.
+              La cotización venció. Puedes editar sus partidas y renovar la vigencia con precios
+              actuales.
             </p>
           ) : (
             <Button
@@ -255,6 +256,70 @@ function QuoteViewer({
               {op.busy ? 'Preparando venta…' : 'Continuar al punto de venta'}{' '}
               <ArrowRight size={17} />
             </Button>
+          )}
+          {quote && !quote.saleId && (
+            <Button
+              variant="outline"
+              disabled={hasCart || op.busy}
+              onClick={() => setEditing(true)}
+            >
+              <PencilLine size={16} />
+              Editar partidas y vigencia
+            </Button>
+          )}
+          {editing && (
+            <Modal
+              open
+              title={`Editar ${quote?.folio}`}
+              description="Se usarán los precios actuales de menudeo y el descuento comenzará en cero. La propuesta anterior se conserva hasta que guardes los cambios."
+              onClose={() => {
+                if (!op.busy) setEditing(false);
+              }}
+            >
+              <p>
+                Podrás cambiar productos, cantidades, cliente, descuento y vigencia antes de
+                guardar. Si ya venció, te propondremos una vigencia de 15 días.
+              </p>
+              <Failure error={op.error} />
+              <div className="dialog-actions">
+                <Button variant="outline" disabled={op.busy} onClick={() => setEditing(false)}>
+                  Volver
+                </Button>
+                <Button
+                  disabled={op.busy || hasCart}
+                  onClick={() =>
+                    void op.run(async () => {
+                      const current = await api('quote', { id });
+                      // Let the native service return its audited, actionable error.
+                      if (current.quote.saleId)
+                        await api('price', { items: [], discountParts: 0, quoteId: id });
+                      const products = await Promise.all(
+                        current.lines.map((line) => api('product', { id: line.productId })),
+                      );
+                      return {
+                        ...freshCart(),
+                        rows: current.lines.map((line, index) => ({
+                          product: products[index],
+                          quantityUnits: line.quantityUnits,
+                          wholesale: false,
+                        })),
+                        customerId: current.quote.customerId,
+                        customerName: current.quote.customerName,
+                        sourceLabel: current.quote.folio,
+                        editingQuote: {
+                          id,
+                          notes: current.quote.notes,
+                          validUntil: current.quote.validUntil,
+                        },
+                      };
+                    }, onLoad)
+                  }
+                >
+                  {op.busy ? 'Preparando…' : 'Abrir para editar'}
+                  <ArrowRight size={16} />
+                </Button>
+              </div>
+            </Modal>
           )}
         </>
       )}

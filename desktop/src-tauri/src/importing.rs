@@ -440,6 +440,11 @@ fn apply(cells: &[Cell], options: &ImportOptions, mut p: Product) -> Result<(Pro
     }
     if new || options.stock != "keep" {
         if let Some(c) = mapped(cells, options, "stock")? {
+            ensure(
+                new || options.stock != "replace" || !c.text.trim().is_empty(),
+                "INVALID_ROW",
+                "Existencia: para reemplazar el saldo, escribe una cantidad. Usa 0 si deseas dejarlo en cero.",
+            )?;
             let amount = if c.text.trim().is_empty() {
                 0
             } else {

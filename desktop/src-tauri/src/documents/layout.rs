@@ -176,6 +176,21 @@ impl Layout {
     pub fn content_width(&self) -> f32 {
         self.width - self.margin * 2.0
     }
+    pub fn landscape(title: &str, logo: Option<String>) -> Result<Self> {
+        let mut paper = Self::new(title, "report", 297.0, false, logo)?;
+        paper.page.height = 210.0 * MM;
+        Ok(paper)
+    }
+    pub fn logo_at(&mut self, x: f32, y: f32, width: f32, height: f32) {
+        if self.document.logo_data.is_some() {
+            self.page.operations.push(Draw::Logo {
+                x,
+                y,
+                width,
+                height,
+            });
+        }
+    }
     pub fn text_at(
         &mut self,
         x: f32,
@@ -230,7 +245,7 @@ impl Layout {
         );
         let next = Page {
             width: self.width,
-            height: 297.0 * MM,
+            height: self.page.height,
             margin: self.margin,
             operations: vec![],
         };
@@ -315,7 +330,7 @@ impl Layout {
     }
     pub fn table_row(&mut self, cells: &[String], fractions: &[f32], header: bool) {
         if header {
-            self.table_header = Some((cells.to_vec(), fractions.to_vec()));
+            self.table_header = None;
         }
         let size = if self.roll { 7.5 } else { 9.0 };
         let width = self.content_width();
@@ -328,6 +343,7 @@ impl Layout {
             lines.iter().map(Vec::len).max().unwrap_or(1).max(1) as f32 * size * 1.45 + 12.0;
         self.ensure(height);
         if header {
+            self.table_header = Some((cells.to_vec(), fractions.to_vec()));
             self.rect(self.margin, self.y, width, height, PALE);
         }
         let mut x = self.margin + 5.0;

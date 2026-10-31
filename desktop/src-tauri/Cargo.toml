@@ -2,6 +2,7 @@
 name = "donovan-pos"
 version = "2.0.0"
 edition = "2024"
+default-run = "DonovanPOS"
 authors = ["Donovan Systems"]
 description = "Donovan POS Pro — aplicación local de punto de venta"
 license = "LicenseRef-Proprietary"
@@ -17,14 +18,14 @@ required-features = ["desktop"]
 
 [features]
 default = ["desktop"]
-desktop = ["dep:tauri", "dep:tauri-build", "dep:rfd"]
+desktop = ["dep:tauri", "dep:tauri-build", "dep:rfd", "dep:webview2-com", "dep:windows-core"]
 custom-protocol = ["desktop", "tauri/custom-protocol"]
 
 [build-dependencies]
-tauri-build = { version = "2", optional = true }
+tauri-build = { version = "2", optional = true , features = [] }
 
 [dependencies]
-tauri = { version = "2", optional = true }
+tauri = { version = "2", optional = true , features = [] }
 rfd = { version = "0.15", optional = true }
 rusqlite = { version = "0.38", features = ["bundled", "backup", "functions", "limits"] }
 serde = { version = "1", features = ["derive"] }
@@ -49,6 +50,8 @@ barcoders = "2"
 ttf-parser = "0.25.1"
 
 [target.'cfg(windows)'.dependencies]
+webview2-com = {version = "0.39.1", optional = true}
+windows-core = {version = "0.62.2", optional = true}
 windows-sys = { version = "0.61", features = ["Win32_Security_Cryptography", "Win32_Foundation", "Win32_System_Memory", "Win32_Storage_FileSystem", "Win32_Graphics_Gdi", "Win32_Graphics_Printing", "Win32_Storage_Xps"] }
 
 [dev-dependencies]

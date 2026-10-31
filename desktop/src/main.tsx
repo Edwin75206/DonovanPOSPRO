@@ -8,6 +8,7 @@ import './adaptive.css';
 import './business.css';
 import './records.css';
 import './documents.css';
+import './reports.css';
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <App />

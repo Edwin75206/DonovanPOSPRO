@@ -11,7 +11,7 @@ import {
 import { toast } from 'sonner';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
-import { normalizeError, type UiFailure } from '@/lib/api';
+import { api, normalizeError, type UiFailure } from '@/lib/api';
 export { Button };
 let activeOperations = 0;
 export const hasActiveOperation = () => activeOperations > 0;
@@ -163,13 +163,35 @@ export function PageTitle({
     </div>
   );
 }
-export class ErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
-  state = { failed: false };
+export class ErrorBoundary extends Component<
+  { children: ReactNode },
+  { failed: boolean; incidentId: string }
+> {
+  state = { failed: false, incidentId: '' };
+  private failureSerial = 0;
   static getDerivedStateFromError() {
-    return { failed: true };
+    return { failed: true, incidentId: '' };
   }
-  componentDidCatch() {
+  componentDidCatch(error: Error) {
     /* Never persist component props or input values. */
+    const serial = ++this.failureSerial;
+    const kind =
+      error instanceof TypeError
+        ? 'TypeError'
+        : error instanceof RangeError
+          ? 'RangeError'
+          : error instanceof ReferenceError
+            ? 'ReferenceError'
+            : error instanceof SyntaxError
+              ? 'SyntaxError'
+              : 'Error';
+    void api('uiIncident', { kind })
+      .then(({ incidentId }) => {
+        if (serial === this.failureSerial && this.state.failed) this.setState({ incidentId });
+      })
+      .catch(() => {
+        /* The recovery screen also works when the native bridge is unavailable. */
+      });
   }
   render() {
     return this.state.failed ? (
@@ -177,9 +199,16 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { failed: 
         <AlertCircle size={32} />
         <h1>Esta pantalla necesita volver a cargar.</h1>
         <p>Las operaciones ya confirmadas siguen guardadas.</p>
+        {this.state.incidentId && (
+          <small>
+            Referencia {this.state.incidentId} · Disponible en Administración de datos →
+            Diagnóstico.
+          </small>
+        )}
         <Button
           onClick={() => {
-            this.setState({ failed: false });
+            this.failureSerial++;
+            this.setState({ failed: false, incidentId: '' });
             window.dispatchEvent(new CustomEvent('go-home'));
           }}
         >

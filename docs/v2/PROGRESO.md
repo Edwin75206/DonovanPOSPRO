@@ -42,4 +42,25 @@ Las pruebas de portabilidad anteriores corresponden al motor sobre carpetas aisl
 - Las respuestas y solicitudes en espera se vinculan a la sesión y a la base activa. Una respuesta de la cuenta anterior no entrega sus datos ni cierra la sesión nueva.
 - Suite completa del motor: 18 pruebas aprobadas antes del último ajuste de aislamiento de sesión. Después del ajuste se aprobaron las cuatro pruebas de seguridad, incluida la nueva prueba de solicitudes entre sesiones: 19 casos distintos comprobados. La interfaz tiene cinco pruebas aprobadas.
 
-Continúan pendientes los reportes y etiquetas, la revisión nativa completa de las pantallas recientes y la validación del instalador con dos instalaciones aisladas. La versión 2.0 todavía no se declara terminada.
+## Reportes, etiquetas y revisión de propuestas (31 de octubre de 2026)
+
+- Catorce reportes administrativos: ventas por día, ventas registradas, productos, categorías, usuarios, métodos de cobro, costos y ganancias, inventario, compras, cuentas por cobrar, movimientos de crédito, jornadas y movimientos de caja y devoluciones. Consultas y agregaciones en Rust/SQLite, con filtros, gráficas, tabla, Excel y PDF.
+- Las ventas y devoluciones se atribuyen a su fecha de operación. Los cobros distinguen dinero recibido de crédito otorgado. Inventario y cuentas por cobrar indican expresamente que muestran el corte actual. Los costos faltantes permanecen pendientes.
+- Se verificaron los 14 documentos PDF, la impresión horizontal con Microsoft Print to PDF y seis páginas de etiquetas. Un decodificador independiente leyó las 51 etiquetas Code 128, incluidos ceros iniciales y claves alfanuméricas. No se ha probado una impresora física.
+- Edición de cotizaciones con aviso de precios actuales de menudeo, revisión de descuento y vigencia, folio conservado y guardado explícito. La prueba confirma reversión ante un error y rechazo de modificaciones después de vender.
+- Protección contra recarga de la ventana con F5/Ctrl+R, impresión del navegador y navegación accidental. F5 y Ctrl+R se probaron con una partida pendiente: el ticket se conservó. Los documentos se imprimen mediante los controles propios de la aplicación.
+- Los errores de renderizado tienen una referencia en el diagnóstico local; solo se registra la clase de error, sin valores introducidos ni propiedades de componentes.
+- Suite completa actual: **22 pruebas del motor y 5 de interfaz aprobadas**. Compilación TypeScript, producción de interfaz y comprobación Rust con escritorio aprobadas.
+
+## Validación del paquete de escritorio (31 de octubre de 2026)
+
+- Instalación real con NSIS en dos carpetas aisladas; los ejecutables y los recursos instalados coinciden con el paquete. El identificador de empaquetado de Tauri explica los tres bytes de diferencia entre el EXE autónomo y el instalado.
+- Venta V-000001 por $235 desde la ventana instalada A. Respaldo consistente, validación, restauración en B, cierre de sesiones anteriores y autenticación de Negociante Uno mediante los servicios Rust. La ventana instalada B registró V-000002 por $235.
+- Resultado verificado al reabrir: A conserva una venta y 19 piezas; B conserva dos ventas y 18 piezas. Ambas bases pasan las comprobaciones de compatibilidad e integridad; la sesión de Negociante Uno persiste.
+- Ambos procesos usaron perfiles WebView2 aislados y un proxy HTTP/HTTPS de prueba sin servicio. Se conservaron las líneas de proceso como evidencia. No se cambió la conexión del equipo del usuario.
+- El instalador final devuelve 1602 cuando la copia de destino sigue abierta y conserva su ticket pendiente. Instalar otra copia en una carpeta distinta no cierra la ventana en uso.
+- Se repitió instalación y desinstalación con las aplicaciones cerradas: los hashes de los 11 archivos persistentes permanecieron idénticos y desaparecieron los registros de desinstalación de prueba.
+- La ventana de cobro se revisó a 1366 × 768 y letra del 150 %. Reportes, edición de cotización, ticket con logo y modo operativo de Negociante Uno se comprobaron en ventanas nativas.
+- Se comprobó un caso adicional de Excel: reemplazar una existencia exige una cantidad explícita; una celda vacía no la convierte en cero. Los cinco casos de Excel pasaron. En total se han comprobado 23 casos distintos del motor y cinco de interfaz.
+
+La entrega y los límites de estas pruebas se describen en [VALIDACION.md](VALIDACION.md). El paquete no está firmado digitalmente; no se probó una impresora física ni una máquina Windows limpia sin WebView2.

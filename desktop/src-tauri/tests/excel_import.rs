@@ -269,3 +269,49 @@ fn exported_catalog_preserves_leading_zero_codes_and_can_be_imported_again() {
     assert_eq!(preview["rows"][0]["priceCents"], 7999);
     assert_eq!(preview["rows"][0]["stockUnits"], 25000);
 }
+
+#[test]
+fn replacing_existing_stock_requires_an_explicit_quantity_including_zero() {
+    let mut rig = rig();
+    let id = rig
+        .app
+        .save_product(Product {
+            sku: "KEEP-STOCK".into(),
+            name: "Existencia que se debe conservar".into(),
+            price_cents: 1000,
+            stock_units: 70000,
+            ..Default::default()
+        })
+        .unwrap()["id"]
+        .as_i64()
+        .unwrap();
+    let file = rig.directory.path().join("stock.xlsx");
+    workbook(&file, &[("KEEP-STOCK", "Producto", "10", "", "Pieza", "")]);
+    rig.app.open_import(&file).unwrap();
+    let mut opts = options();
+    opts.stock = "replace".into();
+    let rejected = rig.app.validate_import(opts.clone()).unwrap();
+    assert_eq!(rejected["valid"], false);
+    assert_eq!(rejected["errorCount"], 1);
+    assert_eq!(
+        catalog::product(rig.app.db().unwrap(), id)
+            .unwrap()
+            .stock_units,
+        70000
+    );
+    workbook(&file, &[("KEEP-STOCK", "Producto", "10", "0", "Pieza", "")]);
+    rig.app.open_import(&file).unwrap();
+    let accepted = rig.app.validate_import(opts).unwrap();
+    assert_eq!(accepted["valid"], true);
+    assert_eq!(accepted["rows"][0]["oldStockUnits"], 70000);
+    assert_eq!(accepted["rows"][0]["stockUnits"], 0);
+    rig.app
+        .commit_import(accepted["planId"].as_str().unwrap())
+        .unwrap();
+    assert_eq!(
+        catalog::product(rig.app.db().unwrap(), id)
+            .unwrap()
+            .stock_units,
+        0
+    );
+}

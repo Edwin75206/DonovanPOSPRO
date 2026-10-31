@@ -24,6 +24,86 @@ fn payment(method: i64, cents: i64) -> Payment {
     }
 }
 #[test]
+fn quote_revision_preserves_folio_and_inventory_and_cannot_rewrite_a_sale() {
+    let mut rig = rig();
+    let app = &mut rig.app;
+    let product = app
+        .save_product(Product {
+            sku: "REVISION".into(),
+            name: "Material de prueba".into(),
+            price_cents: 100,
+            stock_units: 100000,
+            ..Default::default()
+        })
+        .unwrap();
+    let pid = product["id"].as_i64().unwrap();
+    let mut input = QuoteInput {
+        request_id: request_id(),
+        id: 0,
+        items: vec![item(pid, 10000)],
+        customer_id: None,
+        discount_parts: 0,
+        valid_until: "2026-11-15".into(),
+        notes: "Condición original".into(),
+    };
+    let original = app.save_quote(input.clone()).unwrap();
+    input.id = original["quote"]["id"].as_i64().unwrap();
+    input.request_id = request_id();
+    input.items = vec![item(pid, 20000)];
+    input.valid_until = "2026-12-01".into();
+    input.notes = "Entrega acordada".into();
+    let mut current = catalog::product(app.db().unwrap(), pid).unwrap();
+    current.price_cents = 250;
+    app.save_product(current).unwrap();
+    // Viewing or changing the catalog never rewrites the agreed proposal.
+    assert_eq!(app.quote(input.id).unwrap(), original);
+    let revised = app.save_quote(input.clone()).unwrap();
+    assert_eq!(revised["quote"]["folio"], original["quote"]["folio"]);
+    assert_eq!(revised["quote"]["totalCents"], 500);
+    assert_eq!(revised["quote"]["validUntil"], "2026-12-01");
+    assert_eq!(revised["quote"]["notes"], "Entrega acordada");
+    assert_eq!(app.save_quote(input.clone()).unwrap(), revised);
+    assert_eq!(
+        db::scalar(app.db().unwrap(), "SELECT COUNT(*) FROM Quote", []).unwrap(),
+        1
+    );
+    assert_eq!(
+        catalog::product(app.db().unwrap(), pid)
+            .unwrap()
+            .stock_units,
+        100000
+    );
+    input.request_id = request_id();
+    input.items = vec![item(pid, -10000)];
+    assert!(app.save_quote(input.clone()).is_err());
+    assert_eq!(app.quote(input.id).unwrap(), revised);
+    app.cash_open(0).unwrap();
+    let sale = app
+        .checkout(&Checkout {
+            quote_id: Some(input.id),
+            payments: vec![payment(0, 500)],
+            tendered_cents: 500,
+            ..Default::default()
+        })
+        .unwrap();
+    input.request_id = request_id();
+    input.items = vec![item(pid, 10000)];
+    assert_eq!(
+        app.save_quote(input.clone()).unwrap_err().code,
+        "ALREADY_COMPLETED"
+    );
+    let preserved = app.quote(input.id).unwrap();
+    assert_eq!(preserved["quote"]["totalCents"], 500);
+    assert_eq!(preserved["quote"]["saleId"], sale["sale"]["id"]);
+    assert_eq!(
+        catalog::product(app.db().unwrap(), pid)
+            .unwrap()
+            .stock_units,
+        80000
+    );
+    db::integrity(app.db().unwrap()).unwrap();
+}
+#[test]
 fn cash_retries_do_not_duplicate_money_or_close_a_later_session() {
     let mut rig = rig();
     let app = &mut rig.app;

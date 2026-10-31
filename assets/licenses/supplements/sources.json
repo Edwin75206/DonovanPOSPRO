@@ -1,0 +1,59 @@
+[
+  {
+    "ecosystem": "Rust",
+    "name": "alloc-stdlib",
+    "version": "0.3.0",
+    "file": "alloc-stdlib-0.3.0-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/dropbox/rust-alloc-no-stdlib/0a81fd6928ea3b33c8cd484aa4575d50ffb98012/LICENSE"
+  },
+  {
+    "ecosystem": "Rust",
+    "name": "atoi_simd",
+    "version": "0.16.1",
+    "file": "atoi_simd-0.16.1-LICENSE-MIT.txt",
+    "url": "https://raw.githubusercontent.com/RoDmitry/atoi_simd/a07b61bc6d7cd704fe31ddb7db9f804436ed7a0f/LICENSE-MIT"
+  },
+  {
+    "ecosystem": "Rust",
+    "name": "atoi_simd",
+    "version": "0.16.1",
+    "file": "atoi_simd-0.16.1-LICENSE-APACHE.txt",
+    "url": "https://raw.githubusercontent.com/RoDmitry/atoi_simd/a07b61bc6d7cd704fe31ddb7db9f804436ed7a0f/LICENSE-APACHE"
+  },
+  {
+    "ecosystem": "Rust",
+    "name": "webview2-com",
+    "version": "0.39.1",
+    "file": "webview2-com-0.39.1-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/wravery/webview2-rs/edc2caf886175ccaebe86078c9cfe1ae2a187328/LICENSE"
+  },
+  {
+    "ecosystem": "Rust",
+    "name": "webview2-com-macros",
+    "version": "0.8.1",
+    "file": "webview2-com-macros-0.8.1-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/wravery/webview2-rs/dffa41a8a46d3f5565eefbff2de57d38d399f158/LICENSE"
+  },
+  {
+    "ecosystem": "Rust",
+    "name": "webview2-com-sys",
+    "version": "0.39.1",
+    "file": "webview2-com-sys-0.39.1-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/wravery/webview2-rs/edc2caf886175ccaebe86078c9cfe1ae2a187328/LICENSE"
+  },
+  {
+    "file": "selectors-0.38.0-MPL.txt",
+    "name": "selectors",
+    "version": "0.38.0",
+    "ecosystem": "Rust",
+    "url": "https://www.mozilla.org/media/MPL/2.0/index.f75d2927d3c1.txt"
+  },
+  {
+    "file": "react-remove-scroll-bar-2.3.8-LICENSE.txt",
+    "name": "react-remove-scroll-bar",
+    "version": "2.3.8",
+    "ecosystem": "npm",
+    "url": "https://raw.githubusercontent.com/theKashey/react-remove-scroll-bar/8ca9ba5ea52de03308fe8ced94f7b159a44d28ff/LICENSE",
+    "note": "The npm archive omits its MIT notice and its declared gitHead is unavailable upstream; this notice is from the current upstream repository at the pinned commit."
+  }
+]

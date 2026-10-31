@@ -68,10 +68,37 @@ export interface Bootstrap {
   databaseId?: string;
   sessionExpiresAt?: number | null;
 }
+export interface ReportQuery {
+  kind: string;
+  from: string;
+  to: string;
+  search: string;
+}
+export interface BusinessReport {
+  kind: string;
+  title: string;
+  scope: string;
+  current: boolean;
+  from: string;
+  to: string;
+  search: string;
+  generatedAt: string;
+  columns: {
+    key: string;
+    label: string;
+    kind: 'text' | 'money' | 'integer' | 'quantity' | 'date' | 'unit';
+    weight: number;
+  }[];
+  rows: (Record<string, string | number | null> & { id: number })[];
+  metrics: { label: string; value: number | null; kind: 'money' | 'integer' }[];
+  chart: { title: string; daily: boolean; values: { name: string; valueCents: number }[] } | null;
+}
 export interface DocumentRequest {
-  kind: 'sale' | 'quote' | 'purchase';
+  kind: 'sale' | 'quote' | 'purchase' | 'report' | 'labels';
   id: number;
   widthMm?: number;
+  report?: ReportQuery;
+  copies?: number;
 }
 export type DocumentDraw =
   | {
@@ -491,6 +518,8 @@ export const normalizeError = (error: unknown): UiFailure => {
 };
 // This map is the frontend contract. Only named Rust services can access business data.
 export interface Calls {
+  report: [ReportQuery, BusinessReport];
+  exportReport: [ReportQuery, { path: string; bytes: number } | null];
   document: [DocumentRequest, BusinessDocument];
   exportDocument: [DocumentRequest, { path: string; bytes: number; pages: number } | null];
   printers: [undefined, Printer[]];
@@ -635,6 +664,7 @@ export interface Calls {
     DataOverview,
   ];
   diagnostics: [undefined, Diagnostic[]];
+  uiIncident: [{ kind: string }, { incidentId: string }];
   dashboard: [{ from: string; to: string }, DashboardData];
   saveAppearance: [
     {

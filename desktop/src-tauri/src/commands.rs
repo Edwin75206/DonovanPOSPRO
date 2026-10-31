@@ -76,6 +76,8 @@ pub enum Request {
         id: i64,
     },
     Document(crate::documents::DocumentRequest),
+    Report(crate::reports::ReportQuery),
+    ExportReport(crate::reports::ReportQuery),
     ExportDocument(crate::documents::DocumentRequest),
     Printers,
     PrintDocument {
@@ -196,6 +198,9 @@ pub enum Request {
         password: String,
     },
     Diagnostics,
+    UiIncident {
+        kind: String,
+    },
     ChooseImportFile,
     ImportSheet {
         sheet: String,
@@ -267,6 +272,18 @@ fn dispatch(engine: &mut Engine, window: &tauri::WebviewWindow, request: Request
         Request::Checkout(request) => engine.checkout(&request),
         Request::Sale { id } => engine.sale(id),
         Request::Document(input) => Ok(serde_json::to_value(engine.business_document(&input)?)?),
+        Request::Report(input) => Ok(serde_json::to_value(engine.report(&input)?)?),
+        Request::ExportReport(input) => {
+            engine.report(&input)?;
+            match rfd::FileDialog::new()
+                .set_parent(window)
+                .set_title("Guardar reporte de Excel")
+                .pick_folder()
+            {
+                Some(folder) => engine.export_report(&folder, &input),
+                None => Ok(Value::Null),
+            }
+        }
         Request::ExportDocument(input) => {
             engine.business_document(&input)?;
             match rfd::FileDialog::new()
@@ -439,6 +456,19 @@ fn dispatch(engine: &mut Engine, window: &tauri::WebviewWindow, request: Request
             password,
         } => engine.save_backup_settings(&PathBuf::from(folder), enabled, hours, &password),
         Request::Diagnostics => engine.diagnostics(),
+        Request::UiIncident { kind } => {
+            let category = match kind.as_str() {
+                "TypeError" | "RangeError" | "ReferenceError" | "SyntaxError" => kind.as_str(),
+                _ => "Error",
+            };
+            let error = AppError::internal(
+                "UI_RENDER",
+                "Una pantalla necesitó volver a cargar.",
+                category,
+            );
+            engine.log_error("interface", "Cargar pantalla", &error);
+            Ok(json!({"incidentId":error.incident_id}))
+        }
     }
 }
 impl Request {
@@ -466,6 +496,7 @@ impl Request {
             }
             Self::CommitImport { .. } => "Importar Excel",
             Self::ExportProducts { .. } => "Exportar catálogo",
+            Self::Report(_) | Self::ExportReport(_) => "Preparar reporte",
             Self::Document(_) | Self::ExportDocument(_) => "Preparar documento",
             Self::PrintDocument { .. } | Self::Printers => "Imprimir documento",
             Self::SaveAppearance { .. } => "Guardar apariencia",

@@ -118,8 +118,10 @@ export function SaveDraft({
   onSaved: () => void;
 }) {
   const [label, setLabel] = useState(cart.customerName || 'Venta de mostrador');
-  const [notes, setNotes] = useState('');
+  const [notes, setNotes] = useState(cart.editingQuote?.notes ?? '');
   const [validUntil, setValidUntil] = useState(() => {
+    if (cart.editingQuote && cart.editingQuote.validUntil >= today())
+      return cart.editingQuote.validUntil;
     const d = new Date();
     d.setDate(d.getDate() + 15);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -137,11 +139,19 @@ export function SaveDraft({
       onClose={() => {
         if (!op.busy) onClose();
       }}
-      title={kind === 'held' ? 'Continuamos más tarde.' : 'Una propuesta para tu cliente.'}
+      title={
+        kind === 'held'
+          ? 'Continuamos más tarde.'
+          : cart.editingQuote
+            ? `Actualizar ${cart.sourceLabel}`
+            : 'Una propuesta para tu cliente.'
+      }
       description={
         kind === 'held'
           ? 'Guardaremos el carrito sin cobrar ni reservar existencias.'
-          : 'La cotización conserva los precios acordados y no modifica inventario.'
+          : cart.editingQuote
+            ? 'Al guardar se sustituirán las partidas de esta propuesta. Se conserva su folio y no se modifica inventario.'
+            : 'La cotización conserva los precios acordados y no modifica inventario.'
       }
     >
       <form
@@ -163,7 +173,7 @@ export function SaveDraft({
               }
               const result = await api('saveQuote', {
                 requestId,
-                id: 0,
+                id: cart.editingQuote?.id ?? 0,
                 items,
                 customerId: cart.customerId,
                 discountParts: cart.discountParts,
@@ -174,7 +184,7 @@ export function SaveDraft({
             },
             (folio) => {
               toast.success(
-                `${kind === 'held' ? 'Venta guardada' : 'Cotización creada'} · ${folio}`,
+                `${kind === 'held' ? 'Venta guardada' : cart.editingQuote ? 'Cotización actualizada' : 'Cotización creada'} · ${folio}`,
               );
               onSaved();
             },
@@ -215,7 +225,8 @@ export function SaveDraft({
             </>
           )}
           <p className="notice">
-            {cart.customerName || 'Público en general'} · {cart.rows.length} partidas.
+            {cart.customerName || 'Público en general'} · {cart.rows.length}{' '}
+            {cart.rows.length === 1 ? 'partida' : 'partidas'}.
             {kind === 'held' && ' Al recuperarla se revisarán precios y existencias.'}
           </p>
         </fieldset>
@@ -226,7 +237,13 @@ export function SaveDraft({
           </Button>
           <Button type="submit" disabled={op.busy}>
             {kind === 'held' ? <Pause size={16} /> : <FileText size={16} />}{' '}
-            {op.busy ? 'Guardando…' : kind === 'held' ? 'Guardar venta' : 'Crear cotización'}
+            {op.busy
+              ? 'Guardando…'
+              : kind === 'held'
+                ? 'Guardar venta'
+                : cart.editingQuote
+                  ? 'Guardar cambios'
+                  : 'Crear cotización'}
           </Button>
         </div>
       </form>

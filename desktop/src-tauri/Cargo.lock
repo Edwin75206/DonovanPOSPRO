@@ -1037,6 +1037,8 @@ dependencies = [
  "ttf-parser",
  "unicode-normalization",
  "uuid",
+ "webview2-com",
+ "windows-core",
  "windows-sys 0.61.2",
  "zeroize",
  "zip 4.6.1",

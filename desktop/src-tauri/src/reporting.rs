@@ -17,7 +17,12 @@ pub fn range(from: &str, to: &str) -> Result<(NaiveDate, NaiveDate)> {
     )?;
     let (first, last) = (first.unwrap(), last.unwrap());
     ensure(
-        last >= first && (last - first).num_days() <= 366,
+        last >= first
+            && (last - first).num_days() <= 366
+            && first.year() >= 1900
+            && last.year() <= 9998
+            && from == first.to_string()
+            && to == last.to_string(),
         "VALIDATION",
         "Selecciona un rango de hasta 367 días, con la fecha final después de la inicial.",
     )?;

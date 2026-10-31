@@ -10,6 +10,7 @@ import {
   Package,
   Check,
   LoaderCircle,
+  Barcode,
 } from 'lucide-react';
 import type { SortingState } from '@tanstack/react-table';
 import { toast } from 'sonner';
@@ -22,6 +23,8 @@ import {
   type ProductPage,
   type StockMovement,
   type UiFailure,
+  type Bootstrap,
+  type DocumentRequest,
 } from '@/lib/api';
 import { money, quantity, units, parseScaled } from '@/lib/utils';
 import {
@@ -35,6 +38,7 @@ import {
   reportError,
 } from '@/components/common';
 import { DataGrid, type GridColumn } from '@/components/DataGrid';
+import { DocumentDialog } from '@/components/DocumentViewer';
 
 export const newProduct = (): Product => ({
   id: 0,
@@ -58,10 +62,12 @@ export const newProduct = (): Product => ({
 });
 export function Inventory({
   actor,
+  business,
   filters = {},
   defaultTaxBasisPoints = 1600,
 }: {
   actor: Actor;
+  business: Bootstrap;
   filters?: Record<string, unknown>;
   defaultTaxBasisPoints?: number;
 }) {
@@ -77,6 +83,8 @@ export function Inventory({
   const [editing, setEditing] = useState<Product | null>(null);
   const [history, setHistory] = useState<Product | null>(null);
   const [adjusting, setAdjusting] = useState<Product | null>(null);
+  const [labelProduct, setLabelProduct] = useState<Product | null>(null);
+  const [labelDocument, setLabelDocument] = useState<DocumentRequest | null>(null);
   const editable = can(actor, 'catalog');
   const refresh = useCallback(() => setRevision((v) => v + 1), []);
   useEffect(() => {
@@ -195,6 +203,16 @@ export function Inventory({
         sortable: false,
         render: (p) => (
           <div className="row-actions">
+            {editable && p.active && (
+              <button
+                className="icon-button"
+                title="Imprimir etiquetas"
+                aria-label={`Etiquetas de ${p.name}`}
+                onClick={() => setLabelProduct(p)}
+              >
+                <Barcode size={16} />
+              </button>
+            )}
             {editable && (
               <button
                 className="icon-button"
@@ -350,7 +368,81 @@ export function Inventory({
         />
       )}
       {history && <StockHistory product={history} onClose={() => setHistory(null)} />}
+      {labelProduct && (
+        <LabelSetup
+          product={labelProduct}
+          onClose={() => setLabelProduct(null)}
+          onPreview={(copies) => {
+            setLabelDocument({ kind: 'labels', id: labelProduct.id, copies });
+            setLabelProduct(null);
+          }}
+        />
+      )}
+      {labelDocument && (
+        <DocumentDialog
+          request={labelDocument}
+          data={business}
+          onClose={() => setLabelDocument(null)}
+        />
+      )}
     </div>
+  );
+}
+function LabelSetup({
+  product,
+  onClose,
+  onPreview,
+}: {
+  product: Product;
+  onClose: () => void;
+  onPreview: (copies: number) => void;
+}) {
+  const [copies, setCopies] = useState('16');
+  const value = Number(copies);
+  const valid = Number.isInteger(value) && value >= 1 && value <= 500;
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Etiquetas listas para tu mostrador"
+      description={product.name}
+    >
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (valid) onPreview(value);
+        }}
+      >
+        <p className="muted">
+          Código, precio y logotipo del negocio. Hoja A4 con 16 etiquetas de 91 × 33 mm; imprime al
+          100% y recorta.
+        </p>
+        <Field label="Cuántas etiquetas necesitas">
+          <input
+            type="number"
+            min="1"
+            max="500"
+            step="1"
+            value={copies}
+            onChange={(e) => setCopies(e.target.value)}
+            autoFocus
+            required
+          />
+        </Field>
+        <p className="muted">
+          {product.barcode || product.sku} · {money(product.priceCents)} por {units[product.unit]}
+        </p>
+        <div className="dialog-actions">
+          <Button type="button" variant="outline" onClick={onClose}>
+            Volver
+          </Button>
+          <Button type="submit" disabled={!valid}>
+            <Barcode size={17} />
+            Ver etiquetas
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 function ProductEditor({

@@ -157,8 +157,8 @@ export function DataGrid<T extends { id?: number | string }>({
       </div>
       <div className="grid-pagination">
         <span>
-          {table.getRowCount()} registros · Página {table.state.pagination.pageIndex + 1} de{' '}
-          {Math.max(1, table.getPageCount())}
+          {table.getRowCount()} {table.getRowCount() === 1 ? 'registro' : 'registros'} · Página{' '}
+          {table.state.pagination.pageIndex + 1} de {Math.max(1, table.getPageCount())}
         </span>
         <div>
           <Button

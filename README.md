@@ -2,6 +2,23 @@
 
 Punto de venta de escritorio para ferretería, desarrollado para Windows por **Donovan Systems**. Autor del proyecto: **Ing. Edwin Donovan Castañeda Calderón**. Interfaz en español de México, moneda MXN y funcionamiento local sin conexión a Internet.
 
+## Versión activa: 2.0 para Windows
+
+La aplicación actual está en [`desktop`](desktop/README.md): Tauri 2, React/TypeScript y servicios Rust con SQLite. El cliente instala un solo paquete x64 con WebView2 offline incluido; no necesita Node.js, .NET ni herramientas de desarrollo.
+
+La entrega está en `artifacts/v2/entrega`: `DonovanPOS-2.0.0-x64-Setup.exe`, `DonovanPOS.exe`, instrucciones, documentación y comprobantes SHA-256. Para instalar en otro equipo, usa el instalador y restaura un respaldo desde la propia aplicación.
+
+- [Manual de operación 2.0](docs/v2/MANUAL.md).
+- [Base local, migraciones, SQLiteStudio y portabilidad](docs/v2/DATOS-Y-PORTABILIDAD.md).
+- [Validación y límites comprobados](docs/v2/VALIDACION.md).
+- [Compilación y arquitectura nativa](desktop/README.md).
+
+Los archivos `src`, `tests`, la solución .NET y los scripts de publicación anteriores corresponden a la referencia WPF 1.0, conservada también en la etiqueta `v1.0.0`. Para construir la aplicación activa, sigue `desktop/README.md`.
+
+## Referencia histórica: versión 1.0 WPF
+
+El contenido siguiente documenta la versión anterior y sus paquetes.
+
 ## Empezar
 
 1. Instala `artifacts/DonovanPOS-1.0.0-win-x64.msi`, o descomprime `artifacts/DonovanPOS-1.0.0-portable.zip`.

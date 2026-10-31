@@ -130,6 +130,7 @@ fn branded_documents_embed_fonts_preserve_amounts_paginate_and_respect_roles() {
                 kind: kind.into(),
                 id,
                 width_mm: Some(width),
+                ..Default::default()
             })
             .unwrap();
         assert!(!document.pages.is_empty());
@@ -209,6 +210,7 @@ fn branded_documents_embed_fonts_preserve_amounts_paginate_and_respect_roles() {
             kind: "sale".into(),
             id: long_sale["sale"]["id"].as_i64().unwrap(),
             width_mm: Some(58),
+            ..Default::default()
         })
         .unwrap();
     assert!(document.pages.len() > 2);
@@ -221,6 +223,7 @@ fn branded_documents_embed_fonts_preserve_amounts_paginate_and_respect_roles() {
                 kind: "sale".into(),
                 id: sale_id,
                 width_mm: Some(80),
+                ..Default::default()
             },
             folder.path(),
         )
@@ -236,7 +239,8 @@ fn branded_documents_embed_fonts_preserve_amounts_paginate_and_respect_roles() {
         app.business_document(&DocumentRequest {
             kind: "sale".into(),
             id: sale_id,
-            width_mm: Some(80)
+            width_mm: Some(80),
+            ..Default::default()
         })
         .unwrap_err()
         .code,

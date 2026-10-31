@@ -61,6 +61,7 @@ export interface Cart {
   requestId: string;
   customerId: number | null;
   quoteId: number | null;
+  editingQuote: { id: number; validUntil: string; notes: string } | null;
   heldSaleId: number | null;
   customerName: string | null;
   sourceLabel: string | null;
@@ -71,6 +72,7 @@ export const freshCart = (): Cart => ({
   requestId: crypto.randomUUID(),
   customerId: null,
   quoteId: null,
+  editingQuote: null,
   heldSaleId: null,
   customerName: null,
   sourceLabel: null,
@@ -264,6 +266,10 @@ export function Register({
   );
   const beginCheckout = useCallback(async () => {
     if (!cart.rows.length || checkout || pricing) return;
+    if (cart.editingQuote) {
+      setSaveDraft('quote');
+      return;
+    }
     if (!cash?.open) {
       toast.info('Abre la caja antes de cobrar.', {
         action: { label: 'Ir a caja', onClick: onCash },
@@ -526,6 +532,11 @@ export function Register({
         {fixedQuote && (
           <p className="quote-lock">Precios y cantidades acordados · {cart.sourceLabel}</p>
         )}
+        {cart.editingQuote && (
+          <p className="quote-lock">
+            Editando {cart.sourceLabel} · Precios actuales. Guarda los cambios antes de vender.
+          </p>
+        )}
         <div className="cart-rows">
           <AnimatePresence initial={false}>
             {cart.rows.map((row, index) => {
@@ -620,7 +631,7 @@ export function Register({
                         <Plus size={13} />
                       </button>
                     </div>
-                    <b>{money(line?.totalCents ?? 0)}</b>
+                    <b>{line ? money(line.totalCents) : '…'}</b>
                   </div>
                 </motion.div>
               );
@@ -675,11 +686,11 @@ export function Register({
           <dl className={showBreakdown ? 'breakdown-open' : ''}>
             <div>
               <dt>Subtotal sin IVA</dt>
-              <dd>{money(total - (charge?.taxCents ?? 0))}</dd>
+              <dd>{charge ? money(total - charge.taxCents) : cart.rows.length ? '…' : money(0)}</dd>
             </div>
             <div>
               <dt>IVA incluido</dt>
-              <dd>{money(charge?.taxCents ?? 0)}</dd>
+              <dd>{charge ? money(charge.taxCents) : cart.rows.length ? '…' : money(0)}</dd>
             </div>
             {!!charge?.discountCents && (
               <div>
@@ -693,12 +704,12 @@ export function Register({
               Total a pagar<small>Pesos mexicanos</small>
             </span>
             <motion.strong
-              key={total}
+              key={charge ? total : 'pending'}
               initial={{ opacity: 0.6, y: 3 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: visual.duration }}
             >
-              {money(total)}
+              {charge ? money(total) : cart.rows.length ? '…' : money(0)}
             </motion.strong>
           </div>
           <Button
@@ -708,14 +719,16 @@ export function Register({
             data-tour="checkout"
           >
             <span>
-              {pricing ? 'Calculando…' : 'Cobrar venta'}
+              {pricing ? 'Calculando…' : cart.editingQuote ? 'Guardar cotización' : 'Cobrar venta'}
               <ArrowRight size={18} />
             </span>
             <kbd>F8</kbd>
           </Button>
           <div className="cart-secondary-actions" data-tour="cart-tools">
             <button
-              disabled={!cart.rows.length || fixedQuote || pricing || !charge}
+              disabled={
+                !cart.rows.length || fixedQuote || !!cart.editingQuote || pricing || !charge
+              }
               onClick={() => setSaveDraft('held')}
             >
               <Pause size={14} /> Guardar
@@ -724,7 +737,7 @@ export function Register({
               disabled={!cart.rows.length || fixedQuote || pricing || !charge}
               onClick={() => setSaveDraft('quote')}
             >
-              <ReceiptText size={14} /> Cotizar
+              <ReceiptText size={14} /> {cart.editingQuote ? 'Vigencia y notas' : 'Cotizar'}
             </button>
             <button onClick={() => setHeld(true)}>
               <History size={14} /> En espera

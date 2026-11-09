@@ -1,3 +1,4 @@
+use crate::database::Connection;
 use crate::{
     catalog, db,
     engine::Engine,
@@ -5,7 +6,7 @@ use crate::{
     models::{Actor, Charge, ChargeLine, Checkout, SaleItem},
     money, operations,
 };
-use rusqlite::{Connection, params};
+use rusqlite::params;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, HashSet};
 

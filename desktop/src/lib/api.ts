@@ -351,6 +351,9 @@ export interface BackupRecord {
   result: string;
 }
 export interface DataOverview {
+  backend: string;
+  canMigrateMysql: boolean;
+  mysql: { host: string; port: number; schema: string; logPath: string } | null;
   path: string;
   root: string;
   bytes: number;
@@ -674,6 +677,19 @@ export interface Calls {
   ];
   exportProducts: [{ template: boolean }, { path: string; bytes: number } | null];
   dataOverview: [undefined, DataOverview];
+  migrateMysql: [{ password: string }, Bootstrap];
+  workbenchConnection: [
+    { password: string },
+    {
+      host: string;
+      port: number;
+      username: string;
+      schema: string;
+      password: string;
+      method: string;
+    },
+  ];
+  openWorkbench: [undefined, { opened: boolean }];
   verifyDatabase: [undefined, { valid: boolean; checkedAt: string; schemaVersion: number }];
   createBackup: [
     { folder: string },

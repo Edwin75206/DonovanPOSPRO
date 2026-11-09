@@ -6,7 +6,7 @@ use crate::{
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{path::PathBuf, sync::Mutex};
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 
 pub struct AppState {
     pub engine: Mutex<Option<Result<Engine>>>,
@@ -187,6 +187,13 @@ pub enum Request {
     ReturnSale(crate::returns::ReviewedReturn),
     DataOverview,
     VerifyDatabase,
+    MigrateMysql {
+        password: String,
+    },
+    WorkbenchConnection {
+        password: String,
+    },
+    OpenWorkbench,
     CreateBackup {
         folder: String,
     },
@@ -397,6 +404,47 @@ fn dispatch(engine: &mut Engine, window: &tauri::WebviewWindow, request: Request
         ),
         Request::DataOverview => engine.data_overview(),
         Request::VerifyDatabase => engine.verify_database(),
+        Request::MigrateMysql { password } => engine.migrate_mysql(&password),
+        Request::WorkbenchConnection { password } => engine.workbench_connection(&password),
+        Request::OpenWorkbench => {
+            engine.actor("settings")?;
+            #[cfg(windows)]
+            {
+                let path = window
+                    .app_handle()
+                    .path()
+                    .resource_dir()
+                    .map_err(|e| {
+                        AppError::internal(
+                            "WORKBENCH_MISSING",
+                            "No encontramos los archivos de Workbench.",
+                            e,
+                        )
+                    })?
+                    .join("runtime/workbench/MySQL Workbench.exe");
+                crate::error::ensure(
+                    path.is_file(),
+                    "WORKBENCH_MISSING",
+                    "Ejecuta el instalador completo para agregar MySQL Workbench.",
+                )?;
+                crate::mysql_runtime::hidden(&mut std::process::Command::new(path)).spawn()?;
+            }
+            #[cfg(target_os = "macos")]
+            {
+                let path =
+                    std::path::Path::new("/Applications/Donovan POS Tools/MySQL Workbench.app");
+                crate::error::ensure(
+                    path.is_dir(),
+                    "WORKBENCH_MISSING",
+                    "Instala el paquete completo para agregar MySQL Workbench.",
+                )?;
+                std::process::Command::new("/usr/bin/open")
+                    .arg("-a")
+                    .arg(path)
+                    .spawn()?;
+            }
+            Ok(json!({"opened":true}))
+        }
         Request::CreateBackup { folder } => engine.create_backup(&PathBuf::from(folder)),
         Request::ChooseImportFile => {
             engine.actor("catalog")?;
@@ -531,7 +579,9 @@ pub async fn execute(
     tauri::async_runtime::spawn_blocking(move || {
         let mut guard = state.engine.lock().map_err(|_| AppError::rule("UNEXPECTED", "Ocurrió un problema. Cierra y vuelve a abrir Donovan POS Pro."))?;
         if guard.is_none() || (matches!(request, Request::RetryStorage) && guard.as_ref().is_some_and(Result::is_err)) {
-            *guard = Some(Engine::open(&state.root).and_then(|mut engine| {
+            let runtime=window.app_handle().path().resource_dir().map_err(|e|AppError::internal("MYSQL_RUNTIME_MISSING","No encontramos los recursos del instalador.",e))?.join("runtime/mysql");
+            let opened=if state.demo{Engine::open(&state.root)}else{Engine::open_desktop(&state.root,runtime)};
+            *guard = Some(opened.and_then(|mut engine| {
                 if state.demo { engine.seed_demo()?; }
                 Ok(engine)
             }));

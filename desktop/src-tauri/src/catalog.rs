@@ -1,3 +1,4 @@
+use crate::database::Connection;
 use crate::{
     db,
     engine::Engine,
@@ -5,7 +6,7 @@ use crate::{
     models::Product,
     money,
 };
-use rusqlite::{Connection, params};
+use rusqlite::params;
 use serde_json::{Value, json};
 use unicode_normalization::UnicodeNormalization;
 
@@ -254,18 +255,56 @@ impl Engine {
             .map(|s| format!("\"{s}\"*"))
             .collect();
         let query = tokens.join(" AND ");
-        let where_sql = "WHERE (?1='' OR p.Id IN (SELECT rowid FROM ProductSearch WHERE ProductSearch MATCH ?1) OR p.Sku=?2 COLLATE NOCASE OR p.Barcode=?2) AND (?3='' OR p.Category=?3) AND ((?4='archived' AND p.Active=0) OR (?4<>'archived' AND p.Active=1)) AND (?4<>'low' OR p.StockUnits<=p.MinimumUnits) AND (?4<>'empty' OR p.StockUnits=0) AND (?5='' OR p.Brand=?5)";
+        let mut where_sql = "WHERE (?1='' OR p.Id IN (SELECT rowid FROM ProductSearch WHERE ProductSearch MATCH ?1) OR p.Sku=?2 COLLATE NOCASE OR p.Barcode=?2) AND (?3='' OR p.Category=?3) AND ((?4='archived' AND p.Active=0) OR (?4<>'archived' AND p.Active=1)) AND (?4<>'low' OR p.StockUnits<=p.MinimumUnits) AND (?4<>'empty' OR p.StockUnits=0) AND (?5='' OR p.Brand=?5)".to_owned();
+        use rusqlite::types::Value as SqlValue;
+        let mut bindings = vec![
+            SqlValue::Text(query),
+            SqlValue::Text(search.trim().into()),
+            SqlValue::Text(category.into()),
+            SqlValue::Text(status.into()),
+            SqlValue::Text(brand.into()),
+            SqlValue::Integer(page * 60),
+        ];
+        if self.db()?.is_mysql() {
+            // Includes short hardware measurements and words excluded by default
+            // MySQL FULLTEXT stoplists. All tokens remain bound parameters.
+            let mut clauses = Vec::new();
+            for token in normalized
+                .split(|c: char| !c.is_alphanumeric())
+                .filter(|s| !s.is_empty())
+                .take(12)
+            {
+                bindings.push(SqlValue::Text(format!("%{token}%")));
+                clauses.push(format!("CONCAT_WS(' ',p.Sku,p.Barcode,p.Name,p.Category,p.Brand,p.Size,p.Aliases) COLLATE utf8mb4_0900_ai_ci LIKE ?{}",bindings.len()));
+            }
+            where_sql = where_sql.replace(
+                "p.Id IN (SELECT rowid FROM ProductSearch WHERE ProductSearch MATCH ?1)",
+                &format!(
+                    "({})",
+                    if clauses.is_empty() {
+                        "TRUE".into()
+                    } else {
+                        clauses.join(" AND ")
+                    }
+                ),
+            );
+        }
+        let count_bindings = if self.db()?.is_mysql() {
+            bindings.clone()
+        } else {
+            bindings[..5].to_vec()
+        };
         let total = db::scalar(
             self.db()?,
             &format!("SELECT COUNT(*) FROM Product p {where_sql}"),
-            params![query, search.trim(), category, status, brand],
+            count_bindings,
         )?;
         let mut items = db::all(
             self.db()?,
             &format!(
                 "SELECT p.* FROM Product p {where_sql} ORDER BY CASE WHEN p.Sku=?2 COLLATE NOCASE OR p.Barcode=?2 THEN 0 ELSE 1 END,{order} {direction},p.Id LIMIT 60 OFFSET ?6"
             ),
-            params![query, search.trim(), category, status, brand, page * 60],
+            bindings,
         )?;
         if !actor.can("catalog") {
             for item in &mut items {

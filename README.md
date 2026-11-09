@@ -1,89 +1,62 @@
 # Donovan POS Pro
 
-Punto de venta de escritorio para ferretería, desarrollado para Windows por **Donovan Systems**. Autor del proyecto: **Ing. Edwin Donovan Castañeda Calderón**. Interfaz en español de México, moneda MXN y funcionamiento local sin conexión a Internet.
+Punto de venta de escritorio para **Construrama Chicontla**, desarrollado por **Donovan Systems — Ing. Edwin Donovan Castañeda Calderón**. Español de México, MXN y operación local sin internet.
 
-## Versión activa: 2.2 para Windows
+## Instaladores
 
-La aplicación actual está en [`desktop`](desktop/README.md): Tauri 2, React/TypeScript y servicios Rust con SQLite. El cliente instala un solo paquete x64 con WebView2 offline incluido; no necesita Node.js, .NET ni herramientas de desarrollo.
+**[Descargar desde GitHub Releases](https://github.com/Edwin75206/DonovanPOSPRO/releases)**
 
-La entrega está en `artifacts/v2.2/entrega`: `DonovanPOS-2.2.0-x64-Setup.exe`, `DonovanPOS.exe`, instrucciones, documentación, capturas reales y comprobantes SHA-256. Para instalar en otro equipo, usa el instalador y restaura un respaldo desde la propia aplicación.
+| Plataforma | Estado de 2.3.0 |
+|---|---|
+| Windows x64 | Instalador `.exe` probado; incluye MySQL local, Workbench y WebView2 offline. Firma Authenticode pendiente. |
+| macOS Apple Silicon / M4 | Código y compilación preparados. Instalador pendiente de compilar y validar en Mac. |
 
-El mostrador concentra la venta en una tabla compacta con cantidades editables y total permanente. El lector agrega directamente; **F2** abre el buscador con categorías, marcas y existencias; **F8** abre el cobro. Al confirmar, la captura queda lista de inmediato para el siguiente cliente. Se conservan cotizaciones, ventas en espera, impresión configurable de 58/80 mm, PDF, reimpresión y el dashboard ejecutivo del administrador.
+Los instaladores son adjuntos de las versiones publicadas. `git clone` descarga el proyecto para desarrollo, no los instaladores ni los datos del negocio. El cliente final no necesita Git, Node, Rust, Visual Studio ni un SDK.
 
-- [Manual de operación 2.2](docs/v2/MANUAL.md).
-- [Base local, migraciones, SQLiteStudio y portabilidad](docs/v2/DATOS-Y-PORTABILIDAD.md).
-- [Validación del mostrador 2.2](docs/v2/VALIDACION-2.2.md).
-- [Validación de caja e impresión 2.1](docs/v2/VALIDACION-2.1.md).
-- [Validación de la reconstrucción 2.0 y portabilidad](docs/v2/VALIDACION.md).
-- [Compilación y arquitectura nativa](desktop/README.md).
+## Continuar en tu Mac
 
-Los archivos `src`, `tests`, la solución .NET y los scripts de publicación anteriores corresponden a la referencia WPF 1.0, conservada también en la etiqueta `v1.0.0`. Para construir la aplicación activa, sigue `desktop/README.md`.
-
-## Referencia histórica: versión 1.0 WPF
-
-El contenido siguiente documenta la versión anterior y sus paquetes.
-
-## Empezar
-
-1. Instala `artifacts/DonovanPOS-1.0.0-win-x64.msi`, o descomprime `artifacts/DonovanPOS-1.0.0-portable.zip`.
-2. Abre **Donovan POS Pro**. En el primer inicio, el asistente solicita los datos del negocio y la creación de tu administrador. No hay usuarios ni contraseñas predeterminadas.
-3. Configura impresora, ancho de ticket, impuestos y carpeta de respaldos. Agrega productos o descarga la plantilla de importación.
-4. Abre caja con el fondo inicial y registra tu primera venta.
-
-Para explorar con datos ficticios, usa **Probar demostración** desde Inicio o `Probar demostracion.cmd` en el paquete portátil. La demostración crea una base temporal nueva en cada arranque, identificada como DEMOSTRACIÓN. No modifica los datos reales. La aplicación normal comienza vacía.
-
-El paquete incluye el runtime .NET 10.0.14; no necesitas instalar Visual Studio, un SDK ni un servidor de base de datos. Requiere Windows 10 versión 2004 o posterior, o Windows 11, de 64 bits. El instalador es por usuario y permite cambiar la carpeta de destino. La desinstalación conserva la base del negocio.
-
-## Funciones
-
-- Dashboard con ventas reales, operaciones, efectivo, cartera, comparativas, productos vendidos, categorías y formas de pago; filtros de fechas y gráficos interactivos.
-- Caja con catálogo visual, búsqueda por palabras, medidas, marca, alias y código; cantidades fraccionarias, mayoreo, descuentos, pagos mixtos y cambio.
-- Ventas suspendidas persistentes, recuperación y comprobación de precios y existencias antes de cobrar.
-- Productos, presentaciones y variantes con claves independientes; inventario, mínimos, sugerencia para llegar al mínimo, movimientos y recepción de compras.
-- Clientes, límite de crédito, vencimientos, abonos, historial y devoluciones parciales o cancelación con motivo.
-- Cotizaciones guardadas, PDF, vigencia y conversión a venta; no descuentan existencias mientras sean cotizaciones.
-- Caja de efectivo: apertura, ingresos, egresos y corte con diferencia entre esperado y contado.
-- Tickets de 58/80 mm con vista previa, cotizaciones y reportes PDF, etiquetas Code 128, importación y exportación Excel.
-- Administrador y cajero, controles de permisos, bitácora, temas claro/oscuro, movimiento reducido, respaldo manual y automático, restauración validada y copia de seguridad previa.
-
-Consulta [el manual de uso](docs/MANUAL.md), [la arquitectura](docs/ARQUITECTURA.md), [la validación](docs/VALIDACION.md) y [las licencias](docs/INVESTIGACION-Y-LICENCIAS.md).
-
-Capturas del ejecutable autónomo, con datos de demostración:
-
-![Dashboard real](docs/images/dashboard.png)
-
-![Punto de venta real](docs/images/punto-de-venta.png)
-
-## Datos y respaldos
-
-La base real se guarda en `%LOCALAPPDATA%\DonovanSystems\DonovanPOS\data`. Las copias automáticas se ejecutan mientras el programa está abierto, al cumplirse el intervalo configurado; no se instala un servicio en segundo plano. La configuración inicial propone una carpeta local que puedes cambiar por un disco externo. Una copia en el mismo disco no protege frente a la pérdida de ese disco.
-
-Los datos de demostración se guardan por separado en `%TEMP%\DonovanPOS-Demo\<identificador>`. El cierre de una demostración no elimina automáticamente su carpeta; Windows puede limpiar sus archivos temporales. Para pruebas independientes puede usarse `DonovanPOS.exe --data-dir "C:\MiCarpetaDePrueba"`. No apuntes varias computadoras al mismo archivo SQLite ni a una carpeta sincronizada en uso.
-
-## Desarrollo y publicación
-
-Con .NET SDK 10 en Windows y PowerShell 7:
-
-```powershell
-dotnet restore DonovanPOS.sln
-dotnet build DonovanPOS.sln -c Release
-dotnet test tests/DonovanPOS.Tests -c Release
-dotnet run --project src/DonovanPOS.Presentation
-./scripts/Publish.ps1 -Installer
+```sh
+git clone https://github.com/Edwin75206/DonovanPOSPRO.git
+cd DonovanPOSPRO
 ```
 
-`Publish.ps1` ejecuta las pruebas, crea una aplicación autónoma x64, incorpora manuales y licencias, genera ZIP/MSI y escribe `artifacts/SHA256SUMS.txt`. `Build-Installer.ps1` utiliza Windows Installer y `makecab.exe` del sistema: no requiere un compilador de instaladores externo. Incrementa la versión de producto y ensamblados al preparar una actualización; el UpgradeCode permanece estable.
+Abre la carpeta clonada en Codex y usa **[PROMPT-PARA-MAC.md](PROMPT-PARA-MAC.md)**. El contexto técnico, decisiones y comprobaciones están en [CONTINUAR-EN-MAC.md](CONTINUAR-EN-MAC.md); [AGENTS.md](AGENTS.md) señala qué leer al continuar.
 
-La auditoría visual de desarrollo se puede repetir con:
+## Producto
 
-```powershell
-dotnet run --project src/DonovanPOS.Presentation -- --qa --qa-audit artifacts/qa
-```
+- Caja de mostrador para Negociante Uno: tabla compacta, escaneo directo, buscador **F2**, cantidades editables, existencias y total permanente, cobro **F8** y cálculo de cambio.
+- Dashboard ejecutivo para el administrador: KPIs, gráficas, caja, inventario, cartera, reportes y control del negocio.
+- Cotizaciones, ventas en espera, compras, crédito, abonos, devoluciones, importación/exportación de productos y roles.
+- Tickets con identidad del negocio, 58/80 mm según controlador, vista previa, PDF y reimpresión sin volver a cobrar.
+- MySQL local privado, migración explícita desde SQLite y respaldos verificados. Cada equipo mantiene una base independiente; no hay sincronización automática entre cajas.
 
-Este comando usa datos temporales, genera vistas WPF y documentos de prueba, y detecta errores de enlaces y de interfaz. Solo está disponible en Debug. El modo `--demo` también está disponible en Release.
+## Arquitectura
 
-## Alcance de esta entrega
+Tauri 2 + React/TypeScript, Tailwind, componentes Radix/shadcn, Motion, Apache ECharts y TanStack Table. **Rust controla reglas comerciales, permisos, SQL, transacciones y operaciones nativas.** React no accede directamente a la base.
 
-Se trata de una aplicación local para una caja/base por instalación. Tarjeta y transferencia registran la forma de pago; no conectan con un banco o una terminal. Los comprobantes no son CFDI. No se implementan timbrado SAT, nube, sincronización entre sucursales, tienda en línea ni hardware fiscal. El formato de código de barras es Code 128; los escáneres USB deben operar como teclado.
+MySQL Server almacena el negocio y Workbench permite su administración técnica. SQLite se conserva para compatibilidad, migración y formato portable de respaldos. La aplicación comercial inicia vacía para configurar o restaurar el negocio; los datos sintéticos solo se usan en pruebas aisladas.
 
-Las pruebas funcionales y visuales se documentan con sus límites. La impresión física, la lectura con un escáner real y los cambios reales de DPI de Windows requieren validación en el equipo del negocio. Los binarios locales no tienen firma Authenticode ni certificado de editor: el nombre del autor en los metadatos no sustituye esa firma.
+| Carpeta | Contenido |
+|---|---|
+| `desktop/` | Aplicación actual, interfaz, servicios Rust y pruebas |
+| `desktop/src-tauri/migrations/` | Estructura versionada y contrato MySQL |
+| `assets/` | Logotipos originales, fuentes y avisos distribuidos |
+| `packaging/` | Paquetes oficiales fijados por versión y SHA-256 |
+| `scripts/` | Compilación, validación y controles del repositorio |
+| `docs/` | Operación, arquitectura, pruebas y notas de versiones |
+| `licenses/` | Procedencia y licencias de terceros |
+
+La referencia WPF original está conservada en la etiqueta [v1.0.0](https://github.com/Edwin75206/DonovanPOSPRO/tree/v1.0.0) y en el historial; no es la aplicación activa.
+
+## Desarrollo y versiones
+
+- [Preparar y compilar Windows o Mac](desktop/README.md).
+- [Flujo de ramas, versiones y publicación](docs/VERSIONES-Y-GITHUB.md).
+- [Historial de cambios](CHANGELOG.md).
+- [Manual de operación](docs/v2/MANUAL.md).
+- [MySQL, Workbench, migración, respaldo y portabilidad](docs/v2/MYSQL-Y-MACOS.md).
+- [Validación 2.3 y límites comprobados](docs/v2/VALIDACION-2.3.md).
+
+Las actualizaciones se distribuyen por enlace a un nuevo instalador. La base se guarda fuera del programa y se conserva al actualizar. La impresión física y el escáner deben comprobarse con el hardware del negocio. Los tickets no son CFDI y tarjeta/transferencia se registran manualmente.
+
+El código original conserva los derechos indicados en [PROJECT-NOTICE.txt](licenses/PROJECT-NOTICE.txt); las dependencias mantienen sus licencias. Que el repositorio sea público no cambia esos términos.

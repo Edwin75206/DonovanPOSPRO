@@ -1,9 +1,9 @@
+use crate::database::Connection;
 use crate::{
     Engine, db,
     error::{AppError, Result, ensure},
 };
 use rusqlite::{
-    Connection,
     backup::{Backup, StepResult},
     params,
 };
@@ -120,6 +120,9 @@ pub fn remove_managed_directory(root: &Path, path: &Path) -> Result<()> {
     Ok(())
 }
 pub fn snapshot(source: &Connection, target: &Path) -> Result<()> {
+    if source.is_mysql() {
+        return crate::mysql_store::snapshot(source, target);
+    }
     ensure(
         !target.exists(),
         "FILE_EXISTS",
@@ -147,7 +150,7 @@ pub fn snapshot(source: &Connection, target: &Path) -> Result<()> {
     let mut destination = db::connect(target, false)?;
     destination.execute_batch("PRAGMA synchronous=FULL; PRAGMA journal_mode=DELETE;")?;
     {
-        let copy = Backup::new(source, &mut destination)?;
+        let copy = Backup::new(source.sqlite()?, destination.sqlite_mut()?)?;
         let start = Instant::now();
         let mut retries = 0;
         loop {
@@ -208,15 +211,28 @@ pub fn move_new(source: &Path, destination: &Path) -> Result<()> {
     Ok(())
 }
 pub fn write_active(root: &Path, relative: &Path, replace: bool) -> Result<()> {
+    write_pointer(
+        root,
+        json!({"version":1,"database":relative.to_string_lossy()}),
+        replace,
+    )
+}
+pub fn write_mysql_active(root: &Path, schema: &str, replace: bool) -> Result<()> {
+    crate::mysql_runtime::validate_schema(schema)?;
+    write_pointer(
+        root,
+        json!({"version":2,"backend":"mysql","database":schema}),
+        replace,
+    )
+}
+fn write_pointer(root: &Path, config: Value, replace: bool) -> Result<()> {
     let path = root.join(format!("active-{}.partial", uuid::Uuid::new_v4()));
     let result = (|| {
         let mut file = OpenOptions::new()
             .write(true)
             .create_new(true)
             .open(&path)?;
-        file.write_all(&serde_json::to_vec_pretty(
-            &json!({"version":1,"database":relative.to_string_lossy()}),
-        )?)?;
+        file.write_all(&serde_json::to_vec_pretty(&config)?)?;
         file.sync_all()?;
         drop(file);
         if replace {
@@ -486,11 +502,83 @@ impl Engine {
         entries.truncate(200);
         Ok(json!(entries))
     }
+    pub(crate) fn database_bytes(&self) -> Result<u64> {
+        let db = self.db()?;
+        Ok(if db.is_mysql() {
+            db::scalar(
+                db,
+                "SELECT COALESCE(SUM(DATA_LENGTH+INDEX_LENGTH),0) FROM information_schema.tables WHERE table_schema=DATABASE()",
+                [],
+            )? as u64
+        } else {
+            fs::metadata(&self.db_path).map(|m| m.len()).unwrap_or(0)
+                + fs::metadata(format!("{}-wal", self.db_path.display()))
+                    .map(|m| m.len())
+                    .unwrap_or(0)
+        })
+    }
     pub fn data_overview(&self) -> Result<Value> {
         self.actor("settings")?;
         let db = self.db()?;
+        let bytes = self.database_bytes()?;
         Ok(
-            json!({"path":display_path(&self.db_path),"root":display_path(&self.root),"bytes":fs::metadata(&self.db_path).map(|m|m.len()).unwrap_or(0)+fs::metadata(format!("{}-wal",self.db_path.display())).map(|m|m.len()).unwrap_or(0),"freeBytes":fs2::available_space(&self.root)?,"schemaVersion":db::schema(db)?,"lastIntegrity":self.last_integrity,"settings":db::one(db,"SELECT BackupDirectory,AutomaticBackups,BackupIntervalHours FROM StoreSettings LIMIT 1",[])?,"migrations":db::all(db,"SELECT * FROM NativeMigration ORDER BY Version",[])?,"history":db::all(db,"SELECT * FROM BackupRecord ORDER BY Id DESC LIMIT 100",[])?,"counts":db::one(db,"SELECT (SELECT COUNT(*) FROM Product) AS Products,(SELECT COUNT(*) FROM Sale) AS Sales,(SELECT COUNT(*) FROM Customer) AS Customers,(SELECT COUNT(*) FROM User) AS Users",[])?}),
+            json!({"backend":if db.is_mysql(){"MySQL 8.4 LTS"}else{"SQLite"},"canMigrateMysql":!db.is_mysql()&&self.mysql_runtime.as_ref().is_some_and(|p|p.is_dir()),"mysql":if db.is_mysql(){Some(json!({"host":"127.0.0.1","port":crate::mysql_runtime::configuration(&self.root)?.port,"schema":self.db_path.file_name().and_then(|s|s.to_str()),"logPath":display_path(&self.root.join("mysql/server.log"))}))}else{None},"path":display_path(&if db.is_mysql(){self.root.join("mysql/data")}else{self.db_path.clone()}),"root":display_path(&self.root),"bytes":bytes,"freeBytes":fs2::available_space(&self.root)?,"schemaVersion":db::schema(db)?,"lastIntegrity":self.last_integrity,"settings":db::one(db,"SELECT BackupDirectory,AutomaticBackups,BackupIntervalHours FROM StoreSettings LIMIT 1",[])?,"migrations":db::all(db,"SELECT * FROM NativeMigration ORDER BY Version",[])?,"history":db::all(db,"SELECT * FROM BackupRecord ORDER BY Id DESC LIMIT 100",[])?,"counts":db::one(db,"SELECT (SELECT COUNT(*) FROM Product) AS Products,(SELECT COUNT(*) FROM Sale) AS Sales,(SELECT COUNT(*) FROM Customer) AS Customers,(SELECT COUNT(*) FROM User) AS Users",[])?}),
+        )
+    }
+    pub fn migrate_mysql(&mut self, password: &str) -> Result<Value> {
+        let actor = self.reauthenticate(password)?;
+        ensure(
+            !self.db()?.is_mysql(),
+            "MYSQL_ACTIVE",
+            "Este negocio ya utiliza MySQL.",
+        )?;
+        let runtime = self.mysql_runtime.clone().ok_or_else(|| {
+            AppError::rule(
+                "MYSQL_RUNTIME_MISSING",
+                "Instala la edición completa con MySQL para realizar la migración.",
+            )
+        })?;
+        db::compatible(self.db()?)?;
+        self.backup_internal(
+            &self.root.join("backups"),
+            "Antes de migrar a MySQL",
+            Some(actor.id),
+        )?;
+        crate::mysql_runtime::ensure_running(&self.root, &runtime)?;
+        let (schema, connection) =
+            crate::mysql_runtime::create_schema(&self.root, Some(self.db()?), &self.now_string())?;
+        connection.execute("DELETE FROM UserSession", [])?;
+        db::audit(
+            &connection,
+            &self.now_string(),
+            Some(actor.id),
+            "Migración MySQL",
+            "Instalación",
+            "Copia verificada por tabla y SHA-256. Original SQLite conservado.",
+        )?;
+        self.activate(self.root.join("mysql").join(schema), connection)
+    }
+    pub fn workbench_connection(&self, password: &str) -> Result<Value> {
+        let actor = self.reauthenticate(password)?;
+        ensure(
+            self.db()?.is_mysql(),
+            "MYSQL_REQUIRED",
+            "Esta base todavía utiliza SQLite. Migra desde Administración de datos.",
+        )?;
+        db::audit(
+            self.db()?,
+            &self.now_string(),
+            Some(actor.id),
+            "Consultar acceso Workbench",
+            "Administración local",
+            "",
+        )?;
+        crate::mysql_runtime::workbench_details(
+            &self.root,
+            self.db_path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or(""),
         )
     }
     pub fn verify_database(&mut self) -> Result<Value> {

@@ -1,11 +1,12 @@
 //! Administrator reports. Money remains integer cents through aggregation.
 //! Returns belong to their operation date, matching the executive dashboard.
+use crate::database::Connection;
 use crate::{
     Engine, db,
     error::{AppError, Result, ensure},
     money, reporting,
 };
-use rusqlite::{Connection, params};
+use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
@@ -111,7 +112,7 @@ const LIMIT_MESSAGE: &str = "El reporte supera 50,000 filas. Reduce el periodo o
 
 fn profit_rows(db: &Connection, from: &str, end: &str) -> Result<Vec<Value>> {
     // Stream source lines, then group. No SQLite floating point multiplication.
-    let mut stmt = db.prepare("SELECT l.ProductId,l.Sku,l.Name,l.Unit,l.QuantityUnits,l.TotalCents-l.TaxCents AS NetCents,l.CostCents,1 AS Direction,l.TaxBasisPoints FROM SaleLine l JOIN Sale s ON s.Id=l.SaleId WHERE s.CreatedAt>=?1 AND s.CreatedAt<?2
+    let stmt = db.prepare("SELECT l.ProductId,l.Sku,l.Name,l.Unit,l.QuantityUnits,l.TotalCents-l.TaxCents AS NetCents,l.CostCents,1 AS Direction,l.TaxBasisPoints FROM SaleLine l JOIN Sale s ON s.Id=l.SaleId WHERE s.CreatedAt>=?1 AND s.CreatedAt<?2
  UNION ALL SELECT l.ProductId,l.Sku,l.Name,l.Unit,rl.QuantityUnits,rl.AmountCents,l.CostCents,-1,l.TaxBasisPoints FROM ReturnLine rl JOIN SaleReturn r ON r.Id=rl.SaleReturnId JOIN SaleLine l ON l.Id=rl.SaleLineId WHERE r.CreatedAt>=?1 AND r.CreatedAt<?2 LIMIT 250001")?;
     let mut cursor = stmt.query(params![from, end])?;
     let mut groups: BTreeMap<(i64, String, String, i64), (i64, i64, Option<i64>)> = BTreeMap::new();
@@ -174,7 +175,7 @@ impl Engine {
         ) = match query.kind.as_str() {
             "daily" => {
                 let raw = query_rows(
-                    "SELECT Day AS Date,SUM(GrossCents) AS GrossCents,SUM(ReturnCents) AS ReturnCents,SUM(GrossCents)-SUM(ReturnCents) AS NetCents,SUM(Operations) AS Operations FROM (SELECT substr(CreatedAt,1,10) AS Day,TotalCents AS GrossCents,0 AS ReturnCents,1 AS Operations FROM Sale WHERE CreatedAt>=?1 AND CreatedAt<?2 UNION ALL SELECT substr(CreatedAt,1,10),0,TotalCents,0 FROM SaleReturn WHERE CreatedAt>=?1 AND CreatedAt<?2) GROUP BY Day ORDER BY Day",
+                    "SELECT Day AS Date,SUM(GrossCents) AS GrossCents,SUM(ReturnCents) AS ReturnCents,SUM(GrossCents)-SUM(ReturnCents) AS NetCents,SUM(Operations) AS Operations FROM (SELECT substr(CreatedAt,1,10) AS Day,TotalCents AS GrossCents,0 AS ReturnCents,1 AS Operations FROM Sale WHERE CreatedAt>=?1 AND CreatedAt<?2 UNION ALL SELECT substr(CreatedAt,1,10),0,TotalCents,0 FROM SaleReturn WHERE CreatedAt>=?1 AND CreatedAt<?2) AS activity GROUP BY Day ORDER BY Day",
                 )?;
                 let days=(0..(end_date-start).num_days()).map(|n| {
                     let date=(start+chrono::Duration::days(n)).to_string();
@@ -253,7 +254,7 @@ impl Engine {
                     m("netCents", "Venta neta", 1.2),
                 ],
                 query_rows(
-                    "SELECT Cashier AS Name,SUM(Operations) AS Operations,SUM(GrossCents) AS GrossCents,SUM(ReturnCents) AS ReturnCents,SUM(GrossCents)-SUM(ReturnCents) AS NetCents FROM (SELECT UserId,Cashier,1 AS Operations,TotalCents AS GrossCents,0 AS ReturnCents FROM Sale WHERE CreatedAt>=?1 AND CreatedAt<?2 UNION ALL SELECT s.UserId,s.Cashier,0,0,r.TotalCents FROM SaleReturn r JOIN Sale s ON s.Id=r.SaleId WHERE r.CreatedAt>=?1 AND r.CreatedAt<?2) GROUP BY UserId,Cashier ORDER BY NetCents DESC,Name",
+                    "SELECT Cashier AS Name,SUM(Operations) AS Operations,SUM(GrossCents) AS GrossCents,SUM(ReturnCents) AS ReturnCents,SUM(GrossCents)-SUM(ReturnCents) AS NetCents FROM (SELECT UserId,Cashier,1 AS Operations,TotalCents AS GrossCents,0 AS ReturnCents FROM Sale WHERE CreatedAt>=?1 AND CreatedAt<?2 UNION ALL SELECT s.UserId,s.Cashier,0,0,r.TotalCents FROM SaleReturn r JOIN Sale s ON s.Id=r.SaleId WHERE r.CreatedAt>=?1 AND r.CreatedAt<?2) AS activity GROUP BY UserId,Cashier ORDER BY NetCents DESC,Name",
                 )?,
                 Some(("name", "netCents", "Ventas netas por usuario")),
             ),
@@ -267,7 +268,7 @@ impl Engine {
                     m("netCents", "Cobro neto", 1.2),
                 ],
                 query_rows(
-                    "SELECT CASE Method WHEN 0 THEN 'Efectivo' WHEN 1 THEN 'Tarjeta' WHEN 2 THEN 'Transferencia' END AS Name,SUM(CollectedCents) AS CollectedCents,SUM(RefundCents) AS RefundCents,SUM(CollectedCents)-SUM(RefundCents) AS NetCents FROM (SELECT p.Method,p.AmountCents AS CollectedCents,0 AS RefundCents FROM PaymentRecord p JOIN Sale s ON s.Id=p.SaleId WHERE s.CreatedAt>=?1 AND s.CreatedAt<?2 AND p.Method<3 UNION ALL SELECT Method,-AmountCents,0 FROM CreditEntry WHERE Kind='Abono' AND CreatedAt>=?1 AND CreatedAt<?2 UNION ALL SELECT RefundMethod,0,TotalCents-CreditReductionCents FROM SaleReturn WHERE CreatedAt>=?1 AND CreatedAt<?2) WHERE Method BETWEEN 0 AND 2 GROUP BY Method ORDER BY Method",
+                    "SELECT CASE Method WHEN 0 THEN 'Efectivo' WHEN 1 THEN 'Tarjeta' WHEN 2 THEN 'Transferencia' END AS Name,SUM(CollectedCents) AS CollectedCents,SUM(RefundCents) AS RefundCents,SUM(CollectedCents)-SUM(RefundCents) AS NetCents FROM (SELECT p.Method,p.AmountCents AS CollectedCents,0 AS RefundCents FROM PaymentRecord p JOIN Sale s ON s.Id=p.SaleId WHERE s.CreatedAt>=?1 AND s.CreatedAt<?2 AND p.Method<3 UNION ALL SELECT Method,-AmountCents,0 FROM CreditEntry WHERE Kind='Abono' AND CreatedAt>=?1 AND CreatedAt<?2 UNION ALL SELECT RefundMethod,0,TotalCents-CreditReductionCents FROM SaleReturn WHERE CreatedAt>=?1 AND CreatedAt<?2) AS activity WHERE Method BETWEEN 0 AND 2 GROUP BY Method ORDER BY Method",
                 )?,
                 Some(("name", "netCents", "Cobros netos")),
             ),

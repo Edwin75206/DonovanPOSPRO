@@ -1,9 +1,10 @@
+use crate::database::Connection;
 use crate::{
     auth, db,
     error::{Result, ensure},
     models::Actor,
 };
-use rusqlite::{Connection, params};
+use rusqlite::params;
 use serde::Serialize;
 use serde_json::{Value, json};
 pub fn fingerprint(input: &impl Serialize) -> Result<String> {

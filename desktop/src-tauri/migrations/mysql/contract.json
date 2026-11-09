@@ -1,0 +1,2782 @@
+[
+  {
+    "name": "AppMeta",
+    "columns": [
+      {
+        "name": "Key",
+        "type": "varchar(512)",
+        "nullable": false,
+        "primary": true,
+        "auto": false
+      },
+      {
+        "name": "Value",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [],
+    "indexes": [],
+    "checks": []
+  },
+  {
+    "name": "BackupRecord",
+    "columns": [
+      {
+        "name": "Id",
+        "type": "bigint",
+        "nullable": false,
+        "primary": true,
+        "auto": true
+      },
+      {
+        "name": "CreatedAt",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "FilePath",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Kind",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Successful",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "FileBytes",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Sha256",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Result",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [],
+    "indexes": [],
+    "checks": []
+  },
+  {
+    "name": "Customer",
+    "columns": [
+      {
+        "name": "Id",
+        "type": "bigint",
+        "nullable": false,
+        "primary": true,
+        "auto": true
+      },
+      {
+        "name": "Name",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Phone",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Email",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Address",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "CreditLimitCents",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Active",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [],
+    "indexes": [],
+    "checks": []
+  },
+  {
+    "name": "NativeMigration",
+    "columns": [
+      {
+        "name": "Version",
+        "type": "bigint",
+        "nullable": false,
+        "primary": true,
+        "auto": false
+      },
+      {
+        "name": "AppliedAt",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Description",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [],
+    "indexes": [],
+    "checks": []
+  },
+  {
+    "name": "Product",
+    "columns": [
+      {
+        "name": "Id",
+        "type": "bigint",
+        "nullable": false,
+        "primary": true,
+        "auto": true
+      },
+      {
+        "name": "Sku",
+        "type": "varchar(512)",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Barcode",
+        "type": "varchar(512)",
+        "nullable": true,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Name",
+        "type": "varchar(512)",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Category",
+        "type": "varchar(512)",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Brand",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Size",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Unit",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "CostCents",
+        "type": "bigint",
+        "nullable": true,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "PriceCents",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "WholesaleCents",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "StockUnits",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "MinimumUnits",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "TaxBasisPoints",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "PackName",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "PackUnits",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Active",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Aliases",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [],
+    "indexes": [
+      {
+        "name": "IX_Product_Sku",
+        "unique": true,
+        "columns": [
+          "Sku"
+        ]
+      },
+      {
+        "name": "IX_Product_Category",
+        "unique": false,
+        "columns": [
+          "Category"
+        ]
+      },
+      {
+        "name": "IX_Product_Barcode",
+        "unique": true,
+        "columns": [
+          "Barcode"
+        ]
+      },
+      {
+        "name": "IX_Product_Active_Name",
+        "unique": false,
+        "columns": [
+          "Active",
+          "Name"
+        ]
+      }
+    ],
+    "checks": [
+      "PriceCents >= 0 AND WholesaleCents >= 0 AND (CostCents IS NULL OR CostCents >= 0) AND TaxBasisPoints BETWEEN 0 AND 10000",
+      "StockUnits >= 0 AND MinimumUnits >= 0 AND PackUnits > 0"
+    ]
+  },
+  {
+    "name": "RequestReceipt",
+    "columns": [
+      {
+        "name": "RequestId",
+        "type": "varchar(512)",
+        "nullable": false,
+        "primary": true,
+        "auto": false
+      },
+      {
+        "name": "Operation",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "ResultJson",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "CreatedAt",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [],
+    "indexes": [],
+    "checks": []
+  },
+  {
+    "name": "Sequence",
+    "columns": [
+      {
+        "name": "Id",
+        "type": "bigint",
+        "nullable": false,
+        "primary": true,
+        "auto": true
+      },
+      {
+        "name": "Key",
+        "type": "varchar(512)",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Value",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [],
+    "indexes": [
+      {
+        "name": "IX_Sequence_Key",
+        "unique": true,
+        "columns": [
+          "Key"
+        ]
+      }
+    ],
+    "checks": []
+  },
+  {
+    "name": "StoreSettings",
+    "columns": [
+      {
+        "name": "Id",
+        "type": "bigint",
+        "nullable": false,
+        "primary": true,
+        "auto": true
+      },
+      {
+        "name": "StoreName",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Address",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Phone",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Email",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "TaxId",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "LogoPath",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "TicketFooter",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "FolioPrefix",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "DefaultTaxBasisPoints",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "TicketWidthMm",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "PrinterName",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "BackupDirectory",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "DarkMode",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "ReducedMotion",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "AutomaticBackups",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "BackupIntervalHours",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "LogoData",
+        "type": "longblob",
+        "nullable": true,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [],
+    "indexes": [],
+    "checks": []
+  },
+  {
+    "name": "Supplier",
+    "columns": [
+      {
+        "name": "Id",
+        "type": "bigint",
+        "nullable": false,
+        "primary": true,
+        "auto": true
+      },
+      {
+        "name": "Name",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Phone",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Email",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Address",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Active",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [],
+    "indexes": [],
+    "checks": []
+  },
+  {
+    "name": "User",
+    "columns": [
+      {
+        "name": "Id",
+        "type": "bigint",
+        "nullable": false,
+        "primary": true,
+        "auto": true
+      },
+      {
+        "name": "Username",
+        "type": "varchar(512)",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Name",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "PasswordHash",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Role",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Active",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "FailedAttempts",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "LockedUntil",
+        "type": "longtext",
+        "nullable": true,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "AuthVersion",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [],
+    "indexes": [
+      {
+        "name": "IX_User_Username",
+        "unique": true,
+        "columns": [
+          "Username"
+        ]
+      }
+    ],
+    "checks": []
+  },
+  {
+    "name": "__EFMigrationsHistory",
+    "columns": [
+      {
+        "name": "MigrationId",
+        "type": "varchar(512)",
+        "nullable": false,
+        "primary": true,
+        "auto": false
+      },
+      {
+        "name": "ProductVersion",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [],
+    "indexes": [],
+    "checks": []
+  },
+  {
+    "name": "__EFMigrationsLock",
+    "columns": [
+      {
+        "name": "Id",
+        "type": "bigint",
+        "nullable": false,
+        "primary": true,
+        "auto": false
+      },
+      {
+        "name": "Timestamp",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [],
+    "indexes": [],
+    "checks": []
+  },
+  {
+    "name": "AuditEvent",
+    "columns": [
+      {
+        "name": "Id",
+        "type": "bigint",
+        "nullable": false,
+        "primary": true,
+        "auto": true
+      },
+      {
+        "name": "CreatedAt",
+        "type": "varchar(512)",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "UserId",
+        "type": "bigint",
+        "nullable": true,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Action",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Reference",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Detail",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [
+      {
+        "table": "User",
+        "from": "UserId",
+        "to": "Id",
+        "delete": "RESTRICT",
+        "update": "NO ACTION"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "IX_AuditEvent_UserId",
+        "unique": false,
+        "columns": [
+          "UserId"
+        ]
+      },
+      {
+        "name": "IX_AuditEvent_CreatedAt",
+        "unique": false,
+        "columns": [
+          "CreatedAt"
+        ]
+      }
+    ],
+    "checks": []
+  },
+  {
+    "name": "CashSession",
+    "columns": [
+      {
+        "name": "Id",
+        "type": "bigint",
+        "nullable": false,
+        "primary": true,
+        "auto": true
+      },
+      {
+        "name": "Folio",
+        "type": "varchar(512)",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "UserId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "OpenedAt",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "ClosedAt",
+        "type": "longtext",
+        "nullable": true,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "OpeningCents",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "ExpectedCents",
+        "type": "bigint",
+        "nullable": true,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "CountedCents",
+        "type": "bigint",
+        "nullable": true,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Notes",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [
+      {
+        "table": "User",
+        "from": "UserId",
+        "to": "Id",
+        "delete": "RESTRICT",
+        "update": "NO ACTION"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "IX_CashSession_UserId",
+        "unique": false,
+        "columns": [
+          "UserId"
+        ]
+      },
+      {
+        "name": "IX_CashSession_Folio",
+        "unique": true,
+        "columns": [
+          "Folio"
+        ]
+      }
+    ],
+    "checks": []
+  },
+  {
+    "name": "Purchase",
+    "columns": [
+      {
+        "name": "Id",
+        "type": "bigint",
+        "nullable": false,
+        "primary": true,
+        "auto": true
+      },
+      {
+        "name": "SupplierId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Folio",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "SupplierReference",
+        "type": "varchar(512)",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "CreatedAt",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "UserId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "TotalCents",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [
+      {
+        "table": "User",
+        "from": "UserId",
+        "to": "Id",
+        "delete": "RESTRICT",
+        "update": "NO ACTION"
+      },
+      {
+        "table": "Supplier",
+        "from": "SupplierId",
+        "to": "Id",
+        "delete": "RESTRICT",
+        "update": "NO ACTION"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "IX_Purchase_UserId",
+        "unique": false,
+        "columns": [
+          "UserId"
+        ]
+      },
+      {
+        "name": "IX_Purchase_SupplierId_SupplierReference",
+        "unique": true,
+        "columns": [
+          "SupplierId",
+          "SupplierReference"
+        ]
+      }
+    ],
+    "checks": []
+  },
+  {
+    "name": "StockMovement",
+    "columns": [
+      {
+        "name": "Id",
+        "type": "bigint",
+        "nullable": false,
+        "primary": true,
+        "auto": true
+      },
+      {
+        "name": "ProductId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "CreatedAt",
+        "type": "varchar(512)",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "UserId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Kind",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Reference",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Reason",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "DeltaUnits",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "BalanceUnits",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [
+      {
+        "table": "User",
+        "from": "UserId",
+        "to": "Id",
+        "delete": "RESTRICT",
+        "update": "NO ACTION"
+      },
+      {
+        "table": "Product",
+        "from": "ProductId",
+        "to": "Id",
+        "delete": "RESTRICT",
+        "update": "NO ACTION"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "IX_StockMovement_UserId",
+        "unique": false,
+        "columns": [
+          "UserId"
+        ]
+      },
+      {
+        "name": "IX_StockMovement_ProductId_CreatedAt",
+        "unique": false,
+        "columns": [
+          "ProductId",
+          "CreatedAt"
+        ]
+      }
+    ],
+    "checks": []
+  },
+  {
+    "name": "StorePresentation",
+    "columns": [
+      {
+        "name": "StoreId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": true,
+        "auto": false
+      },
+      {
+        "name": "Subtitle",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "AutoPrint",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [
+      {
+        "table": "StoreSettings",
+        "from": "StoreId",
+        "to": "Id",
+        "delete": "CASCADE",
+        "update": "NO ACTION"
+      }
+    ],
+    "indexes": [],
+    "checks": [
+      "AutoPrint IN (0,1)"
+    ]
+  },
+  {
+    "name": "TicketProfile",
+    "columns": [
+      {
+        "name": "StoreId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": true,
+        "auto": false
+      },
+      {
+        "name": "MarginMm",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Copies",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Monochrome",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "ShowLogo",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Legend",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [
+      {
+        "table": "StoreSettings",
+        "from": "StoreId",
+        "to": "Id",
+        "delete": "CASCADE",
+        "update": "NO ACTION"
+      }
+    ],
+    "indexes": [],
+    "checks": [
+      "MarginMm BETWEEN 2 AND 8",
+      "Copies BETWEEN 1 AND 3",
+      "Monochrome IN (0,1)",
+      "ShowLogo IN (0,1)",
+      "CHAR_LENGTH(Legend)<=500"
+    ]
+  },
+  {
+    "name": "UserAppearance",
+    "columns": [
+      {
+        "name": "UserId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": true,
+        "auto": false
+      },
+      {
+        "name": "Version",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "ConfigJson",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "BackgroundData",
+        "type": "longblob",
+        "nullable": true,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [
+      {
+        "table": "User",
+        "from": "UserId",
+        "to": "Id",
+        "delete": "CASCADE",
+        "update": "NO ACTION"
+      }
+    ],
+    "indexes": [],
+    "checks": [
+      "Version=1"
+    ]
+  },
+  {
+    "name": "UserPreferences",
+    "columns": [
+      {
+        "name": "UserId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": true,
+        "auto": false
+      },
+      {
+        "name": "TutorialStatus",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "TutorialStep",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Theme",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "ReducedMotion",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [
+      {
+        "table": "User",
+        "from": "UserId",
+        "to": "Id",
+        "delete": "CASCADE",
+        "update": "NO ACTION"
+      }
+    ],
+    "indexes": [],
+    "checks": [
+      "TutorialStatus IN ('pending','skipped','in_progress','completed')",
+      "Theme IN ('system','light','dark')"
+    ]
+  },
+  {
+    "name": "UserSession",
+    "columns": [
+      {
+        "name": "TokenHash",
+        "type": "varchar(512)",
+        "nullable": false,
+        "primary": true,
+        "auto": false
+      },
+      {
+        "name": "UserId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "AuthVersion",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "IssuedAt",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "ExpiresAt",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "LastSeenAt",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Locked",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [
+      {
+        "table": "User",
+        "from": "UserId",
+        "to": "Id",
+        "delete": "CASCADE",
+        "update": "NO ACTION"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "IX_Session_User",
+        "unique": false,
+        "columns": [
+          "UserId"
+        ]
+      }
+    ],
+    "checks": [
+      "ExpiresAt = IssuedAt + 86400"
+    ]
+  },
+  {
+    "name": "CashMovement",
+    "columns": [
+      {
+        "name": "Id",
+        "type": "bigint",
+        "nullable": false,
+        "primary": true,
+        "auto": true
+      },
+      {
+        "name": "CashSessionId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "UserId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "CreatedAt",
+        "type": "varchar(512)",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "AmountCents",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Kind",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Reference",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Reason",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [
+      {
+        "table": "User",
+        "from": "UserId",
+        "to": "Id",
+        "delete": "RESTRICT",
+        "update": "NO ACTION"
+      },
+      {
+        "table": "CashSession",
+        "from": "CashSessionId",
+        "to": "Id",
+        "delete": "RESTRICT",
+        "update": "NO ACTION"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "IX_CashMovement_UserId",
+        "unique": false,
+        "columns": [
+          "UserId"
+        ]
+      },
+      {
+        "name": "IX_CashMovement_CashSessionId_CreatedAt",
+        "unique": false,
+        "columns": [
+          "CashSessionId",
+          "CreatedAt"
+        ]
+      }
+    ],
+    "checks": []
+  },
+  {
+    "name": "PurchaseDetails",
+    "columns": [
+      {
+        "name": "PurchaseId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": true,
+        "auto": false
+      },
+      {
+        "name": "PaidFromCash",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [
+      {
+        "table": "Purchase",
+        "from": "PurchaseId",
+        "to": "Id",
+        "delete": "RESTRICT",
+        "update": "NO ACTION"
+      }
+    ],
+    "indexes": [],
+    "checks": [
+      "PaidFromCash IN (0,1)"
+    ]
+  },
+  {
+    "name": "PurchaseLine",
+    "columns": [
+      {
+        "name": "Id",
+        "type": "bigint",
+        "nullable": false,
+        "primary": true,
+        "auto": true
+      },
+      {
+        "name": "PurchaseId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "ProductId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "QuantityUnits",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "CostCents",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [
+      {
+        "table": "Purchase",
+        "from": "PurchaseId",
+        "to": "Id",
+        "delete": "RESTRICT",
+        "update": "NO ACTION"
+      },
+      {
+        "table": "Product",
+        "from": "ProductId",
+        "to": "Id",
+        "delete": "RESTRICT",
+        "update": "NO ACTION"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "IX_PurchaseLine_PurchaseId",
+        "unique": false,
+        "columns": [
+          "PurchaseId"
+        ]
+      },
+      {
+        "name": "IX_PurchaseLine_ProductId",
+        "unique": false,
+        "columns": [
+          "ProductId"
+        ]
+      }
+    ],
+    "checks": [
+      "QuantityUnits > 0 AND CostCents >= 0"
+    ]
+  },
+  {
+    "name": "Sale",
+    "columns": [
+      {
+        "name": "Id",
+        "type": "bigint",
+        "nullable": false,
+        "primary": true,
+        "auto": true
+      },
+      {
+        "name": "Folio",
+        "type": "varchar(512)",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "RequestId",
+        "type": "varchar(512)",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "CreatedAt",
+        "type": "varchar(512)",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "UserId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Cashier",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "CustomerId",
+        "type": "bigint",
+        "nullable": true,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "CustomerName",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "CashSessionId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "TotalCents",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "TaxCents",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "DiscountCents",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "ChangeCents",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "TenderedCents",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Cancelled",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [
+      {
+        "table": "User",
+        "from": "UserId",
+        "to": "Id",
+        "delete": "RESTRICT",
+        "update": "NO ACTION"
+      },
+      {
+        "table": "Customer",
+        "from": "CustomerId",
+        "to": "Id",
+        "delete": "RESTRICT",
+        "update": "NO ACTION"
+      },
+      {
+        "table": "CashSession",
+        "from": "CashSessionId",
+        "to": "Id",
+        "delete": "RESTRICT",
+        "update": "NO ACTION"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "IX_Sale_UserId",
+        "unique": false,
+        "columns": [
+          "UserId"
+        ]
+      },
+      {
+        "name": "IX_Sale_RequestId",
+        "unique": true,
+        "columns": [
+          "RequestId"
+        ]
+      },
+      {
+        "name": "IX_Sale_Folio",
+        "unique": true,
+        "columns": [
+          "Folio"
+        ]
+      },
+      {
+        "name": "IX_Sale_CustomerId",
+        "unique": false,
+        "columns": [
+          "CustomerId"
+        ]
+      },
+      {
+        "name": "IX_Sale_CreatedAt",
+        "unique": false,
+        "columns": [
+          "CreatedAt"
+        ]
+      },
+      {
+        "name": "IX_Sale_CashSessionId",
+        "unique": false,
+        "columns": [
+          "CashSessionId"
+        ]
+      }
+    ],
+    "checks": [
+      "TotalCents >= 0 AND TaxCents >= 0 AND ChangeCents >= 0"
+    ]
+  },
+  {
+    "name": "CreditEntry",
+    "columns": [
+      {
+        "name": "Id",
+        "type": "bigint",
+        "nullable": false,
+        "primary": true,
+        "auto": true
+      },
+      {
+        "name": "CustomerId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "SaleId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "CreatedAt",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "DueDate",
+        "type": "longtext",
+        "nullable": true,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "AmountCents",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Method",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Kind",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Reference",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "UserId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [
+      {
+        "table": "User",
+        "from": "UserId",
+        "to": "Id",
+        "delete": "RESTRICT",
+        "update": "NO ACTION"
+      },
+      {
+        "table": "Sale",
+        "from": "SaleId",
+        "to": "Id",
+        "delete": "RESTRICT",
+        "update": "NO ACTION"
+      },
+      {
+        "table": "Customer",
+        "from": "CustomerId",
+        "to": "Id",
+        "delete": "RESTRICT",
+        "update": "NO ACTION"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "IX_CreditEntry_UserId",
+        "unique": false,
+        "columns": [
+          "UserId"
+        ]
+      },
+      {
+        "name": "IX_CreditEntry_SaleId",
+        "unique": false,
+        "columns": [
+          "SaleId"
+        ]
+      },
+      {
+        "name": "IX_CreditEntry_CustomerId_SaleId",
+        "unique": false,
+        "columns": [
+          "CustomerId",
+          "SaleId"
+        ]
+      }
+    ],
+    "checks": []
+  },
+  {
+    "name": "HeldSale",
+    "columns": [
+      {
+        "name": "Id",
+        "type": "bigint",
+        "nullable": false,
+        "primary": true,
+        "auto": true
+      },
+      {
+        "name": "Folio",
+        "type": "varchar(512)",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Label",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "CreatedAt",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "UserId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "CustomerId",
+        "type": "bigint",
+        "nullable": true,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "SaleId",
+        "type": "bigint",
+        "nullable": true,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "DiscountParts",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Discarded",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [
+      {
+        "table": "User",
+        "from": "UserId",
+        "to": "Id",
+        "delete": "RESTRICT",
+        "update": "NO ACTION"
+      },
+      {
+        "table": "Sale",
+        "from": "SaleId",
+        "to": "Id",
+        "delete": "RESTRICT",
+        "update": "NO ACTION"
+      },
+      {
+        "table": "Customer",
+        "from": "CustomerId",
+        "to": "Id",
+        "delete": "RESTRICT",
+        "update": "NO ACTION"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "IX_HeldSale_UserId",
+        "unique": false,
+        "columns": [
+          "UserId"
+        ]
+      },
+      {
+        "name": "IX_HeldSale_SaleId",
+        "unique": false,
+        "columns": [
+          "SaleId"
+        ]
+      },
+      {
+        "name": "IX_HeldSale_Folio",
+        "unique": true,
+        "columns": [
+          "Folio"
+        ]
+      },
+      {
+        "name": "IX_HeldSale_CustomerId",
+        "unique": false,
+        "columns": [
+          "CustomerId"
+        ]
+      }
+    ],
+    "checks": []
+  },
+  {
+    "name": "PaymentRecord",
+    "columns": [
+      {
+        "name": "Id",
+        "type": "bigint",
+        "nullable": false,
+        "primary": true,
+        "auto": true
+      },
+      {
+        "name": "SaleId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Method",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "AmountCents",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Reference",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [
+      {
+        "table": "Sale",
+        "from": "SaleId",
+        "to": "Id",
+        "delete": "RESTRICT",
+        "update": "NO ACTION"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "IX_PaymentRecord_SaleId",
+        "unique": false,
+        "columns": [
+          "SaleId"
+        ]
+      }
+    ],
+    "checks": [
+      "AmountCents >= 0"
+    ]
+  },
+  {
+    "name": "PurchaseLineDetails",
+    "columns": [
+      {
+        "name": "PurchaseLineId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": true,
+        "auto": false
+      },
+      {
+        "name": "ProductName",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "ProductSku",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Unit",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "EnteredQuantityUnits",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "EnteredCostCents",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "ByPack",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "PackName",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "PackUnits",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "TotalCents",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [
+      {
+        "table": "PurchaseLine",
+        "from": "PurchaseLineId",
+        "to": "Id",
+        "delete": "RESTRICT",
+        "update": "NO ACTION"
+      }
+    ],
+    "indexes": [],
+    "checks": [
+      "Unit BETWEEN 0 AND 5",
+      "EnteredQuantityUnits>0",
+      "EnteredCostCents>=0",
+      "ByPack IN (0,1)",
+      "PackUnits>0",
+      "TotalCents>=0"
+    ]
+  },
+  {
+    "name": "Quote",
+    "columns": [
+      {
+        "name": "Id",
+        "type": "bigint",
+        "nullable": false,
+        "primary": true,
+        "auto": true
+      },
+      {
+        "name": "Folio",
+        "type": "varchar(512)",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "CreatedAt",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "ValidUntil",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "CustomerId",
+        "type": "bigint",
+        "nullable": true,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "CustomerName",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Notes",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "TotalCents",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "TaxCents",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "SaleId",
+        "type": "bigint",
+        "nullable": true,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "UserId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [
+      {
+        "table": "User",
+        "from": "UserId",
+        "to": "Id",
+        "delete": "RESTRICT",
+        "update": "NO ACTION"
+      },
+      {
+        "table": "Sale",
+        "from": "SaleId",
+        "to": "Id",
+        "delete": "RESTRICT",
+        "update": "NO ACTION"
+      },
+      {
+        "table": "Customer",
+        "from": "CustomerId",
+        "to": "Id",
+        "delete": "RESTRICT",
+        "update": "NO ACTION"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "IX_Quote_UserId",
+        "unique": false,
+        "columns": [
+          "UserId"
+        ]
+      },
+      {
+        "name": "IX_Quote_SaleId",
+        "unique": false,
+        "columns": [
+          "SaleId"
+        ]
+      },
+      {
+        "name": "IX_Quote_Folio",
+        "unique": true,
+        "columns": [
+          "Folio"
+        ]
+      },
+      {
+        "name": "IX_Quote_CustomerId",
+        "unique": false,
+        "columns": [
+          "CustomerId"
+        ]
+      }
+    ],
+    "checks": []
+  },
+  {
+    "name": "SaleLine",
+    "columns": [
+      {
+        "name": "Id",
+        "type": "bigint",
+        "nullable": false,
+        "primary": true,
+        "auto": true
+      },
+      {
+        "name": "SaleId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "ProductId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Sku",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Name",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Category",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Unit",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "QuantityUnits",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "PriceCents",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "CostCents",
+        "type": "bigint",
+        "nullable": true,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "TaxBasisPoints",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "TotalCents",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "TaxCents",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "ReturnedUnits",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "RefundedCents",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [
+      {
+        "table": "Sale",
+        "from": "SaleId",
+        "to": "Id",
+        "delete": "RESTRICT",
+        "update": "NO ACTION"
+      },
+      {
+        "table": "Product",
+        "from": "ProductId",
+        "to": "Id",
+        "delete": "RESTRICT",
+        "update": "NO ACTION"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "IX_SaleLine_SaleId",
+        "unique": false,
+        "columns": [
+          "SaleId"
+        ]
+      },
+      {
+        "name": "IX_SaleLine_ProductId",
+        "unique": false,
+        "columns": [
+          "ProductId"
+        ]
+      }
+    ],
+    "checks": [
+      "QuantityUnits > 0 AND ReturnedUnits >= 0 AND ReturnedUnits <= QuantityUnits AND RefundedCents >= 0 AND RefundedCents <= TotalCents"
+    ]
+  },
+  {
+    "name": "SaleReturn",
+    "columns": [
+      {
+        "name": "Id",
+        "type": "bigint",
+        "nullable": false,
+        "primary": true,
+        "auto": true
+      },
+      {
+        "name": "SaleId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "CreatedAt",
+        "type": "varchar(512)",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "UserId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Folio",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Reason",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "TotalCents",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "CreditReductionCents",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "RefundMethod",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [
+      {
+        "table": "User",
+        "from": "UserId",
+        "to": "Id",
+        "delete": "RESTRICT",
+        "update": "NO ACTION"
+      },
+      {
+        "table": "Sale",
+        "from": "SaleId",
+        "to": "Id",
+        "delete": "RESTRICT",
+        "update": "NO ACTION"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "IX_SaleReturn_UserId",
+        "unique": false,
+        "columns": [
+          "UserId"
+        ]
+      },
+      {
+        "name": "IX_SaleReturn_SaleId",
+        "unique": false,
+        "columns": [
+          "SaleId"
+        ]
+      },
+      {
+        "name": "IX_SaleReturn_CreatedAt",
+        "unique": false,
+        "columns": [
+          "CreatedAt"
+        ]
+      }
+    ],
+    "checks": []
+  },
+  {
+    "name": "HeldSaleLine",
+    "columns": [
+      {
+        "name": "Id",
+        "type": "bigint",
+        "nullable": false,
+        "primary": true,
+        "auto": true
+      },
+      {
+        "name": "HeldSaleId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "ProductId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "QuantityUnits",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Wholesale",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "OriginalPriceCents",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [
+      {
+        "table": "Product",
+        "from": "ProductId",
+        "to": "Id",
+        "delete": "RESTRICT",
+        "update": "NO ACTION"
+      },
+      {
+        "table": "HeldSale",
+        "from": "HeldSaleId",
+        "to": "Id",
+        "delete": "CASCADE",
+        "update": "NO ACTION"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "IX_HeldSaleLine_ProductId",
+        "unique": false,
+        "columns": [
+          "ProductId"
+        ]
+      },
+      {
+        "name": "IX_HeldSaleLine_HeldSaleId",
+        "unique": false,
+        "columns": [
+          "HeldSaleId"
+        ]
+      }
+    ],
+    "checks": [
+      "QuantityUnits > 0 AND OriginalPriceCents >= 0"
+    ]
+  },
+  {
+    "name": "QuoteLine",
+    "columns": [
+      {
+        "name": "Id",
+        "type": "bigint",
+        "nullable": false,
+        "primary": true,
+        "auto": true
+      },
+      {
+        "name": "QuoteId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "ProductId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Name",
+        "type": "longtext",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "Unit",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "QuantityUnits",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "PriceCents",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "TaxBasisPoints",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "TotalCents",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [
+      {
+        "table": "Quote",
+        "from": "QuoteId",
+        "to": "Id",
+        "delete": "CASCADE",
+        "update": "NO ACTION"
+      },
+      {
+        "table": "Product",
+        "from": "ProductId",
+        "to": "Id",
+        "delete": "RESTRICT",
+        "update": "NO ACTION"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "IX_QuoteLine_QuoteId",
+        "unique": false,
+        "columns": [
+          "QuoteId"
+        ]
+      },
+      {
+        "name": "IX_QuoteLine_ProductId",
+        "unique": false,
+        "columns": [
+          "ProductId"
+        ]
+      }
+    ],
+    "checks": []
+  },
+  {
+    "name": "ReturnLine",
+    "columns": [
+      {
+        "name": "Id",
+        "type": "bigint",
+        "nullable": false,
+        "primary": true,
+        "auto": true
+      },
+      {
+        "name": "SaleReturnId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "SaleLineId",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "QuantityUnits",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      },
+      {
+        "name": "AmountCents",
+        "type": "bigint",
+        "nullable": false,
+        "primary": false,
+        "auto": false
+      }
+    ],
+    "foreignKeys": [
+      {
+        "table": "SaleReturn",
+        "from": "SaleReturnId",
+        "to": "Id",
+        "delete": "RESTRICT",
+        "update": "NO ACTION"
+      },
+      {
+        "table": "SaleLine",
+        "from": "SaleLineId",
+        "to": "Id",
+        "delete": "RESTRICT",
+        "update": "NO ACTION"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "IX_ReturnLine_SaleReturnId",
+        "unique": false,
+        "columns": [
+          "SaleReturnId"
+        ]
+      },
+      {
+        "name": "IX_ReturnLine_SaleLineId",
+        "unique": false,
+        "columns": [
+          "SaleLineId"
+        ]
+      }
+    ],
+    "checks": []
+  }
+]

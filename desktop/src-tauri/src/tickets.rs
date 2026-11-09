@@ -1,9 +1,10 @@
 //! Device-independent ticket preferences; the Windows adapter owns driver interaction.
+use crate::database::Connection;
 use crate::{
     Engine, db,
     error::{Result, ensure},
 };
-use rusqlite::{Connection, params};
+use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 

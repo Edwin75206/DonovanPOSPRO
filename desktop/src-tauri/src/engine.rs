@@ -1,3 +1,4 @@
+use crate::database::Connection;
 use crate::{
     auth, db,
     error::{AppError, Result, ensure},
@@ -6,7 +7,6 @@ use crate::{
 };
 use chrono::{DateTime, Utc};
 use fs2::FileExt;
-use rusqlite::Connection;
 use serde_json::{Value, json};
 use std::{
     fs::{File, OpenOptions},
@@ -43,12 +43,40 @@ pub struct Engine {
     pub startup_error: Option<AppError>,
     pub(crate) recovery: crate::recovery::RecoveryState,
     pub(crate) importing: crate::importing::ImportState,
+    pub(crate) mysql_runtime: Option<PathBuf>,
+}
+impl Drop for Engine {
+    fn drop(&mut self) {
+        self.connection.take();
+        if self.mysql_runtime.is_some() && self.root.join("mysql/instance.json").exists() {
+            if let Err(error) = crate::mysql_runtime::shutdown(&self.root) {
+                self.log_error("storage", "mysql-shutdown", &error);
+            }
+        }
+    }
 }
 impl Engine {
     pub fn open(root: impl AsRef<Path>) -> Result<Self> {
         Self::with_clock(root, Arc::new(SystemClock))
     }
     pub fn with_clock(root: impl AsRef<Path>, clock: Arc<dyn Clock>) -> Result<Self> {
+        Self::open_internal(root, clock, None)
+    }
+    pub fn open_desktop(root: impl AsRef<Path>, runtime: PathBuf) -> Result<Self> {
+        Self::open_internal(root, Arc::new(SystemClock), Some(runtime))
+    }
+    pub fn with_mysql_clock(
+        root: impl AsRef<Path>,
+        clock: Arc<dyn Clock>,
+        runtime: PathBuf,
+    ) -> Result<Self> {
+        Self::open_internal(root, clock, Some(runtime))
+    }
+    fn open_internal(
+        root: impl AsRef<Path>,
+        clock: Arc<dyn Clock>,
+        runtime: Option<PathBuf>,
+    ) -> Result<Self> {
         std::fs::create_dir_all(root.as_ref())?;
         let root = root.as_ref().canonicalize()?;
         let lock = OpenOptions::new()
@@ -77,6 +105,7 @@ impl Engine {
             startup_error: None,
             recovery: Default::default(),
             importing: Default::default(),
+            mysql_runtime: runtime,
         };
         match engine.open_database() {
             Ok(()) => {}
@@ -93,6 +122,42 @@ impl Engine {
         Ok(engine)
     }
     pub(crate) fn open_database(&mut self) -> Result<()> {
+        let active = self.root.join("active.json");
+        if active.exists() {
+            let config: Value = serde_json::from_slice(&std::fs::read(&active)?)?;
+            if config["version"] == 2 && config["backend"] == "mysql" {
+                let schema = config["database"]
+                    .as_str()
+                    .ok_or_else(|| AppError::rule("MYSQL_CONFIG", "Falta el esquema activo."))?;
+                crate::mysql_runtime::validate_schema(schema)?;
+                let runtime = self.mysql_runtime.as_ref().ok_or_else(|| {
+                    AppError::rule(
+                        "MYSQL_RUNTIME_MISSING",
+                        "Abre esta base con el instalador completo de Donovan POS Pro.",
+                    )
+                })?;
+                crate::mysql_runtime::ensure_running(&self.root, runtime)?;
+                let connection = crate::mysql_runtime::connect(&self.root, schema)?;
+                db::compatible(&connection)?;
+                self.db_path = self.root.join("mysql").join(schema);
+                self.connection = Some(connection);
+                self.startup_error = None;
+                self.last_integrity = Some(self.now_string());
+                return Ok(());
+            }
+        } else if !self.root.join("donovan.db").exists() {
+            if let Some(runtime) = &self.mysql_runtime {
+                crate::mysql_runtime::ensure_running(&self.root, runtime)?;
+                let (schema, connection) =
+                    crate::mysql_runtime::create_schema(&self.root, None, &self.now_string())?;
+                crate::storage::write_mysql_active(&self.root, &schema, false)?;
+                self.db_path = self.root.join("mysql").join(&schema);
+                self.connection = Some(connection);
+                self.startup_error = None;
+                self.last_integrity = Some(self.now_string());
+                return Ok(());
+            }
+        }
         let configured = match std::fs::read(self.root.join("active.json")) {
             Ok(raw) => {
                 let config: Value = serde_json::from_slice(&raw)?;
@@ -156,11 +221,8 @@ impl Engine {
                     .root
                     .join(format!("before-migration-{}.sqlite", uuid::Uuid::new_v4()));
                 let mut target = Connection::open(safety)?;
-                rusqlite::backup::Backup::new(&original, &mut target)?.run_to_completion(
-                    256,
-                    std::time::Duration::from_millis(10),
-                    None,
-                )?;
+                rusqlite::backup::Backup::new(original.sqlite()?, target.sqlite_mut()?)?
+                    .run_to_completion(256, std::time::Duration::from_millis(10), None)?;
             }
         }
         let mut connection = db::connect(&self.db_path, false)?;

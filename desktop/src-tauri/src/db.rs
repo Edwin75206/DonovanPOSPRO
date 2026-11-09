@@ -1,6 +1,7 @@
+use crate::database::{Connection, OpenFlags, Params, Row};
 use crate::error::{AppError, Result, ensure};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
-use rusqlite::{Connection, OpenFlags, Params, Row, types::ValueRef};
+use rusqlite::types::ValueRef;
 use serde_json::{Map, Value, json};
 use std::{path::Path, time::Duration};
 
@@ -19,15 +20,15 @@ pub fn connect(path: &Path, readonly: bool) -> Result<Connection> {
         OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE
     };
     let db = Connection::open_with_flags(path, flags | OpenFlags::SQLITE_OPEN_NO_MUTEX)?;
-    db.set_limit(
+    db.sqlite()?.set_limit(
         rusqlite::limits::Limit::SQLITE_LIMIT_LENGTH,
         16 * 1024 * 1024,
     )?;
-    db.set_limit(
+    db.sqlite()?.set_limit(
         rusqlite::limits::Limit::SQLITE_LIMIT_SQL_LENGTH,
         1024 * 1024,
     )?;
-    db.busy_timeout(Duration::from_secs(5))?;
+    db.sqlite()?.busy_timeout(Duration::from_secs(5))?;
     db.execute_batch("PRAGMA foreign_keys=ON;")?;
     if !readonly {
         db.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;")?;
@@ -35,9 +36,23 @@ pub fn connect(path: &Path, readonly: bool) -> Result<Connection> {
     Ok(db)
 }
 pub fn schema(db: &Connection) -> Result<i64> {
+    if db.is_mysql() {
+        return scalar(
+            db,
+            "SELECT COALESCE(MAX(Version),0) FROM NativeMigration",
+            [],
+        );
+    }
     Ok(db.query_row("PRAGMA user_version", [], |r| r.get(0))?)
 }
 pub fn table_exists(db: &Connection, name: &str) -> Result<bool> {
+    if db.is_mysql() {
+        return Ok(scalar(
+            db,
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name=?1",
+            [name],
+        )? > 0);
+    }
     Ok(db.query_row(
         "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name=?1)",
         [name],
@@ -45,6 +60,9 @@ pub fn table_exists(db: &Connection, name: &str) -> Result<bool> {
     )?)
 }
 pub fn compatible(db: &Connection) -> Result<i64> {
+    if db.is_mysql() {
+        return crate::mysql_store::compatible(db);
+    }
     let snapshot = if db.is_autocommit() {
         Some(db.unchecked_transaction()?)
     } else {
@@ -151,6 +169,10 @@ pub fn compatible(db: &Connection) -> Result<i64> {
     Ok(version)
 }
 pub fn migrate(db: &mut Connection, now: &str) -> Result<()> {
+    if db.is_mysql() {
+        crate::mysql_store::compatible(db)?;
+        return Ok(());
+    }
     let fresh = db.query_row(
         "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
         [],
@@ -194,6 +216,9 @@ pub fn migrate(db: &mut Connection, now: &str) -> Result<()> {
     integrity(db)
 }
 pub fn integrity(db: &Connection) -> Result<()> {
+    if db.is_mysql() {
+        return crate::mysql_store::integrity(db);
+    }
     let snapshot = if db.is_autocommit() {
         Some(db.unchecked_transaction()?)
     } else {
@@ -219,7 +244,7 @@ pub fn integrity(db: &Connection) -> Result<()> {
     }
     Ok(())
 }
-fn business_integrity(db: &Connection) -> Result<()> {
+pub(crate) fn business_integrity(db: &Connection) -> Result<()> {
     if schema(db)? >= 4 {
         ensure(
             scalar(
@@ -266,7 +291,7 @@ fn business_integrity(db: &Connection) -> Result<()> {
             "Una devolución no corresponde a la venta indicada.",
         ),
         (
-            "SELECT COUNT(*) FROM (SELECT SaleId FROM CreditEntry GROUP BY SaleId HAVING SUM(AmountCents)<0)",
+            "SELECT COUNT(*) FROM (SELECT SaleId FROM CreditEntry GROUP BY SaleId HAVING SUM(AmountCents)<0) AS balances",
             "Una cuenta por cobrar presenta un saldo negativo.",
         ),
         (
@@ -279,8 +304,13 @@ fn business_integrity(db: &Connection) -> Result<()> {
         ),
     ];
     for (query, message) in checks {
+        let query = if db.is_mysql() {
+            query.replace("typeof(Role)<>'integer' OR ","").replace("typeof(StockUnits)<>'integer' OR typeof(PriceCents)<>'integer' OR typeof(WholesaleCents)<>'integer' OR (CostCents IS NOT NULL AND typeof(CostCents)<>'integer') OR ","")
+        } else {
+            query.to_owned()
+        };
         ensure(
-            scalar(db, query, [])? == 0,
+            scalar(db, &query, [])? == 0,
             "INCONSISTENT_DATA",
             &format!(
                 "{message} Conserva el archivo y solicita una revisión técnica antes de utilizarlo."
@@ -289,7 +319,7 @@ fn business_integrity(db: &Connection) -> Result<()> {
     }
     Ok(())
 }
-fn row_json(row: &Row<'_>) -> rusqlite::Result<Value> {
+fn row_json(row: &Row) -> rusqlite::Result<Value> {
     let mut result = Map::new();
     for i in 0..row.as_ref().column_count() {
         let key = row.as_ref().column_name(i)?;

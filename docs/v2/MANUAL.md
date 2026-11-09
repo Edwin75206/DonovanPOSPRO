@@ -81,6 +81,20 @@ Para cambiar de computadora, crea un respaldo completo y copia el archivo `.dono
 
 Los respaldos automáticos funcionan mientras Donovan POS Pro está abierto. Conserva también una copia fuera del disco de la computadora. Reinstalar el programa no recupera un disco perdido sin respaldo. El archivo contiene información del negocio y debe guardarse con acceso restringido.
 
+## Actualizar Donovan POS Pro
+
+Donovan Systems puede enviar al administrador de Construrama Chicontla un enlace al instalador de la nueva versión para Windows, por ejemplo `DonovanPOS-2.3.0-x64-Setup.exe`. El número es ilustrativo: cada entrega debe identificar su versión real. No es un APK; ese formato corresponde a Android.
+
+1. Descarga el instalador completo enviado por Donovan Systems. También puedes recibirlo en una memoria USB; una vez descargado, el paquete offline no necesita internet para instalarse.
+2. En **Administración de datos**, crea un respaldo `.donovanbackup` y conserva una copia fuera del disco del equipo.
+3. Termina o guarda en espera las ventas pendientes y cierra la aplicación normalmente.
+4. Con la misma cuenta de Windows que usa la ferretería, ejecuta el nuevo instalador sobre la instalación existente. No necesitas desinstalar antes, crear otro negocio ni restaurar el respaldo durante una actualización normal.
+5. Abre Donovan POS Pro y confirma la versión, Construrama Chicontla, tus usuarios, las últimas ventas, inventario e impresora.
+
+La base permanece fuera de la carpeta del programa. Si la nueva versión requiere migraciones compatibles, se crea una copia preventiva antes de aplicarlas. El instalador solicita cerrar el programa si está en uso y está configurado para impedir volver a una versión anterior. Si ocurre un error, conserva el respaldo y contacta a Donovan Systems; no borres la base ni intentes forzar una versión antigua.
+
+La versión 2.2 se actualiza mediante instalador. No incorpora todavía un botón de descarga automática. Esa modalidad requiere una dirección HTTPS de publicación y paquetes firmados; la operación del mostrador puede seguir siendo local y sin conexión.
+
 ## Importar productos desde Excel
 
 Usa la plantilla del sistema o selecciona tu archivo desde Administración de datos. Elige hoja y columnas; conserva los códigos como texto si incluyen ceros iniciales. Revisa la vista previa y corrige los errores. Las políticas iniciales conservan precios y existencias existentes; cambiarlas requiere una elección explícita. Solo la confirmación final escribe los productos, en una sola operación.

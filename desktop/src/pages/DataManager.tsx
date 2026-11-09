@@ -257,6 +257,16 @@ export function DataManager({
   const [diagnostics, setDiagnostics] = useState<Diagnostic[] | null>(null);
   const [lastFile, setLastFile] = useState('');
   const [importing, setImporting] = useState(false);
+  const [mysqlAction, setMysqlAction] = useState<'migrate' | 'workbench' | null>(null);
+  const [mysqlPassword, setMysqlPassword] = useState('');
+  const [workbench, setWorkbench] = useState<{
+    host: string;
+    port: number;
+    username: string;
+    schema: string;
+    password: string;
+    method: string;
+  } | null>(null);
   const reload = useCallback(() => {
     void api('dataOverview').then(setOverview).catch(reportError);
   }, []);
@@ -327,7 +337,9 @@ export function DataManager({
             <Database size={17} />
             Base local
           </span>
-          <strong>SQLite · versión {overview.schemaVersion}</strong>
+          <strong>
+            {overview.backend} · esquema {overview.schemaVersion}
+          </strong>
           <small>{bytes(overview.bytes)} de información</small>
         </div>
         <div>
@@ -377,6 +389,140 @@ export function DataManager({
           Comprobar ahora
         </Button>
       </section>
+      <section className="panel data-location">
+        <div>
+          <Database size={23} />
+          <div>
+            <h2>
+              {overview.mysql ? 'Administración con MySQL Workbench' : 'Migración a MySQL local'}
+            </h2>
+            <p>
+              {overview.mysql
+                ? `${overview.mysql.host}:${overview.mysql.port} · ${overview.mysql.schema}`
+                : 'Crea un respaldo y copia tus datos a un esquema nuevo. Se conserva la base SQLite original.'}
+            </p>
+            <small>
+              {overview.mysql
+                ? 'Mantén Donovan POS Pro abierto para disponer del motor. Usa Workbench para diagnóstico; evita cambiar datos mientras se registran operaciones.'
+                : 'Las cuentas, folios, ventas, existencias y logotipos se verifican antes de activar MySQL. Al terminar, inicia sesión de nuevo.'}
+            </small>
+          </div>
+        </div>
+        <Button
+          variant="outline"
+          disabled={operation.busy || (!overview.mysql && (!overview.canMigrateMysql || hasDraft))}
+          onClick={() => {
+            setMysqlPassword('');
+            setWorkbench(null);
+            setMysqlAction(overview.mysql ? 'workbench' : 'migrate');
+          }}
+        >
+          {overview.mysql ? 'Ver conexión de Workbench' : 'Respaldar y migrar a MySQL'}
+        </Button>
+      </section>
+      <Modal
+        open={mysqlAction !== null}
+        onClose={() => {
+          if (!operation.busy) {
+            setMysqlAction(null);
+            setMysqlPassword('');
+            setWorkbench(null);
+          }
+        }}
+        title={
+          mysqlAction === 'migrate' ? 'Migrar este negocio a MySQL' : 'Conexión local de Workbench'
+        }
+        description="Acceso exclusivo del administrador."
+      >
+        <Failure error={operation.error} />
+        {workbench ? (
+          <div>
+            <p>
+              En Workbench, crea una conexión de tipo <strong>{workbench.method}</strong> con estos
+              datos:
+            </p>
+            <dl>
+              {[
+                ['Servidor', workbench.host],
+                ['Puerto', workbench.port],
+                ['Usuario', workbench.username],
+                ['Esquema', workbench.schema],
+              ].map(([label, value]) => (
+                <div key={label}>
+                  <dt>{label}</dt>
+                  <dd className="file-location">{value}</dd>
+                </div>
+              ))}
+            </dl>
+            <Field label="Contraseña de administración de MySQL">
+              <input
+                readOnly
+                type="password"
+                value={workbench.password}
+                onFocus={(e) => e.target.select()}
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </Field>
+            <p className="muted">
+              Copia la contraseña desde este campo y guárdala en el almacén seguro de Workbench. Es
+              diferente de tu contraseña de Donovan POS Pro.
+            </p>
+            <Button onClick={() => void operation.run(() => api('openWorkbench'))}>
+              Abrir MySQL Workbench
+            </Button>
+          </div>
+        ) : (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (mysqlAction === 'migrate') {
+                void operation.run(
+                  () => api('migrateMysql', { password: mysqlPassword }),
+                  (result) => {
+                    setMysqlPassword('');
+                    setMysqlAction(null);
+                    onChanged(result);
+                    toast.success('Migración verificada. Inicia sesión para continuar.');
+                  },
+                );
+              } else {
+                void operation.run(
+                  () => api('workbenchConnection', { password: mysqlPassword }),
+                  (result) => {
+                    setMysqlPassword('');
+                    setWorkbench(result);
+                  },
+                );
+              }
+            }}
+          >
+            <p>
+              {mysqlAction === 'migrate'
+                ? 'Se guardará un respaldo preventivo y se comprobará la copia completa antes de cambiar el almacenamiento. No cierres la aplicación durante el proceso.'
+                : 'Confirma tu contraseña de administrador para consultar el acceso técnico de esta instalación.'}
+            </p>
+            <Field label="Tu contraseña de administrador">
+              <input
+                autoFocus
+                type="password"
+                value={mysqlPassword}
+                onChange={(e) => setMysqlPassword(e.target.value)}
+                autoComplete="current-password"
+                required
+                disabled={operation.busy}
+              />
+            </Field>
+            <Button type="submit" disabled={operation.busy || !mysqlPassword}>
+              {operation.busy
+                ? 'Procesando…'
+                : mysqlAction === 'migrate'
+                  ? 'Crear respaldo y migrar'
+                  : 'Mostrar conexión'}
+            </Button>
+          </form>
+        )}
+      </Modal>
       <div className="data-actions-grid">
         <section className="panel data-feature">
           <HardDriveDownload size={26} />
@@ -544,7 +690,7 @@ export function DataManager({
           if (!operation.busy) setTransfer(false);
         }}
         title="Lleva tu negocio a otro equipo"
-        description="Usa el mismo instalador de Windows y una copia final verificada."
+        description="Usa el instalador correspondiente al nuevo equipo y una copia final verificada."
         className="data-dialog"
       >
         <ol className="transfer-steps">
@@ -616,8 +762,10 @@ export function DataManager({
           ))}
         </div>
         <div className="notice">
-          La administración cotidiana se realiza aquí. SQLiteStudio puede utilizarse para
-          diagnóstico técnico; cierra Donovan POS Pro antes de hacer modificaciones directas.
+          La administración cotidiana se realiza aquí.{' '}
+          {overview.mysql
+            ? 'MySQL Workbench permite realizar diagnósticos. Mantén la aplicación abierta para disponer del motor y detén las operaciones de caja antes de modificar datos.'
+            : 'SQLiteStudio permite realizar diagnósticos; cierra Donovan POS Pro antes de hacer modificaciones directas.'}
         </div>
         {diagnostics?.length ? (
           <div className="diagnostic-list">
@@ -779,8 +927,8 @@ function NewDatabase({
       >
         <Failure error={operation.error} />
         <div className="notice">
-          Primero se guardará un respaldo preventivo completo. La base anterior permanecerá en su
-          carpeta y podrás recuperarla seleccionándola desde Administración de datos.
+          Primero se guardará un respaldo preventivo completo. La base anterior se conserva y
+          podrás recuperar su información restaurando ese respaldo desde Administración de datos.
         </div>
         {hasDraft && (
           <div className="notice warning">

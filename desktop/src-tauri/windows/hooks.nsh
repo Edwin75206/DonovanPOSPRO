@@ -55,6 +55,24 @@
   !undef DONOVAN_CLOSE_ID
 !macroend
 
+!macro NSIS_HOOK_POSTINSTALL
+  ${If} ${FileExists} "$INSTDIR\runtime\workbench\MySQL Workbench.exe"
+    CreateShortcut "$SMPROGRAMS\MySQL Workbench - Donovan POS.lnk" "$INSTDIR\runtime\workbench\MySQL Workbench.exe"
+  ${EndIf}
+!macroend
+
+!macro NSIS_HOOK_PREUNINSTALL
+  !insertmacro CheckIfAppIsRunning "$INSTDIR\runtime\workbench\MySQL Workbench.exe" "MySQL Workbench"
+  ${If} ${FileExists} "$INSTDIR\runtime\mysql\bin\mysqld.exe"
+    ExecWait '"$INSTDIR\DonovanPOS.exe" --stop-local-database' $0
+    ${If} $0 != 0
+      SetErrorLevel 1602
+      Quit
+    ${EndIf}
+  ${EndIf}
+  Delete "$SMPROGRAMS\MySQL Workbench - Donovan POS.lnk"
+!macroend
+
 ; Tauri's minimumWebview2Version path invokes the online Edge updater.
 ; Keep it unset. Also upgrade an existing old runtime with the offline payload.
 ; This file is included before Tauri defines WEBVIEW2APPGUID. Functions compile
@@ -76,6 +94,25 @@ FunctionEnd
 !macro NSIS_HOOK_PREINSTALL
   Push $0
   Push $1
+  ; Workbench includes Python modules with long relative paths. Keep the complete
+  ; paths below the Windows component limit, even on hosts with long paths off.
+  StrLen $0 "$INSTDIR"
+  ${If} $0 > 90
+    IfSilent donovan_path_too_long 0
+    MessageBox MB_OK|MB_ICONEXCLAMATION "Selecciona una carpeta de instalación más corta, de hasta 90 caracteres. La ubicación sugerida es compatible con MySQL Workbench.$\r$\n$\r$\nNo se ha modificado la información del negocio." /SD IDOK
+    donovan_path_too_long:
+    SetErrorLevel 1602
+    Quit
+  ${EndIf}
+  !insertmacro CheckIfAppIsRunning "$INSTDIR\${MAINBINARYNAME}.exe" "${PRODUCTNAME}"
+  !insertmacro CheckIfAppIsRunning "$INSTDIR\runtime\workbench\MySQL Workbench.exe" "MySQL Workbench"
+  ${If} ${FileExists} "$INSTDIR\runtime\mysql\bin\mysqld.exe"
+    ExecWait '"$INSTDIR\${MAINBINARYNAME}.exe" --stop-local-database' $1
+    ${If} $1 != 0
+      SetErrorLevel 1602
+      Quit
+    ${EndIf}
+  ${EndIf}
   Call DonovanWebViewVersion
   Pop $0
   ${VersionCompare} "$0" "120.0.0.0" $1

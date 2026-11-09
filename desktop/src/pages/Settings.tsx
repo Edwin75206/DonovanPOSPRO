@@ -596,7 +596,7 @@ function About({ version }: { version: string }) {
       <PageTitle
         eyebrow="DONOVAN SYSTEMS"
         title="Tecnología al servicio de tu negocio."
-        description="Donovan POS Pro · Aplicación de escritorio para Windows"
+        description="Donovan POS Pro · Aplicación de escritorio"
       />
       <section className="surface about-card">
         <div className="about-mark">D</div>

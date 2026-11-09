@@ -19,6 +19,10 @@ fn main() {
     } else {
         default_data()
     };
+    if args.iter().any(|a| a == "--stop-local-database") {
+        let result = donovan_core::mysql_runtime::stop_if_idle(&root);
+        std::process::exit(if result.is_ok() { 0 } else { 1602 });
+    }
     let state = Arc::new(AppState {
         engine: Mutex::new(None),
         root,
@@ -96,15 +100,36 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![donovan_core::commands::execute])
-        .run(tauri::generate_context!());
-    if result.is_err() {
+        .build(tauri::generate_context!());
+    if let Ok(app) = result {
+        app.run(|handle, event| {
+            if matches!(event, tauri::RunEvent::Exit) {
+                let state = handle.state::<Arc<AppState>>();
+                if let Ok(mut guard) = state.engine.lock() {
+                    guard.take();
+                }
+            }
+        });
+    } else {
         rfd::MessageDialog::new().set_title("Donovan POS Pro").set_description("No pudimos abrir la ventana de la aplicación. Reinicia el equipo o vuelve a ejecutar el instalador para reparar los componentes. Tus datos se conservan por separado.").set_level(rfd::MessageLevel::Error).show();
     }
 }
 fn default_data() -> PathBuf {
-    let local = std::env::var_os("LOCALAPPDATA")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("USERPROFILE").map(|p| PathBuf::from(p).join("AppData/Local")))
-        .unwrap_or_else(|| PathBuf::from("C:/ProgramData"));
-    local.join("DonovanSystems/DonovanPOS/data-v2")
+    #[cfg(target_os = "macos")]
+    {
+        return std::env::var_os("HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("/Users/Shared"))
+            .join("Library/Application Support/DonovanSystems/DonovanPOS/data-v2");
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let local = std::env::var_os("LOCALAPPDATA")
+            .map(PathBuf::from)
+            .or_else(|| {
+                std::env::var_os("USERPROFILE").map(|p| PathBuf::from(p).join("AppData/Local"))
+            })
+            .unwrap_or_else(|| PathBuf::from("C:/ProgramData"));
+        local.join("DonovanSystems/DonovanPOS/data-v2")
+    }
 }

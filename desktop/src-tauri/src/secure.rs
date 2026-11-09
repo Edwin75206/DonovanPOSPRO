@@ -57,24 +57,23 @@ fn protect(bytes: &[u8], decrypt: bool) -> Result<Vec<u8>> {
     }
     Ok(data)
 }
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "macos")))]
 fn protect(_bytes: &[u8], _decrypt: bool) -> Result<Vec<u8>> {
     Err(AppError::rule(
         "WINDOWS_REQUIRED",
         "El almacenamiento seguro de sesión requiere Windows.",
     ))
 }
+#[cfg(not(target_os = "macos"))]
 pub fn save(path: &Path, token: &str) -> Result<()> {
     let bytes = protect(token.as_bytes(), false)?;
-    let temp = path.with_extension("new");
+    let temp = path.with_extension(format!("{}.new", uuid::Uuid::new_v4()));
     std::fs::write(&temp, bytes)?;
-    // Windows rename does not replace an existing file. Removal revokes recovery, never grants access.
-    if path.exists() {
-        std::fs::remove_file(path)?;
-    }
+    // Replace atomically: a failed save must preserve the last valid secret.
     std::fs::rename(temp, path)?;
     Ok(())
 }
+#[cfg(not(target_os = "macos"))]
 pub fn load(path: &Path) -> Result<Option<String>> {
     if !path.exists() {
         return Ok(None);
@@ -89,7 +88,67 @@ pub fn load(path: &Path) -> Result<Option<String>> {
     decrypted.zeroize();
     Ok(Some(result?))
 }
+#[cfg(not(target_os = "macos"))]
 pub fn remove(path: &Path) -> Result<()> {
+    if path.exists() {
+        std::fs::remove_file(path)?;
+    }
+    Ok(())
+}
+#[cfg(target_os = "macos")]
+const KEYCHAIN_SERVICE: &str = "com.donovan.pos.local";
+#[cfg(target_os = "macos")]
+pub fn save(path: &Path, token: &str) -> Result<()> {
+    security_framework::passwords::set_generic_password(
+        KEYCHAIN_SERVICE,
+        &path.to_string_lossy(),
+        token.as_bytes(),
+    )
+    .map_err(|e| {
+        AppError::internal(
+            "SECURE_STORAGE",
+            "No pudimos guardar el acceso en el llavero de macOS.",
+            e.code(),
+        )
+    })?;
+    std::fs::write(path, b"Donovan POS: secret stored in macOS Keychain v1")?;
+    Ok(())
+}
+#[cfg(target_os = "macos")]
+pub fn load(path: &Path) -> Result<Option<String>> {
+    if !path.exists() {
+        return Ok(None);
+    }
+    let mut bytes = security_framework::passwords::get_generic_password(
+        KEYCHAIN_SERVICE,
+        &path.to_string_lossy(),
+    )
+    .map_err(|e| {
+        AppError::internal(
+            "SECURE_STORAGE",
+            "No pudimos recuperar el acceso del llavero de macOS.",
+            e.code(),
+        )
+    })?;
+    let value = String::from_utf8(bytes.clone())
+        .map_err(|_| AppError::rule("SECURE_STORAGE", "El acceso guardado no es válido."));
+    bytes.zeroize();
+    Ok(Some(value?))
+}
+#[cfg(target_os = "macos")]
+pub fn remove(path: &Path) -> Result<()> {
+    if let Err(e) = security_framework::passwords::delete_generic_password(
+        KEYCHAIN_SERVICE,
+        &path.to_string_lossy(),
+    ) {
+        if e.code() != -25300 {
+            return Err(AppError::internal(
+                "SECURE_STORAGE",
+                "No pudimos retirar el acceso del llavero de macOS.",
+                e.code(),
+            ));
+        }
+    }
     if path.exists() {
         std::fs::remove_file(path)?;
     }

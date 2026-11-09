@@ -67,6 +67,30 @@ impl From<std::io::Error> for AppError {
         )
     }
 }
+impl From<mysql::Error> for AppError {
+    fn from(error: mysql::Error) -> Self {
+        let code = match &error {
+            mysql::Error::MySqlError(e) if [1062, 1451, 1452, 3819, 4025].contains(&e.code) => {
+                "DATA_CONFLICT"
+            }
+            mysql::Error::MySqlError(e) if [1205, 1213].contains(&e.code) => "DATABASE_BUSY",
+            _ => "STORAGE_UNAVAILABLE",
+        };
+        // Driver messages may contain business parameters. Do not serialize or
+        // persist them; retain only the server error number for diagnostics.
+        let detail = match &error {
+            mysql::Error::MySqlError(e) => format!("MySQL error {}", e.code),
+            mysql::Error::DriverError(e) => format!("MySQL driver: {e}"),
+            mysql::Error::IoError(e) => format!("MySQL IO: {:?}", e.kind()),
+            _ => "MySQL connection/protocol error".into(),
+        };
+        Self::internal(
+            code,
+            "No pudimos completar la operación en MySQL. Conserva la venta y revisa Administración de datos antes de reintentar.",
+            detail,
+        )
+    }
+}
 impl From<serde_json::Error> for AppError {
     fn from(e: serde_json::Error) -> Self {
         Self::internal(

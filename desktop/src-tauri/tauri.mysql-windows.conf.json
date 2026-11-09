@@ -1,0 +1,10 @@
+{
+  "bundle": {
+    "windows": {"nsis": {"compression": "zlib"}},
+    "resources": {
+      "../.runtime/mysql/": "runtime/mysql/",
+      "../.runtime/workbench/": "runtime/workbench/",
+      "../../docs/v2/MYSQL-Y-MACOS.md": "documentation/MYSQL-Y-MACOS.md"
+    }
+  }
+}

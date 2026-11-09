@@ -51,6 +51,18 @@ El instalador incluye WebView2 offline y los recursos de documentación y licenc
 
 La entrega reproducible está en `artifacts/v2.2/entrega`: instalador, EXE, manual, comprobantes, capturas, ticket PDF y manifiesto SHA-256. `validacion/data-retention.json` resume la conservación comprobada. Los JSON originales del instalador y los registros de compilación se incluyen en esa carpeta.
 
+## Actualización entre versiones
+
+Se verificó adicionalmente la actualización **2.1.0 → 2.2.0**, sin desinstalar previamente, mediante los instaladores de entrega originales. Ejecución: `artifacts/upgrades/ae8b6d8c-80d6-4e33-988c-f5ebbd8efb86/verified.json`.
+
+- El instalador 2.1.0 y la actualización 2.2.0 terminaron con código 0. La versión registrada y el hash del EXE instalado coinciden con sus respectivos paquetes.
+- Los cuatro archivos persistentes copiados de la ubicación aislada de documentación mantuvieron exactamente sus hashes después de actualizar y desinstalar. No se utilizó la base real del usuario.
+- El intento de instalar 2.1.0 sobre 2.2.0 se rechazó con código 2; permanecieron el ejecutable 2.2.0 y los mismos datos.
+- La consulta SQLite de solo lectura confirmó integridad `ok`, cero errores de claves foráneas, esquema 5 y 19 ventas. El último total siguió en 56,425 centavos, con 100,000 recibidos y 43,575 de cambio; la identidad siguió siendo Construrama Chicontla.
+- La instalación aislada y su valor de registro temporal se retiraron al finalizar. El comprobador reutilizable está en `scripts/Test-NativeUpgrade.ps1`; exige paquetes con hashes verificados, una ubicación de documentación propia y ausencia de una instalación registrada del cliente.
+
+Esta comprobación cubre esos dos paquetes, que comparten esquema 5. Cada versión futura requiere verificar su actualización y cualquier migración que incorpore. La modalidad vigente es entregar un instalador; no se activó un servicio ni un botón de actualización por internet.
+
 ## Alcance de la validación
 
 Los códigos HID se probaron con eventos de teclado automatizados y captura de códigos desde la ventana nativa. Falta probar el lector físico del negocio. Se validaron la generación del ticket/PDF, la ausencia de impresora configurada y errores de impresión simulados sin cobro duplicado. Falta comprobar salida en papel con la térmica, su controlador y sus funciones reales. Esta máquina ya tiene WebView2; no sustituye una prueba en un Windows limpio sin ese runtime. El paquete no tiene firma Authenticode comercial.

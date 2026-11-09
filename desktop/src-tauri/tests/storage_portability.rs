@@ -288,7 +288,7 @@ fn legacy_database_is_copied_migrated_and_keeps_original_accounts_and_file() {
                 "UPDATE StoreSettings SET DarkMode=1,ReducedMotion=1; DETACH DATABASE modern;",
             )
             .unwrap();
-        assert_eq!(db::compatible(&connection).unwrap(), 0);
+        assert_eq!(db::compatible(&connection.into()).unwrap(), 0);
     }
     let before = storage::hash_file(&legacy).unwrap();
     let directory = tempfile::tempdir().unwrap();

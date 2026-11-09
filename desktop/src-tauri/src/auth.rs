@@ -1,3 +1,4 @@
+use crate::database::Connection;
 use crate::{
     db,
     engine::{Engine, stamp},
@@ -8,7 +9,7 @@ use crate::{
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use pbkdf2::pbkdf2_hmac;
 use rand::RngCore;
-use rusqlite::{Connection, params};
+use rusqlite::params;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;

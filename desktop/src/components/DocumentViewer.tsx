@@ -18,7 +18,7 @@ export function queueDocument(document: DocumentRequest, printer: string, databa
   const key = JSON.stringify([databaseId, document, printer]);
   const existing = pending.get(key);
   if (existing) return existing;
-  const toastId = toast.loading('Enviando documento a Windows…', {
+  const toastId = toast.loading('Enviando documento a la impresora…', {
     description: 'Puedes continuar trabajando.',
   });
   const job = api('printDocument', { document, printer });
@@ -26,7 +26,7 @@ export function queueDocument(document: DocumentRequest, printer: string, databa
   void job
     .then(
       (result) =>
-        toast.success('Documento recibido por Windows', {
+        toast.success('Documento recibido por el servicio de impresión', {
           id: toastId,
           description: `${result.printer} · Trabajo ${result.jobId}. Revisa la cola si no sale en papel.`,
           duration: 6000,
@@ -190,7 +190,7 @@ export function DocumentDialog({
             </select>
           </Field>
         )}
-        <Field label="Impresora de Windows">
+        <Field label="Impresora instalada">
           <select
             value={printer}
             onChange={(e) => {
@@ -199,7 +199,7 @@ export function DocumentDialog({
             }}
             disabled={exportOp.busy}
           >
-            <option value="">Predeterminada de Windows</option>
+            <option value="">Predeterminada del equipo</option>
             {printer && !printers.data?.some((p) => p.name === printer) && (
               <option value={printer}>{printer} · No disponible</option>
             )}

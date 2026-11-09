@@ -1,9 +1,9 @@
+use crate::database::Connection;
 use crate::{
     Engine, auth, db,
     error::{AppError, Result, ensure},
     secure, storage,
 };
-use rusqlite::Connection;
 use serde_json::{Value, json};
 use std::{
     fs::{self, File, OpenOptions},
@@ -211,14 +211,40 @@ impl Engine {
         }
         Ok(directory)
     }
-    fn activate(&mut self, path: PathBuf, connection: Connection) -> Result<Value> {
+    pub(crate) fn activate(&mut self, path: PathBuf, connection: Connection) -> Result<Value> {
+        let config: Value = serde_json::from_slice(&fs::read(self.root.join("active.json"))?)?;
+        let (path, connection) = if !connection.is_mysql() && config["backend"] == "mysql" {
+            let runtime = self.mysql_runtime.as_ref().ok_or_else(|| {
+                AppError::rule(
+                    "MYSQL_RUNTIME_MISSING",
+                    "Instala el motor MySQL incluido para restaurar esta base.",
+                )
+            })?;
+            crate::mysql_runtime::ensure_running(&self.root, runtime)?;
+            let (schema, new) = crate::mysql_runtime::create_schema(
+                &self.root,
+                Some(&connection),
+                &self.now_string(),
+            )?;
+            (self.root.join("mysql").join(schema), new)
+        } else {
+            (path, connection)
+        };
         let relative = path.strip_prefix(&self.root).map_err(|_| {
             AppError::rule(
                 "INVALID_PATH",
                 "La base preparada debe permanecer en la carpeta de datos.",
             )
         })?;
-        storage::write_active(&self.root, relative, true)?;
+        if connection.is_mysql() {
+            storage::write_mysql_active(
+                &self.root,
+                path.file_name().and_then(|p| p.to_str()).unwrap_or(""),
+                true,
+            )?;
+        } else {
+            storage::write_active(&self.root, relative, true)?;
+        }
         // The validated connection is already open before the atomic pointer change.
         let old = self.connection.replace(connection);
         let token_hash = self.session_token.as_ref().map(|s| auth::digest(s));

@@ -1,10 +1,11 @@
 param(
     [Parameter(Mandatory)][ValidateSet('Prepare','RefreshInstaller','InstallA','InstallB','VerifyA','BusyA','BusyB','UninstallA','UninstallB')][string]$Action,
-    [string]$RunDirectory
+    [string]$RunDirectory,
+    [switch]$CompactPaths
 )
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$qaParent = Join-Path $repo 'artifacts/v2/installation'
+$qaParent = Join-Path $repo $(if($CompactPaths){'artifacts/qa'}else{'artifacts/v2/installation'})
 $packageVersion = (Get-Content -LiteralPath (Join-Path $repo 'desktop/src-tauri/tauri.conf.json') -Raw | ConvertFrom-Json).version
 $installer = Join-Path $repo "desktop/src-tauri/target/release/bundle/nsis/Donovan POS Pro_$($packageVersion)_x64-setup.exe"
 $binary = Join-Path $repo 'desktop/src-tauri/target/release/DonovanPOS.exe'
@@ -30,6 +31,11 @@ if ($Action -eq 'Prepare') {
     $RunDirectory = Join-Path $qaParent $runId
     New-Item -ItemType Directory -Path $RunDirectory | Out-Null
     $manifest = [ordered]@{ purpose='DonovanPOS native installer QA'; runId=$runId; createdAt=(Get-Date).ToString('o'); installer=$installer; installerSha256=(Get-FileHash -LiteralPath $installer).Hash.ToLowerInvariant(); exeSha256=(Get-FileHash -LiteralPath $binary).Hash.ToLowerInvariant(); installedExeSha256=(ExpectedNsisHash $binary) }
+    if($CompactPaths) {
+        $shortRoot=Join-Path $env:LOCALAPPDATA ("DonovanPOS-QA-"+$runId.Substring(0,8))
+        if(Test-Path -LiteralPath $shortRoot){throw 'The isolated program root already exists.'}
+        $manifest.programRoot=$shortRoot
+    }
     $manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $RunDirectory 'qa-manifest.json') -Encoding utf8
     Write-Output $RunDirectory
     exit 0
@@ -42,8 +48,8 @@ $parsedId = [guid]::Empty
 if (-not [guid]::TryParse((Split-Path $run -Leaf), [ref]$parsedId)) { throw 'Invalid QA directory ID.' }
 $manifest = Get-Content -LiteralPath (Join-Path $run 'qa-manifest.json') -Raw | ConvertFrom-Json
 if ($manifest.purpose -ne 'DonovanPOS native installer QA') { throw 'Missing QA ownership marker.' }
-if ((Get-FileHash -LiteralPath $binary).Hash.ToLowerInvariant() -ne $manifest.exeSha256) { throw 'The standalone release changed during this test.' }
-$expectedInstalled = ExpectedNsisHash $binary
+if ($Action -notlike 'Uninstall*' -and (Get-FileHash -LiteralPath $binary).Hash.ToLowerInvariant() -ne $manifest.exeSha256) { throw 'The standalone release changed during this test.' }
+$expectedInstalled = if($Action -like 'Uninstall*'){$manifest.installedExeSha256}else{ExpectedNsisHash $binary}
 if (-not $manifest.PSObject.Properties['installedExeSha256']) {
     $manifest | Add-Member -NotePropertyName installedExeSha256 -NotePropertyValue $expectedInstalled
     $manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $run 'qa-manifest.json') -Encoding utf8
@@ -61,12 +67,19 @@ if ($Action -eq 'RefreshInstaller') {
 }
 $a = Join-Path $run 'program-a'
 $b = Join-Path $run 'program-b'
+if($manifest.PSObject.Properties['programRoot']) {
+    $expectedRoot=Join-Path $env:LOCALAPPDATA ("DonovanPOS-QA-"+$manifest.runId.Substring(0,8))
+    if($manifest.programRoot -ne $expectedRoot){throw 'Unexpected isolated program root.'}
+    $a=Join-Path $expectedRoot 'a'
+    $b=Join-Path $expectedRoot 'b'
+}
 $registered = Get-ItemProperty -LiteralPath $uninstallKey -ErrorAction SilentlyContinue
 if ($registered -and $registered.InstallLocation.Trim('"').TrimEnd('\') -notin @($a,$b)) { throw 'A different registered installation appeared. Leave it untouched.' }
 $destination = if ($Action -match 'B$') { $b } else { $a }
 $exe = Join-Path $destination 'DonovanPOS.exe'
 $expectedExit = if ($Action -like 'Busy*') { 1602 } else { 0 }
 if ($Action -like 'Uninstall*') {
+    if((Get-FileHash -LiteralPath $exe).Hash.ToLowerInvariant() -ne $manifest.installedExeSha256){throw 'Only the installation owned by this QA manifest may be uninstalled.'}
     $program = Join-Path $destination 'uninstall.exe'
     $arguments = "/S _?=$destination"
 } else {
@@ -96,6 +109,12 @@ if ($Action -like 'Uninstall*') {
     }
     $result.executableMatched = $true
     $result.resourcesPresent = $true
+    if(Test-Path -LiteralPath (Join-Path $destination 'runtime/mysql')) {
+        foreach($resource in @('runtime/mysql/bin/mysqld.exe','runtime/mysql/bin/vcruntime140.dll','runtime/workbench/MySQL Workbench.exe','runtime/workbench/resources/app/shell/bin/vcruntime140.dll','documentation/MYSQL-Y-MACOS.md','documentation/migrations/mysql/001_mysql.sql')) {
+            if(!(Test-Path -LiteralPath (Join-Path $destination $resource))){throw "Missing MySQL package resource: $resource"}
+        }
+        $result.mysqlAndWorkbenchPresent=$true
+    }
 }
 $result | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $run "$Action-$([guid]::NewGuid()).json") -Encoding utf8
 $result | ConvertTo-Json

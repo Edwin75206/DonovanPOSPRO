@@ -1,0 +1,55 @@
+name: Validate source
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repository-and-interface:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+      - run: python scripts/Check-Repository.py --history
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24.22.2'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+        working-directory: desktop
+      - run: npm test
+        working-directory: desktop
+      - run: npm run build
+        working-directory: desktop
+  windows-core:
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 30
+    env:
+      RUSTFLAGS: '-C target-feature=+crt-static'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Select tested Rust toolchain
+        run: rustup toolchain install 1.99.1 --profile minimal
+      - name: Test business rules and SQLite compatibility
+        run: cargo +1.99.1 test --locked --manifest-path desktop/src-tauri/Cargo.toml --no-default-features --tests
+
+# MySQL acceptance, native installers and hardware checks are documented in
+# docs/v2/VALIDACION-2.3.md. macOS build remains a deliberate step on Edwin's Mac.

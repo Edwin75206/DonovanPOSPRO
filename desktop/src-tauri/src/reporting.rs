@@ -1,10 +1,11 @@
+use crate::database::Connection;
 use crate::{
     Engine, commerce, db,
     error::{Result, ensure},
     money,
 };
 use chrono::{Datelike, Duration, NaiveDate};
-use rusqlite::{Connection, params};
+use rusqlite::params;
 use serde_json::{Value, json};
 
 pub fn range(from: &str, to: &str) -> Result<(NaiveDate, NaiveDate)> {
@@ -61,7 +62,7 @@ impl Engine {
         )?;
         let raw_daily = db::all(
             db,
-            "SELECT Day,SUM(Amount) AS TotalCents FROM (SELECT substr(CreatedAt,1,10) AS Day,TotalCents AS Amount FROM Sale WHERE CreatedAt>=?1 AND CreatedAt<?2 UNION ALL SELECT substr(CreatedAt,1,10),-TotalCents FROM SaleReturn WHERE CreatedAt>=?1 AND CreatedAt<?2) GROUP BY Day",
+            "SELECT Day,SUM(Amount) AS TotalCents FROM (SELECT substr(CreatedAt,1,10) AS Day,TotalCents AS Amount FROM Sale WHERE CreatedAt>=?1 AND CreatedAt<?2 UNION ALL SELECT substr(CreatedAt,1,10),-TotalCents FROM SaleReturn WHERE CreatedAt>=?1 AND CreatedAt<?2) AS activity GROUP BY Day",
             params![from, end_text],
         )?;
         let trend: Vec<Value> = (0..(end - start).num_days())
@@ -115,7 +116,7 @@ impl Engine {
         };
         let methods = db::all(
             db,
-            "SELECT Method,SUM(AmountCents) AS TotalCents FROM (SELECT p.Method,p.AmountCents FROM PaymentRecord p JOIN Sale s ON s.Id=p.SaleId WHERE s.CreatedAt>=?1 AND s.CreatedAt<?2 AND p.Method<3 UNION ALL SELECT Method,-AmountCents FROM CreditEntry WHERE Kind='Abono' AND CreatedAt>=?1 AND CreatedAt<?2 UNION ALL SELECT RefundMethod,-(TotalCents-CreditReductionCents) FROM SaleReturn WHERE CreatedAt>=?1 AND CreatedAt<?2) GROUP BY Method ORDER BY Method",
+            "SELECT Method,SUM(AmountCents) AS TotalCents FROM (SELECT p.Method,p.AmountCents FROM PaymentRecord p JOIN Sale s ON s.Id=p.SaleId WHERE s.CreatedAt>=?1 AND s.CreatedAt<?2 AND p.Method<3 UNION ALL SELECT Method,-AmountCents FROM CreditEntry WHERE Kind='Abono' AND CreatedAt>=?1 AND CreatedAt<?2 UNION ALL SELECT RefundMethod,-(TotalCents-CreditReductionCents) FROM SaleReturn WHERE CreatedAt>=?1 AND CreatedAt<?2) AS activity GROUP BY Method ORDER BY Method",
             params![from, end_text],
         )?;
         Ok(json!({
@@ -137,7 +138,7 @@ impl Engine {
          "stockMovements":db::all(db,"SELECT m.*,p.Name AS ProductName,p.Unit FROM StockMovement m JOIN Product p ON p.Id=m.ProductId ORDER BY m.Id DESC LIMIT 6",[])?,
          "users":db::all(db,"SELECT u.Id,u.Name,u.Role,u.Active,(SELECT MAX(IssuedAt) FROM UserSession WHERE UserId=u.Id) AS LastAccess FROM User u ORDER BY u.Id",[])?,
          "lastBackup":db::all(db,"SELECT * FROM BackupRecord WHERE Successful=1 ORDER BY Id DESC LIMIT 1",[])?.into_iter().next(),
-         "lastIntegrity":self.last_integrity,"databaseBytes":std::fs::metadata(&self.db_path).map(|m|m.len()).unwrap_or(0)+std::fs::metadata(format!("{}-wal",self.db_path.display())).map(|m|m.len()).unwrap_or(0),"schemaVersion":db::SCHEMA_VERSION,
+         "lastIntegrity":self.last_integrity,"databaseBytes":self.database_bytes()?,"schemaVersion":db::SCHEMA_VERSION,
         }))
     }
 }

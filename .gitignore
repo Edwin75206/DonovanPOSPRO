@@ -16,3 +16,72 @@ desktop/test-results/
 desktop/.runtime/
 desktop/src-tauri/gen/
 desktop/tsconfig.tsbuildinfo
+
+# Local outputs, acceptance evidence and developer downloads
+/output/
+/tmp/
+**/__pycache__/
+**/playwright-report/
+*.pyc
+*.log
+*.tsbuildinfo
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.codex/
+
+# Business data and machine-specific secrets never belong in Git
+*.sqlite*
+*.donovanbackup
+*.secret
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+*.mobileprovision
+.env
+.env.*
+!.env.example
+!.env.template
+auth.json
+credentials.json
+instance.json
+.instance.lock
+
+# Installers are published as GitHub Release assets
+*.exe
+*.msi
+*.msix
+*.dll
+*.pdb
+*.dmg
+*.pkg
+*.apk
+*.app/
+*.zip
+*.7z
+
+# Original WPF implementation is retained in tag v1.0.0 and Git history.
+# Existing local reference files are left intact, outside the active index.
+/src/
+/tests/
+/DonovanPOS.sln
+/Directory.Build.props
+/Directory.Build.targets
+/dotnet-tools.json
+/docs/ARQUITECTURA.md
+/docs/INVESTIGACION-Y-LICENCIAS.md
+/docs/MANUAL.md
+/docs/VALIDACION.md
+/docs/images/
+/scripts/Build-Installer.ps1
+/scripts/Export-Licenses.ps1
+/scripts/New-Icon.ps1
+/scripts/Publish.ps1
+/scripts/Test-Installer.ps1
+
+# One-off local diagnostic probes; supported tests are in src-tauri/tests.
+/desktop/src-tauri/examples/mysql_probe.rs
+/desktop/src-tauri/examples/mysql_diagnostic.rs

@@ -1,0 +1,6 @@
+{
+  "mysqlWindows": {"file":"mysql-8.4.13-winx64.zip","url":"https://cdn.mysql.com/Downloads/MySQL-8.4/mysql-8.4.13-winx64.zip","sha256":"e9cd98b1d23f122987b1afca26ad942efec5891481103d48ae3cde237fa3ea54"},
+  "mysqlMacArm64": {"file":"mysql-8.4.13-macos15-arm64.tar.gz","url":"https://cdn.mysql.com/Downloads/MySQL-8.4/mysql-8.4.13-macos15-arm64.tar.gz","sha256":"f324f8950e24d4147470bbc6a6ef0b90ef93b91d3fc74154b3d2ba085b44912a"},
+  "workbenchWindows": {"file":"mysql-workbench-26.10.0-winx64.msi","url":"https://cdn.mysql.com/Downloads/MySQLGUITools/mysql-workbench-26.10.0-winx64.msi","sha256":"399e325b2492827eba3772fc5f0535a618503630d89864bbc265869c2557def9"},
+  "workbenchMacArm64": {"file":"mysql-workbench-26.10.0-macos-arm64.zip","url":"https://cdn.mysql.com/Downloads/MySQLGUITools/mysql-workbench-26.10.0-macos-arm64.zip","sha256":"aae1e723f72bed382ed397bddc5b2257324697dea89496c5241f6ab2fb4dd3cb"}
+}

@@ -315,10 +315,13 @@ fn mixed_checkout_rechecks_stock_and_failed_print_never_recharges() {
         db::scalar(app.db().unwrap(), "SELECT COUNT(*) FROM Sale", []).unwrap(),
         1
     );
-    let (status, offline) = printing::status_message(0x80, 0);
-    assert!(offline);
-    assert!(status.contains("conexión"));
-    assert!(!printing::status_message(0, 0).0.contains("Conectada"));
+    #[cfg(windows)]
+    {
+        let (status, offline) = printing::status_message(0x80, 0);
+        assert!(offline);
+        assert!(status.contains("conexión"));
+        assert!(!printing::status_message(0, 0).0.contains("Conectada"));
+    }
     db::integrity(app.db().unwrap()).unwrap();
 }
 

@@ -1,10 +1,11 @@
+use crate::database::Connection;
 use crate::{
     Engine, catalog, commerce, db,
     error::{Result, ensure, text},
     models::SaleItem,
     operations,
 };
-use rusqlite::{Connection, params};
+use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 #[derive(Clone, Serialize, Deserialize)]

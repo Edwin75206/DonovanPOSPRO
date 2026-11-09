@@ -2,7 +2,6 @@ mod common;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use common::*;
 use donovan_core::{
-    Engine,
     appearance::Appearance,
     db,
     models::{Checkout, Payment, Product, SaleItem},
@@ -45,7 +44,7 @@ fn locked_session_survives_restart_and_activity_never_extends_24_hours() {
     app.lock_screen().unwrap();
     assert_eq!(app.actor("sell").unwrap_err().code, "SESSION_LOCKED");
     drop(app);
-    let mut app = Engine::with_clock(directory.path(), clock.clone()).unwrap();
+    let mut app = reopen(directory.path(), clock.clone());
     assert_eq!(app.bootstrap().unwrap()["locked"], true);
     assert_eq!(app.actor("sell").unwrap_err().code, "SESSION_LOCKED");
     app.unlock(ADMIN_PASSWORD).unwrap();
@@ -68,7 +67,7 @@ fn locked_session_survives_restart_and_activity_never_extends_24_hours() {
     // Replaying an old encrypted session file cannot restore a logged-out session.
     drop(app);
     std::fs::write(directory.path().join("session.dpapi"), session).unwrap();
-    let app = Engine::with_clock(directory.path(), clock).unwrap();
+    let app = reopen(directory.path(), clock);
     assert!(app.bootstrap().unwrap()["actor"].is_null());
 }
 #[test]
@@ -250,7 +249,7 @@ fn personal_appearance_is_independent_persistent_and_cannot_change_business_bran
     )
     .unwrap();
     drop(app);
-    let mut app = Engine::with_clock(directory.path(), clock).unwrap();
+    let mut app = reopen(directory.path(), clock);
     assert_eq!(app.actor("sell").unwrap().username, "negociante.uno");
     assert_eq!(app.appearance().unwrap()["config"]["fontScale"], 90);
     app.login("admin", ADMIN_PASSWORD).unwrap();

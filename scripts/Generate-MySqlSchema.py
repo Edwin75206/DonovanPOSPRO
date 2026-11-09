@@ -63,6 +63,8 @@ while tables:
     if not ready: raise RuntimeError('Cyclic foreign keys')
     for n in ready: ordered.append(tables.pop(n))
 target = root / 'mysql'; target.mkdir(exist_ok=True)
-(target/'001_mysql.sql').write_text('-- MySQL 8.4 / InnoDB. Business schema equivalent to native SQLite version 5.\n-- Never apply to an existing or foreign schema.\n\n'+'\n\n'.join(t['sql'] for t in ordered)+'\n',encoding='utf-8')
+# Version 001 shipped with CRLF; its exact bytes are an installed schema checksum.
+# Future schema changes require a new migration, not reformatting the existing one.
+(target/'001_mysql.sql').write_text('-- MySQL 8.4 / InnoDB. Business schema equivalent to native SQLite version 5.\n-- Never apply to an existing or foreign schema.\n\n'+'\n\n'.join(t['sql'] for t in ordered)+'\n',encoding='utf-8',newline='\r\n')
 (target/'contract.json').write_text(json.dumps([{k:v for k,v in t.items() if k!='sql'} for t in ordered],ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
 print(f'Generated {len(ordered)} tables, explicit foreign keys, checks and indexes.')

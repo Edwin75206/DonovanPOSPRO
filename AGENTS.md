@@ -4,6 +4,8 @@ Antes de continuar este proyecto, lee `CONTINUAR-EN-MAC.md`. Contiene las decisi
 
 El repositorio principal es `Edwin75206/DonovanPOSPRO`. Para continuar en Mac, usa `PROMPT-PARA-MAC.md`; para ramas y entregas, `docs/VERSIONES-Y-GITHUB.md`. Publica instaladores en Releases y conserva fuera de Git datos, secretos y archivos generados. Ejecuta `python scripts/Check-Repository.py` sobre el índice antes de publicar cambios.
 
+Conserva los bytes de migraciones publicadas, incluidos sus saltos de línea. La migración MySQL 001 se protege con `.gitattributes` y `packaging/migration-checksums.json`; cambiarla puede impedir abrir una base existente aunque el SQL parezca equivalente.
+
 La aplicación vigente está en `desktop/`: Tauri 2, React/TypeScript y servicios Rust. El cliente es Construrama Chicontla y el autor es Donovan Systems. Conserva los logotipos existentes en `assets/branding/`.
 
 El contexto documentado no equivale a tener el historial completo del chat. Las instrucciones actuales de Edwin tienen prioridad. No declares terminada ni probada la versión Mac hasta compilarla, instalarla y verificar sus operaciones en macOS. No alteres bases comerciales para las pruebas.

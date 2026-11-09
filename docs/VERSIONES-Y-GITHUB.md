@@ -42,4 +42,6 @@ Se excluyen bases, respaldos, secretos, certificados privados, `.env`, dependenc
 
 El historial anterior se conserva sin reescribirlo. La etiqueta `v1.0.0` contiene la aplicación WPF original con su solución, pruebas, manuales y scripts; esos archivos ya no forman parte del árbol activo de `main`. Para consultarlos, usar GitHub o una clonación aparte y `git switch --detach v1.0.0`. No modificar migraciones históricas para adaptar datos nuevos.
 
+La migración MySQL `001_mysql.sql` conserva los bytes CRLF de la versión Windows validada. `.gitattributes` desactiva su conversión de texto para que clones y archivos de fuentes mantengan el mismo checksum en cualquier plataforma. `packaging/migration-checksums.json` y CI comprueban esos bytes tanto en Git como en el checkout. No normalizar ni reescribir ese archivo; los cambios de esquema requieren una migración nueva.
+
 El repositorio fue creado público por Edwin. No incluir datos reales del negocio en issues, commits, capturas o logs. La licencia del código original se encuentra en `licenses/PROJECT-NOTICE.txt`; las dependencias mantienen sus avisos correspondientes.

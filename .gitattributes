@@ -10,3 +10,6 @@
 *.ttf binary
 *.crate binary
 *.rtf binary
+# Immutable migration bytes are part of the installed schema identity.
+# Keep the validated 2.3 CRLF bytes in both clones and source archives.
+desktop/src-tauri/migrations/mysql/001_mysql.sql -text

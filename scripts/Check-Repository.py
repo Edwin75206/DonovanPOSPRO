@@ -5,6 +5,7 @@ It is a publication guard, not a guarantee that every possible secret is detecte
 """
 from pathlib import Path, PurePosixPath
 import argparse
+import hashlib
 import json
 import re
 import subprocess
@@ -108,6 +109,11 @@ def main():
     versions["Cargo.lock"] = next(p["version"] for p in cargo_lock["package"] if p["name"] == "donovan-pos")
     if len(set(versions.values())) != 1:
         issues.add(("versions", json.dumps(versions)))
+    for path, expected in json.loads(doc("packaging/migration-checksums.json")).items():
+        if hashlib.sha256(git("show", ":" + path)).hexdigest() != expected:
+            issues.add((path, "published migration bytes changed, including line endings"))
+        if hashlib.sha256((ROOT / path).read_bytes()).hexdigest() != expected:
+            issues.add((path, "checkout differs from published migration checksum"))
     if issues:
         for path, reason in sorted(issues):
             print(f"BLOCK: {path}: {reason}")

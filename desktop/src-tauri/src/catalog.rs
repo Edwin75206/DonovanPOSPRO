@@ -3,12 +3,57 @@ use crate::{
     db,
     engine::Engine,
     error::{Result, ensure, text},
-    models::Product,
+    models::{Product, ProductAppearance},
     money,
 };
 use rusqlite::params;
+use serde::Deserialize;
 use serde_json::{Value, json};
 use unicode_normalization::UnicodeNormalization;
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InventoryAdjustment {
+    pub expected_stock_units: i64,
+    #[serde(default)]
+    pub reason: String,
+}
+
+const PRODUCT_APPEARANCE_JOIN: &str =
+    "LEFT JOIN AppMeta a ON a.Key=CONCAT('product-appearance:',p.Id)";
+
+fn valid_appearance(appearance: &ProductAppearance) -> bool {
+    [
+        "", "cemento", "bloque", "acero", "madera", "pintura", "cable", "electricidad",
+        "plomeria", "herramientas", "proteccion", "tornilleria", "medicion", "adhesivos",
+        "paquete",
+    ]
+    .contains(&appearance.icon.as_str())
+        && ["", "amarillo", "naranja", "rojo", "verde", "azul", "morado", "agua", "gris"]
+            .contains(&appearance.color.as_str())
+}
+
+fn read_appearance(record: &mut Value) {
+    if let Some(fields) = record.as_object_mut() {
+        let appearance = fields
+            .remove("appearanceJson")
+            .and_then(|value| serde_json::from_str::<ProductAppearance>(value.as_str()?).ok())
+            .filter(valid_appearance);
+        fields.insert("appearance".into(), json!(appearance));
+    }
+}
+
+fn product_record(db: &Connection, id: i64) -> Result<Value> {
+    let mut record = db::one(
+        db,
+        &format!(
+            "SELECT p.*,a.Value AS AppearanceJson FROM Product p {PRODUCT_APPEARANCE_JOIN} WHERE p.Id=?1"
+        ),
+        [id],
+    )?;
+    read_appearance(&mut record);
+    Ok(record)
+}
 
 pub fn product(db: &Connection, id: i64) -> Result<Product> {
     Ok(serde_json::from_value(db::one(
@@ -18,6 +63,11 @@ pub fn product(db: &Connection, id: i64) -> Result<Product> {
     )?)?)
 }
 pub fn validate(p: &mut Product) -> Result<()> {
+    ensure(
+        p.appearance.as_ref().is_none_or(valid_appearance),
+        "VALIDATION",
+        "Elige un icono y un color disponibles en la biblioteca de materiales.",
+    )?;
     p.sku = text(&p.sku, "Clave", 40)?.to_uppercase();
     p.name = text(&p.name, "Descripción", 200)?;
     p.category = text(&p.category, "Categoría", 80)?;
@@ -86,6 +136,24 @@ pub fn stock(
     )?;
     db.execute("INSERT INTO StockMovement(ProductId,CreatedAt,UserId,Kind,Reference,Reason,DeltaUnits,BalanceUnits) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",params![id,now,user,kind,reference,reason,delta,balance])?;
     Ok(())
+}
+fn adjustment_reason(reason: &str) -> Result<String> {
+    if reason.trim().is_empty() {
+        Ok(String::new())
+    } else {
+        text(reason, "Motivo", 300)
+    }
+}
+fn record_adjustment(
+    db: &Connection,
+    now: &str,
+    user: i64,
+    id: i64,
+    delta: i64,
+    reason: &str,
+) -> Result<()> {
+    stock(db, now, user, id, delta, "Ajuste", "Inventario", reason)?;
+    db::audit(db, now, Some(user), "Ajustar inventario", &id.to_string(), reason)
 }
 pub fn persist(db: &Connection, p: &Product) -> Result<i64> {
     let args = params![
@@ -180,11 +248,11 @@ impl Engine {
     }
     pub fn get_product(&self, id: i64) -> Result<Value> {
         let actor = self.actor("sell")?;
-        let mut p = product(self.db()?, id)?;
+        let mut record = product_record(self.db()?, id)?;
         if !actor.can("catalog") {
-            p.cost_cents = None;
+            record["costCents"] = Value::Null;
         }
-        Ok(serde_json::to_value(p)?)
+        Ok(record)
     }
     pub fn product_page(
         &self,
@@ -302,12 +370,14 @@ impl Engine {
         let mut items = db::all(
             self.db()?,
             &format!(
-                "SELECT p.* FROM Product p {where_sql} ORDER BY CASE WHEN p.Sku=?2 COLLATE NOCASE OR p.Barcode=?2 THEN 0 ELSE 1 END,{order} {direction},p.Id LIMIT 60 OFFSET ?6"
+                "SELECT p.*,a.Value AS AppearanceJson FROM Product p {PRODUCT_APPEARANCE_JOIN} {where_sql} ORDER BY CASE WHEN p.Sku=?2 COLLATE NOCASE OR p.Barcode=?2 THEN 0 ELSE 1 END,{order} {direction},p.Id LIMIT 60 OFFSET ?6"
             ),
             bindings,
         )?;
-        if !actor.can("catalog") {
-            for item in &mut items {
+        let can_view_cost = actor.can("catalog");
+        for item in &mut items {
+            read_appearance(item);
+            if !can_view_cost {
                 item["costCents"] = Value::Null;
             }
         }
@@ -325,12 +395,45 @@ impl Engine {
             json!({"items":items,"total":total,"page":page,"pageSize":60,"categories":categories,"brands":brands}),
         )
     }
-    pub fn save_product(&mut self, mut p: Product) -> Result<Value> {
+    pub fn save_product(&mut self, p: Product) -> Result<Value> {
+        self.save_product_with_stock(p, None)
+    }
+    pub fn save_product_with_stock(
+        &mut self,
+        mut p: Product,
+        adjustment: Option<InventoryAdjustment>,
+    ) -> Result<Value> {
         let actor = self.actor("catalog")?;
+        if adjustment.is_some() {
+            self.actor("stock")?;
+            ensure(p.id > 0, "VALIDATION", "Captura la existencia inicial al dar de alta el producto.")?;
+        }
         validate(&mut p)?;
         let now = self.now_string();
         let tx = self.db_mut()?.transaction()?;
+        let stock_change = if let Some(adjustment) = adjustment {
+            let current = product(&tx, p.id)?.stock_units;
+            ensure(
+                current == adjustment.expected_stock_units,
+                "STOCK_CHANGED",
+                "Las existencias cambiaron mientras editabas. Vuelve a abrir la ficha para revisar el saldo actual.",
+            )?;
+            Some((p.stock_units - current, adjustment_reason(&adjustment.reason)?))
+        } else {
+            None
+        };
         let id = persist(&tx, &p)?;
+        if let Some(appearance) = &p.appearance {
+            let key = format!("product-appearance:{id}");
+            if appearance.icon.is_empty() && appearance.color.is_empty() {
+                tx.execute("DELETE FROM AppMeta WHERE Key=?1", [key])?;
+            } else {
+                tx.execute(
+                    "INSERT INTO AppMeta(Key,Value) VALUES (?1,?2) ON CONFLICT(Key) DO UPDATE SET Value=excluded.Value",
+                    params![key, serde_json::to_string(appearance)?],
+                )?;
+            }
+        }
         if p.id == 0 && p.stock_units > 0 {
             stock(
                 &tx,
@@ -343,6 +446,11 @@ impl Engine {
                 "Existencia inicial",
             )?;
         }
+        if let Some((delta, reason)) = stock_change {
+            if delta != 0 {
+                record_adjustment(&tx, &now, actor.id, id, delta, &reason)?;
+            }
+        }
         db::audit(
             &tx,
             &now,
@@ -351,13 +459,13 @@ impl Engine {
             &id.to_string(),
             "",
         )?;
-        let saved = db::one(&tx, "SELECT * FROM Product WHERE Id=?1", [id])?;
+        let saved = product_record(&tx, id)?;
         tx.commit()?;
         Ok(saved)
     }
     pub fn adjust_stock(&mut self, id: i64, delta: i64, reason: &str) -> Result<Value> {
         let actor = self.actor("stock")?;
-        let reason = text(reason, "Motivo", 300)?;
+        let reason = adjustment_reason(reason)?;
         ensure(
             delta != 0,
             "VALIDATION",
@@ -369,25 +477,11 @@ impl Engine {
         )?;
         let now = self.now_string();
         let tx = self.db_mut()?.transaction()?;
-        stock(
-            &tx,
-            &now,
-            actor.id,
-            id,
-            delta,
-            "Ajuste",
-            "Inventario",
-            &reason,
-        )?;
-        db::audit(
-            &tx,
-            &now,
-            Some(actor.id),
-            "Ajustar inventario",
-            &id.to_string(),
-            &reason,
-        )?;
-        let result = db::one(&tx, "SELECT * FROM Product WHERE Id=?1", [id])?;
+        record_adjustment(&tx, &now, actor.id, id, delta, &reason)?;
+        let mut result = product_record(&tx, id)?;
+        if !actor.can("catalog") {
+            result["costCents"] = Value::Null;
+        }
         tx.commit()?;
         Ok(result)
     }

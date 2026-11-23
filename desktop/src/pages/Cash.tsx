@@ -12,7 +12,7 @@ import { api, normalizeError, type CashOverview, type UiFailure } from '@/lib/ap
 import { Button, PageTitle, Field, Modal, Failure, useOperation, Empty } from '@/components/common';
 import { money, parseScaled, dateTime } from '@/lib/utils';
 import { DataGrid } from '@/components/DataGrid';
-export function Cash() {
+export function Cash({ onViewSale }: { onViewSale: (id: number) => void }) {
   const [data, setData] = useState<CashOverview | null>(null);
   const [modal, setModal] = useState<'open' | 'move' | 'close' | null>(null);
   const [amount, setAmount] = useState('');
@@ -115,7 +115,16 @@ export function Cash() {
                 id: 'kind',
                 label: 'Movimiento',
                 value: (row) => row.kind,
-                render: (row) => (
+                render: (row) => row.saleId ? (
+                  <button
+                    type="button"
+                    className="movement-label positive cash-sale-link"
+                    aria-label={'Ver venta ' + row.reference}
+                    onClick={() => onViewSale(row.saleId!)}
+                  >
+                    <ArrowDownLeft size={14} /> {row.kind}
+                  </button>
+                ) : (
                   <span
                     className={`movement-label ${row.amountCents < 0 ? 'negative' : 'positive'}`}
                   >
@@ -124,7 +133,20 @@ export function Cash() {
                   </span>
                 ),
               },
-              { id: 'reference', label: 'Referencia', value: (row) => row.reference },
+              {
+                id: 'reference',
+                label: 'Referencia',
+                value: (row) => row.reference,
+                render: (row) => row.saleId ? (
+                  <button
+                    type="button"
+                    className="cash-sale-link"
+                    onClick={() => onViewSale(row.saleId!)}
+                  >
+                    {row.reference}
+                  </button>
+                ) : row.reference,
+              },
               { id: 'reason', label: 'Motivo', value: (row) => row.reason },
               {
                 id: 'amount',

@@ -7,11 +7,15 @@ export function requestWorkspaceLeave(proceed: () => void) {
     toast.info('Espera a que termine la operación antes de cambiar de sección.');
     return;
   }
+  if (!deferWorkspaceLeave(proceed)) proceed();
+}
+
+export function deferWorkspaceLeave(proceed: () => void): boolean {
   const event = new CustomEvent('workspace-before-leave', {
     cancelable: true,
     detail: { proceed },
   });
-  if (window.dispatchEvent(event)) proceed();
+  return !window.dispatchEvent(event);
 }
 export function useLeaveGuard(dirty: boolean) {
   const [continuation, setContinuation] = useState<(() => void) | null>(null);

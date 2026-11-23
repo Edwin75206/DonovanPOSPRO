@@ -127,6 +127,7 @@ export function Register({
   const visual = useVisual();
   const fixedQuote = cart.quoteId !== null;
   const searchRef = useRef<HTMLInputElement>(null);
+  const lastPaidId = useRef<number | null>(null);
   const priceId = useRef(0);
   const [error, setError] = useState<ReturnType<typeof reportError> | null>(null);
   const items = cart.rows.map((r) => ({
@@ -681,10 +682,20 @@ export function Register({
             onBusy={setCheckoutBusy}
             onSuccess={(sale) => {
               setCheckout(false);
+              lastPaidId.current = sale.sale.id;
               setLastSale(sale);
               updateCart(() => freshCart());
-              autoPrintSale(data, sale.sale.id);
-              void api('cashOverview').then(setCash).catch(reportError);
+              const job = autoPrintSale(data, sale.sale.id);
+              if (!job) setReceipt(true);
+              else {
+                void job.catch(() => {
+                  if (
+                    mounted.current &&
+                    lastPaidId.current === sale.sale.id &&
+                    cartRef.current.rows.length === 0
+                  ) setReceipt(true);
+                });
+              }
               onSaved();
             }}
           />

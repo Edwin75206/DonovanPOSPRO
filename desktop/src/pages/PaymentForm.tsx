@@ -21,7 +21,7 @@ export function PaymentForm({
   onSuccess: (sale: SaleDetail) => void;
 }) {
   const [method, setMethod] = useState(0);
-  const [received, setReceived] = useState(String(charge.totalCents / 100));
+  const [received, setReceived] = useState('0.00');
   const [amounts, setAmounts] = useState([String(charge.totalCents / 100), '', '', '']);
   const [reference, setReference] = useState('');
   const [dueDate, setDueDate] = useState('');
@@ -230,7 +230,7 @@ export function PaymentForm({
                     data-payment-field="received"
                     aria-label="Efectivo recibido"
                     type="number"
-                    min={cash / 100}
+                    min="0"
                     step="0.01"
                     max="1000000000"
                     required

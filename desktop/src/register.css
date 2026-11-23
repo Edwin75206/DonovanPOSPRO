@@ -362,6 +362,173 @@
   gap: 20px;
   align-items: start;
 }
+.barcode-reader-test {
+  margin-bottom: 16px;
+}
+
+.material-icon {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: var(--material-background, var(--secondary));
+  color: var(--material-ink, var(--foreground));
+}
+[data-material-color='amarillo'] {
+  --material-background: #fbefb8;
+  --material-ink: #654c00;
+}
+[data-material-color='naranja'] {
+  --material-background: #ffe6cf;
+  --material-ink: #863b09;
+}
+[data-material-color='rojo'] {
+  --material-background: #fde1e0;
+  --material-ink: #9b2629;
+}
+[data-material-color='verde'] {
+  --material-background: #dff0d5;
+  --material-ink: #315e24;
+}
+[data-material-color='azul'] {
+  --material-background: #dceaff;
+  --material-ink: #244e91;
+}
+[data-material-color='morado'] {
+  --material-background: #ede2fb;
+  --material-ink: #61358a;
+}
+[data-material-color='agua'] {
+  --material-background: #d5f2ee;
+  --material-ink: #1b635e;
+}
+[data-material-color='gris'] {
+  --material-background: #e9edf1;
+  --material-ink: #445263;
+}
+.material-product-cell,
+.material-field,
+.material-picker-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.material-product-cell > div,
+.material-field > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.material-field {
+  margin: 12px 0;
+  flex-wrap: wrap;
+  padding: 11px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.material-field > div {
+  flex: 1 1 145px;
+}
+.material-field small {
+  display: block;
+  color: var(--subtle);
+  margin-top: 2px;
+}
+.material-picker-dialog {
+  width: min(660px, calc(100vw - 36px));
+  max-width: min(660px, calc(100vw - 36px));
+}
+.material-picker-preview {
+  overflow-wrap: anywhere;
+  margin-bottom: 16px;
+}
+.material-picker-group {
+  min-width: 0;
+  margin: 0 0 14px;
+}
+.material-picker-group legend {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.material-picker-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
+  gap: 7px;
+}
+.material-picker-options button {
+  display: flex;
+  min-height: 56px;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--foreground);
+  padding: 6px;
+  font-size: 0.6875rem;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.material-picker-options button[aria-pressed='true'] {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+  background: var(--secondary);
+}
+.material-picker-options button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.material-color-options button {
+  min-height: 37px;
+  flex-direction: row;
+  gap: 6px;
+}
+.material-swatch {
+  flex: 0 0 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--material-background);
+  border: 1px solid var(--material-ink);
+}
+.barcode-reader-input {
+  display: grid;
+  gap: 7px;
+  margin: 14px 0;
+}
+.barcode-reader-input > label {
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+.barcode-reader-input > small {
+  color: var(--subtle);
+  font-size: 0.6875rem;
+}
+.barcode-reader-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 10px;
+}
+.barcode-reader-controls > input {
+  min-width: 0;
+}
+.barcode-reader-controls > button {
+  height: auto;
+  min-height: 40px;
+}
+@media (max-width: 520px) {
+  .barcode-reader-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .barcode-reader-controls > button {
+    justify-self: start;
+  }
+}
 .printer-form,
 .printer-preview {
   padding: 22px;

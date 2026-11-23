@@ -7,12 +7,11 @@ use std::{
 use tauri::{Emitter, Manager};
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    let demo = args.iter().any(|a| a == "--demo");
-    let root = if demo {
-        std::env::temp_dir()
-            .join("DonovanPOS2-Demo")
-            .join(uuid::Uuid::new_v4().to_string())
-    } else if let Some(index) = args.iter().position(|a| a == "--data-dir") {
+    // Refuse the retired preview flag so old shortcuts cannot open the live database.
+    if args.iter().any(|arg| arg == "--demo") {
+        std::process::exit(2);
+    }
+    let root = if let Some(index) = args.iter().position(|a| a == "--data-dir") {
         args.get(index + 1)
             .map(PathBuf::from)
             .unwrap_or_else(default_data)
@@ -26,7 +25,6 @@ fn main() {
     let state = Arc::new(AppState {
         engine: Mutex::new(None),
         root,
-        demo,
     });
     let result = tauri::Builder::default()
         .manage(state.clone())
@@ -90,11 +88,7 @@ fn main() {
                     ))?;
                     window.center()?;
                 }
-                window.set_title(if demo {
-                    "Donovan POS Pro 2.2 · DEMOSTRACIÓN"
-                } else {
-                    "Donovan POS Pro"
-                })?;
+                window.set_title("Donovan POS Pro")?;
                 window.show()?;
             }
             Ok(())

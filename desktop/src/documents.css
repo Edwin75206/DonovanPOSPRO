@@ -26,6 +26,9 @@
   gap: 0.8rem;
   flex-wrap: wrap;
 }
+.document-controls > .field {
+  margin-bottom: 0;
+}
 .document-controls .field:last-of-type {
   flex: 1;
   min-width: 14rem;

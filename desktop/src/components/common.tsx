@@ -1,4 +1,14 @@
-import { Component, useRef, useState, type ReactNode, type RefObject } from 'react';
+import {
+  cloneElement,
+  Component,
+  isValidElement,
+  useId,
+  useRef,
+  useState,
+  type AriaAttributes,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import {
   AlertCircle,
   ArrowRight,
@@ -151,11 +161,22 @@ export function Field({
   hint?: string;
   children: ReactNode;
 }) {
+  const id = useId();
+  const control =
+    hint && isValidElement<AriaAttributes>(children)
+      ? cloneElement(children, {
+          'aria-labelledby':
+            children.props['aria-labelledby'] ?? (children.props['aria-label'] ? undefined : id),
+          'aria-describedby': [children.props['aria-describedby'], `${id}-hint`]
+            .filter(Boolean)
+            .join(' '),
+        })
+      : children;
   return (
     <label className="field">
-      <span>{label}</span>
-      {children}
-      {hint && <small>{hint}</small>}
+      <span id={hint ? id : undefined}>{label}</span>
+      {control}
+      {hint && <small id={`${id}-hint`}>{hint}</small>}
     </label>
   );
 }

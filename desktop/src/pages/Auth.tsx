@@ -53,17 +53,6 @@ export function Auth({
         </div>
         <div className="auth-business">
           <Logo data={data} />
-          <span className="eyebrow">TU NEGOCIO, EN BUENAS MANOS</span>
-          <h1>
-            Tu mostrador.
-            <br />
-            Todo bajo control.
-          </h1>
-          <p>
-            Una forma más sencilla de vender,
-            <br />
-            organizar y seguir construyendo.
-          </p>
         </div>
         <div className="auth-trust">
           <HardDrive size={17} />
@@ -81,15 +70,7 @@ export function Auth({
             <Store size={17} />
             {name}
           </div>
-          <span className="eyebrow">
-            {data.locked ? 'PANTALLA BLOQUEADA' : 'BIENVENIDO DE NUEVO'}
-          </span>
-          <h2>{data.locked ? 'Continúa tu jornada.' : 'Vamos a trabajar.'}</h2>
-          <p>
-            {data.locked
-              ? 'Ingresa tu contraseña para desbloquear.'
-              : 'Ingresa con tu cuenta para abrir tu espacio de trabajo.'}
-          </p>
+          <h1>{data.locked ? 'Desbloquear sesión' : 'Iniciar sesión'}</h1>
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -140,7 +121,7 @@ export function Auth({
             </Field>
             <Failure error={op.error} />
             <Button type="submit" className="wide" disabled={op.busy}>
-              {op.busy ? 'Verificando…' : data.locked ? 'Desbloquear' : 'Entrar a mi espacio'}
+              {op.busy ? 'Verificando…' : data.locked ? 'Desbloquear' : 'Entrar'}
               <ArrowRight size={17} />
             </Button>
           </form>
@@ -160,24 +141,6 @@ export function Auth({
               Puedes bloquear la pantalla al alejarte.
             </span>
           </div>
-          {data.demo && (
-            <div className="demo-entry">
-              <b>DEMOSTRACIÓN AISLADA</b>
-              <p>Explora con datos de ejemplo.</p>
-              <Button
-                variant="outline"
-                onClick={() => void op.run(() => api('demoLogin', { role: 0 }), onSession)}
-              >
-                Administrador
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => void op.run(() => api('demoLogin', { role: 1 }), onSession)}
-              >
-                Negociante Uno
-              </Button>
-            </div>
-          )}
           <button className="text-button secondary" onClick={onRestore}>
             Recuperar información de mi negocio
           </button>

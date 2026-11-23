@@ -134,6 +134,7 @@ fn exact_scans_search_categories_and_permissions() {
             brand: "CEMEX".into(),
             size: "Saco 50 kg".into(),
             price_cents: 23500,
+            cost_cents: Some(17800),
             stock_units: 30000,
             minimum_units: 10000,
             ..Default::default()
@@ -220,10 +221,24 @@ fn exact_scans_search_categories_and_permissions() {
     );
     app.login("negociante.uno", SELLER_PASSWORD).unwrap();
     assert!(app.product_for_code("CEM-50").unwrap()["costCents"].is_null());
+    let cashier = app.actor("stock").unwrap();
+    let added = app.adjust_stock(p.id, 500_000, "").unwrap();
+    assert_eq!(added["stockUnits"], 530_000);
+    assert_eq!(added["priceCents"], 23500);
+    assert!(added["costCents"].is_null());
+    let removed = app.adjust_stock(p.id, -10_000, "Corrección de conteo").unwrap();
+    assert_eq!(removed["stockUnits"], 520_000);
     assert_eq!(
-        app.adjust_stock(p.id, 10000, "Prueba").unwrap_err().code,
-        "FORBIDDEN"
+        app.adjust_stock(p.id, -530_000, "").unwrap_err().code,
+        "INSUFFICIENT_STOCK"
     );
+    let history = app.stock_history(p.id).unwrap();
+    assert_eq!(history[0]["userId"], cashier.id);
+    assert_eq!(history[0]["reason"], "Corrección de conteo");
+    assert_eq!(history[0]["deltaUnits"], -10_000);
+    assert_eq!(history[1]["deltaUnits"], 500_000);
+    assert_eq!(history[1]["reason"], "");
+    assert_eq!(app.save_product(p).unwrap_err().code, "FORBIDDEN");
 }
 
 #[test]

@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Printer, RefreshCw, Save, Eye, FileDown, ReceiptText } from 'lucide-react';
 import { api, type Bootstrap, type TicketConfig } from '@/lib/api';
 import { useResource } from '@/lib/useResource';
 import { Button, Busy, Failure, Field, PageTitle, useOperation } from '@/components/common';
 import { PaperPreview, queueDocument } from '@/components/DocumentViewer';
 import { toast } from 'sonner';
+import { BarcodeReaderTest } from './BarcodeReaderTest';
 
 export function PrinterSettings({
   data,
@@ -35,21 +36,35 @@ function PrinterEditor({
   const [previewDraft, setPreviewDraft] = useState(source);
   const [printing, setPrinting] = useState(false);
   const printers = useResource(() => api('printers'), []);
+  const peripherals = useResource(() => api('peripheralStatus'), []);
+  const usbPrinters = peripherals.data?.usbPrinters ?? null;
+  const selected = printers.data?.find((p) => p.name === draft.printerName);
   const status = useResource(
-    () =>
-      draft.printerName
-        ? api('printerDetails', { printer: draft.printerName })
-        : Promise.resolve(null),
-    [draft.printerName],
+    () => (selected ? api('printerDetails', { printer: selected.name }) : Promise.resolve(null)),
+    [selected?.name],
   );
+  const details = status.data?.name === selected?.name ? status.data : null;
+  const { reload: reloadPrinters } = printers;
+  const { reload: reloadPeripherals } = peripherals;
+  const { reload: reloadStatus } = status;
+  const checking = printers.busy || peripherals.busy || status.busy;
+  const refreshDevices = useCallback(() => {
+    reloadPrinters();
+    reloadPeripherals();
+    reloadStatus();
+  }, [reloadPrinters, reloadPeripherals, reloadStatus]);
   const preview = useResource(
     () => api('document', { kind: 'ticketTest', id: 0, ticket: previewDraft }),
     [JSON.stringify(previewDraft)],
   );
   const op = useOperation();
   const exportOp = useOperation();
-  const selected = printers.data?.find((p) => p.name === draft.printerName);
   const dirty = JSON.stringify(draft) !== JSON.stringify(source);
+  useEffect(() => {
+    if (checking) return;
+    const timer = window.setTimeout(refreshDevices, 4000);
+    return () => window.clearTimeout(timer);
+  }, [checking, refreshDevices]);
   useEffect(() => {
     onDirty(dirty);
     return () => onDirty(false);
@@ -62,10 +77,17 @@ function PrinterEditor({
   return (
     <main className="page-scroll page-container printer-settings">
       <PageTitle
-        eyebrow="CONFIGURACIÓN / IMPRESORAS Y TICKETS"
-        title="El cierre perfecto de cada venta."
-        description="Elige tu impresora y prepara un comprobante claro, con la identidad de tu negocio."
+        title="Periféricos"
+        description="Conecta la impresora o el lector. La detección se actualiza mientras esta pantalla esté abierta."
+        actions={
+          <Button variant="outline" disabled={checking} onClick={refreshDevices}>
+            <RefreshCw size={15} />
+            Detectar ahora
+          </Button>
+        }
       />
+      <Failure error={peripherals.error} retry={reloadPeripherals} />
+      <BarcodeReaderTest count={peripherals.data?.barcodeReaders ?? null} />
       <div className="printer-columns">
         <form
           className="surface printer-form"
@@ -83,7 +105,14 @@ function PrinterEditor({
           <h2>
             <Printer size={20} /> Tu impresora de tickets
           </h2>
-          <Field label="Impresora instalada en Windows">
+          {usbPrinters !== null && (
+            <p className="muted" role="status">
+              {usbPrinters === 0
+                ? 'Windows no detecta impresoras USB conectadas.'
+                : `Windows detecta ${usbPrinters} ${usbPrinters === 1 ? 'impresora USB conectada' : 'impresoras USB conectadas'}.`}
+            </p>
+          )}
+          <Field label="Impresora instalada">
             <select
               value={draft.printerName}
               onChange={(e) => patch({ printerName: e.target.value, autoPrint: false })}
@@ -95,31 +124,25 @@ function PrinterEditor({
               {printers.data?.map((p) => (
                 <option key={p.name} value={p.name}>
                   {p.name}
-                  {p.isDefault ? ' · Predeterminada de Windows' : ''}
+                  {p.isDefault ? ' · Predeterminada del sistema' : ''}
                 </option>
               ))}
             </select>
           </Field>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={printers.busy || status.busy}
-            onClick={() => {
-              printers.reload();
-              status.reload();
-            }}
-          >
-            <RefreshCw size={15} />
-            Actualizar impresoras y estado
-          </Button>
+          {printers.data && (
+            <p className="muted" role="status">
+              {printers.data.some((p) => !p.virtualPrinter)
+                ? 'Hay impresoras físicas instaladas. Elige la ticketera para consultar su estado.'
+                : 'Sin impresoras físicas instaladas. Conecta la ticketera e instala su controlador si el sistema lo pide.'}
+            </p>
+          )}
           <Failure error={printers.error} retry={printers.reload} />
           <Failure error={status.error} retry={status.reload} />
-          {status.data && (
-            <div className={`printer-status ${status.data.offline ? 'offline' : ''}`}>
-              <strong>{status.data.status}</strong>
+          {details && (
+            <div className={`printer-status ${details.offline ? 'offline' : ''}`} role="status">
+              <strong>{details.status}</strong>
               <span>
-                {status.data.driver} · {status.data.queuedJobs} trabajos en cola
+                {details.driver} · {details.queuedJobs} trabajos en cola
               </span>
               <small>
                 El estado depende del controlador; no confirma que el papel haya salido.
@@ -148,9 +171,9 @@ function PrinterEditor({
               />
             </Field>
           </div>
-          {status.data && (
+          {details && (
             <p className="muted">
-              {status.data.paperWidthsMm.some((w) => Math.abs(w - draft.widthMm) <= 1)
+              {details.paperWidthsMm.some((w) => Math.abs(w - draft.widthMm) <= 1)
                 ? 'El controlador declara este ancho de papel.'
                 : 'Comprueba este formato en las propiedades del controlador. Algunos dispositivos requieren crear un tamaño personalizado.'}
             </p>
@@ -239,7 +262,7 @@ function PrinterEditor({
             <Eye size={19} /> Así lo recibe tu cliente
           </h2>
           <p className="muted">
-            Vista previa de prueba · {draft.widthMm} mm · {draft.copies}{' '}
+            Vista previa · {draft.widthMm} mm · {draft.copies}{' '}
             {draft.copies === 1 ? 'copia' : 'copias'} al imprimir
           </p>
           {preview.data ? (
@@ -270,7 +293,7 @@ function PrinterEditor({
               }}
             >
               <Printer size={16} />
-              {printing ? 'Enviando…' : 'Imprimir prueba'}
+              {printing ? 'Enviando…' : 'Verificar impresión'}
             </Button>
             <Button
               variant="outline"
@@ -280,18 +303,18 @@ function PrinterEditor({
                   () => api('exportDocument', { kind: 'ticketTest', id: 0, ticket: draft }),
                   (result) => {
                     if (result)
-                      toast.success('Prueba guardada en PDF', { description: result.path });
+                      toast.success('Comprobante de verificación guardado', { description: result.path });
                   },
                 )
               }
             >
               <FileDown size={16} />
-              Guardar prueba PDF
+              Guardar muestra en PDF
             </Button>
           </div>
           <Failure error={exportOp.error} />
           <p className="muted">
-            La prueba no registra ventas ni mueve inventario. Prueba el papel antes de activar la
+            La verificación usa un comprobante de muestra. Comprueba el papel antes de activar la
             impresión automática.
           </p>
         </section>

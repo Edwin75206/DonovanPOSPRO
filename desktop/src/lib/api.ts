@@ -6,6 +6,10 @@ export interface Actor {
   name: string;
   role: number;
 }
+export interface ProductAppearance {
+  icon: string;
+  color: string;
+}
 export interface Product {
   id: number;
   sku: string;
@@ -25,6 +29,7 @@ export interface Product {
   packName: string;
   packUnits: number;
   active: boolean;
+  appearance?: ProductAppearance | null;
 }
 export interface Preferences {
   tutorialStatus: 'pending' | 'skipped' | 'in_progress' | 'completed';
@@ -307,6 +312,7 @@ export interface CashSession {
   notes: string;
 }
 export interface CashMovement {
+  saleId?: number | null;
   id: number;
   createdAt: string;
   amountCents: number;
@@ -551,6 +557,7 @@ export interface Calls {
   document: [DocumentRequest, BusinessDocument];
   exportDocument: [DocumentRequest, { path: string; bytes: number; pages: number } | null];
   printers: [undefined, Printer[]];
+  peripheralStatus: [undefined, { barcodeReaders: number | null; usbPrinters: number | null }];
   printDocument: [{ document: DocumentRequest; printer: string }, PrintJob];
   tutorial: [{ status: Preferences['tutorialStatus']; step: number }, Preferences];
   chooseBusinessLogo: [undefined, { data: string } | null];
@@ -723,7 +730,6 @@ export interface Calls {
   logout: [undefined, Bootstrap];
   lock: [undefined, Bootstrap];
   unlock: [{ password: string }, Bootstrap];
-  demoLogin: [{ role: number }, Bootstrap];
   products: [
     { search: string; category: string; brand?: string; status: string; page: number },
     ProductPage,
@@ -740,8 +746,11 @@ export interface Calls {
     },
     ProductPage,
   ];
-  saveProduct: [Product, Product];
-  adjustStock: [{ id: number; delta: number; reason: string }, Product];
+  saveProduct: [
+    Product & { inventoryAdjustment?: { expectedStockUnits: number; reason?: string } },
+    Product,
+  ];
+  adjustStock: [{ id: number; delta: number; reason?: string }, Product];
   stockHistory: [{ id: number }, StockMovement[]];
   price: [{ items: Item[]; discountParts: number; quoteId?: number | null }, Charge];
   checkout: [Checkout, SaleDetail];
@@ -802,5 +811,5 @@ export async function api<K extends keyof Calls>(
 }
 export const can = (actor: Actor, permission: string) =>
   actor.role === 0 ||
-  ['sell', 'quote', 'cash'].includes(permission) ||
-  (actor.role === 2 && ['catalog', 'stock', 'purchase', 'credit', 'discount'].includes(permission));
+  ['sell', 'quote', 'cash', 'stock'].includes(permission) ||
+  (actor.role === 2 && ['catalog', 'purchase', 'credit', 'discount'].includes(permission));

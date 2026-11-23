@@ -116,6 +116,9 @@
   gap: 5px;
   align-items: center;
 }
+.inventory-actions > button {
+  font-size: 0.72rem;
+}
 .stock-status {
   display: inline-flex;
   flex-direction: column;
@@ -146,6 +149,16 @@
 .large-dialog {
   width: min(calc(100vw - 30px), 65rem) !important;
   max-width: calc(100vw - 30px) !important;
+}
+.product-dialog .form-grid {
+  row-gap: 8px;
+}
+.product-dialog .field {
+  margin-bottom: 12px;
+}
+.product-dialog-actions {
+  display: flex;
+  justify-content: flex-start;
 }
 .form-section-heading {
   display: flex;
@@ -201,6 +214,11 @@
   min-height: 18px !important;
   accent-color: var(--accent-ink);
 }
+.product-dialog .checkbox-field small {
+  display: block;
+  color: var(--muted-foreground);
+  margin-top: 3px;
+}
 fieldset {
   border: 0;
   padding: 0;
@@ -212,18 +230,40 @@ fieldset:disabled select {
   color: var(--subtle);
 }
 .adjust-summary {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 7px;
-  padding: 15px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 13px 15px;
   background: var(--secondary);
   border-radius: 8px;
-  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
 }
-.adjust-summary > span {
-  font-size: 0.68rem;
+.adjust-summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.adjust-summary span {
+  font-size: 0.72rem;
   color: var(--subtle);
+}
+.adjust-summary strong {
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+.stock-direction > button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 0.8rem;
+}
+.stock-adjust-error {
+  font-size: 0.76rem;
+  margin: 8px 0 0;
+}
+.stock-adjust-reason:not([open]) > summary {
+  margin-bottom: 0;
 }
 .pos-dialog .choice-group {
   margin-bottom: 20px;
@@ -256,6 +296,10 @@ fieldset:disabled select {
   .inventory-surface td {
     padding-left: 14px;
     padding-right: 14px;
+  }
+  .inventory-actions {
+    flex-wrap: wrap;
+    max-width: 14rem;
   }
   .product-mini-icon {
     display: none;
@@ -739,4 +783,8 @@ fieldset:disabled select {
   .import-rules {
     grid-template-columns: 1fr;
   }
+}
+.cash-sale-link {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }

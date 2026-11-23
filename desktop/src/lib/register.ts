@@ -74,6 +74,7 @@ export class ScanBuffer {
       this.reset();
       return null;
     }
+    if (key === 'Shift') return null;
     if (time - this.last > 70) this.value = '';
     this.last = time;
     if (key === 'Enter' || key === 'Tab') {

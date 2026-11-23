@@ -158,7 +158,7 @@ impl Engine {
             "sale" | "ticketTest" => {
                 let detail = if request.kind == "ticketTest" {
                     let actor = self.actor("admin")?;
-                    json!({"sale":{"folio":"PRUEBA · NO ES UNA VENTA","cashier":actor.name,"createdAt":self.now_string(),"customerName":"Cliente de prueba","totalCents":17050,"taxCents":2352,"discountCents":0,"tenderedCents":20000,"changeCents":2950},"lines":[{"sku":"MUESTRA-01","name":"Producto de prueba","quantityUnits":20000,"unit":0,"priceCents":7500,"totalCents":15000},{"sku":"MUESTRA-02","name":"Material por metro","quantityUnits":25000,"unit":1,"priceCents":820,"totalCents":2050}],"payments":[{"method":0,"amountCents":17050}],"returns":[]})
+                    json!({"sale":{"folio":"MUESTRA · SIN VALOR DE VENTA","cashier":actor.name,"createdAt":self.now_string(),"customerName":"Público en general","totalCents":17050,"taxCents":2352,"discountCents":0,"tenderedCents":20000,"changeCents":2950},"lines":[{"sku":"MUESTRA-01","name":"Material por pieza","quantityUnits":20000,"unit":0,"priceCents":7500,"totalCents":15000},{"sku":"MUESTRA-02","name":"Material por metro","quantityUnits":25000,"unit":1,"priceCents":820,"totalCents":2050}],"payments":[{"method":0,"amountCents":17050}],"returns":[]})
                 } else {
                     self.sale(request.id)?
                 };

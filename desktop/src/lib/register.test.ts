@@ -65,4 +65,13 @@ describe('Register rules', () => {
     scan('CEM-50', 'Escape');
     expect(buffer.key('Enter', time + 10, true)).toBeNull();
   });
+  it('keeps uppercase characters when the reader sends a Shift event for each letter', () => {
+    const buffer = new ScanBuffer();
+    let time = 1000;
+    for (const key of 'DEMO-001') {
+      if (/[A-Z]/.test(key)) buffer.key('Shift', (time += 5), true);
+      buffer.key(key, (time += 5), true);
+    }
+    expect(buffer.key('Tab', time + 5, true)).toBe('DEMO-001');
+  });
 });

@@ -21,6 +21,7 @@ pub struct Product {
     pub pack_name: String,
     pub pack_units: i64,
     pub active: bool,
+    pub appearance: Option<ProductAppearance>,
 }
 impl Default for Product {
     fn default() -> Self {
@@ -43,9 +44,17 @@ impl Default for Product {
             pack_name: "Caja".into(),
             pack_units: 10000,
             active: true,
+            appearance: None,
         }
     }
 }
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct ProductAppearance {
+    pub icon: String,
+    pub color: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Actor {
@@ -57,9 +66,9 @@ pub struct Actor {
 impl Actor {
     pub fn can(&self, permission: &str) -> bool {
         self.role == 0
-            || ["sell", "quote", "cash"].contains(&permission)
+            || ["sell", "quote", "cash", "stock"].contains(&permission)
             || self.role == 2
-                && ["catalog", "stock", "purchase", "credit", "discount"].contains(&permission)
+                && ["catalog", "purchase", "credit", "discount"].contains(&permission)
     }
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]

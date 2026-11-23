@@ -14,28 +14,38 @@ import { useResource } from '@/lib/useResource';
 import { Button, Busy, Failure, Field, Modal, useOperation } from './common';
 
 const pending = new Map<string, Promise<PrintJob>>();
-export function queueDocument(document: DocumentRequest, printer: string, databaseId: string) {
+export function queueDocument(
+  document: DocumentRequest,
+  printer: string,
+  databaseId: string,
+  notify = true,
+) {
   const key = JSON.stringify([databaseId, document, printer]);
   const existing = pending.get(key);
   if (existing) return existing;
-  const toastId = toast.loading('Enviando documento a la impresora…', {
+  const toastId = notify ? toast.loading('Enviando documento a la impresora…', {
     description: 'Puedes continuar trabajando.',
-  });
+  }) : undefined;
   const job = api('printDocument', { document, printer });
   pending.set(key, job);
   void job
     .then(
-      (result) =>
+      (result) => {
+        if (toastId === undefined) return;
         toast.success('Documento recibido por el servicio de impresión', {
           id: toastId,
           description: `${result.printer} · Trabajo ${result.jobId}. Revisa la cola si no sale en papel.`,
           duration: 6000,
-        }),
+        });
+      },
       (error) => {
+        if (toastId === undefined) return;
         const failure = normalizeError(error);
-        toast.error(failure.message, {
+        toast.error(document.kind === 'sale' ? 'La venta quedó guardada. Revisa la impresora.' : failure.message, {
           id: toastId,
-          description: `Referencia ${failure.incidentId} · La venta se conserva.`,
+          description: document.kind === 'sale'
+            ? failure.message + ' · Referencia ' + failure.incidentId
+            : 'Referencia ' + failure.incidentId,
           duration: 9000,
         });
       },
@@ -45,11 +55,12 @@ export function queueDocument(document: DocumentRequest, printer: string, databa
 }
 export function autoPrintSale(data: Bootstrap, id: number) {
   if (data.settings?.autoPrint && data.settings.printerName)
-    void queueDocument(
+    return queueDocument(
       { kind: 'sale', id, widthMm: data.settings.ticketWidthMm },
       data.settings.printerName,
       data.databaseId ?? '',
-    ).catch(() => {});
+    );
+  return null;
 }
 export function PaperPreview({ document }: { document: BusinessDocument }) {
   const logoSource=document.logoData?`data:image/${document.logoData.startsWith('/9j/')?'jpeg':'png'};base64,${document.logoData}`:undefined;
@@ -150,7 +161,7 @@ export function DocumentDialog({
     setPrintError(null);
     setPrintJob(null);
     try {
-      const result = await queueDocument(selection, printer, data.databaseId ?? '');
+      const result = await queueDocument(selection, printer, data.databaseId ?? '', false);
       if (active.current) setPrintJob(result);
     } catch (error) {
       if (active.current) setPrintError(normalizeError(error));

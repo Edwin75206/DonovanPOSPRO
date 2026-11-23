@@ -14,6 +14,7 @@ import { ScanBuffer, stockState } from '@/lib/register';
 import { Button, Modal, Failure } from '@/components/common';
 import { StockIndicator } from '@/components/StockIndicator';
 import type { CartRow } from './Register';
+import { ProductVisual } from '@/components/ProductVisual';
 
 export function ProductPicker({
   rows,
@@ -283,12 +284,17 @@ export function ProductPicker({
                   }}
                 >
                   <td>
-                    <strong>{product.name}</strong>
-                    <small>
-                      {product.sku}
-                      {product.brand && ` · ${product.brand}`}
-                      {product.size && ` · ${product.size}`}
-                    </small>
+                    <div className="material-product-cell">
+                      <ProductVisual product={product} />
+                      <div>
+                        <strong>{product.name}</strong>
+                        <small>
+                          {product.sku}
+                          {product.brand && ` · ${product.brand}`}
+                          {product.size && ` · ${product.size}`}
+                        </small>
+                      </div>
+                    </div>
                   </td>
                   <td>
                     <StockIndicator product={product} reserved={reserved} />

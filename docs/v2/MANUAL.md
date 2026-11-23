@@ -1,6 +1,6 @@
 # Donovan POS Pro — guía de uso
 
-Construrama Chicontla · Donovan Systems · Versión 2.2
+Construrama Chicontla · Donovan Systems · Versión 1.0
 
 ## Instalar y empezar
 
@@ -8,13 +8,15 @@ Ejecuta el instalador x64 en Windows 10 u 11. Incluye los componentes necesarios
 
 Al abrir por primera vez, completa el asistente inicial para comenzar desde cero o selecciona **Ya tengo un respaldo** para recuperar un negocio existente. Revisa el nombre, domicilio, logo y ancho del ticket. Crea las cuentas de administrador y de operación, con contraseñas propias. Conserva las credenciales de administración en un lugar seguro.
 
-El tutorial de bienvenida es opcional. Puedes pausarlo o volver a abrirlo desde **Ayuda y tutoriales**. Si aparece la franja DEMOSTRACIÓN, estás trabajando con datos de ejemplo y debes abrir la instalación normal para registrar ventas reales.
+El tutorial de bienvenida es opcional. Puedes pausarlo o volver a abrirlo desde **Ayuda y tutoriales**.
 
-## Administrador y Negociante Uno
+## Administrador y personal de caja
 
 El administrador inicia en el tablero: ventas netas, efectivo esperado en caja, deuda de clientes, ganancias estimadas y alertas de inventario. Cambia el periodo o pulsa una gráfica o un enlace de detalle para revisar las operaciones que explican el indicador.
 
-Negociante Uno inicia en el punto de venta. Su perfil operativo permite atender el mostrador y consultar sus operaciones; las opciones administrativas y los costos requieren los permisos correspondientes. Cambiar la apariencia de una cuenta no modifica la de los demás usuarios.
+Usa **Contraer Dashboard** para ver solo los indicadores principales. **Expandir Dashboard** devuelve las gráficas y el detalle.
+
+El personal de caja inicia en el punto de venta. Su perfil operativo permite atender el mostrador y consultar sus operaciones; las opciones administrativas y los costos requieren los permisos correspondientes. Cambiar la apariencia de una cuenta no modifica la de los demás usuarios.
 
 La sesión persiste al cerrar y abrir el programa, hasta un máximo fijo de 24 horas desde el inicio de sesión. Bloquea la pantalla cuando te alejes del mostrador. Recuperar una base en otro equipo requiere iniciar sesión nuevamente.
 
@@ -35,7 +37,7 @@ La captura global se pausa al editar otro campo o abrir otros diálogos. Cantida
 
 **Efectivo y pagos mixtos:** Exacto y las denominaciones rápidas rellenan el dinero entregado. En Mixto, los importes aplicados deben sumar el total; «Efectivo recibido» puede exceder solamente la parte en efectivo y de ahí se calcula el cambio. Tarjeta y transferencia son registros manuales, no conexiones a una terminal bancaria.
 
-**Atajos:** F2 abre el buscador de productos; desde otro módulo lleva primero al punto de venta. F3 enfoca la captura de códigos; F8 abre el cobro; F1 abre la ayuda. Durante la edición de una cotización, F8 abre su guardado. F5 y Ctrl+R no recargan la aplicación para proteger el ticket en curso.
+F1 abre **Punto de venta** y F10 abre **Ayuda y tutoriales**. F2 abre el buscador de productos desde cualquier módulo. F3 enfoca la captura de códigos. F8 abre el cobro o el guardado de una cotización en edición. F5 y Ctrl+R se desactivan para proteger el ticket en curso.
 
 **Poner en espera** guarda la venta en SQLite sin cobrar ni apartar existencias. Recupérala desde **En espera** incluso después de reiniciar; la aplicación revisa precios y disponibilidad. Abrir el buscador, filtrar o cerrarlo conserva el ticket actual. Un carrito que no se haya guardado no es un respaldo frente a un corte de energía: guarda el trabajo pendiente antes de cerrar o cambiar de base.
 
@@ -43,9 +45,11 @@ La captura global se pausa al editar otro campo o abrir otros diálogos. Cantida
 
 Prepara las partidas desde el punto de venta y pulsa **Cotizar**. Revisa cliente, vigencia y observaciones antes de guardar. La cotización conserva su precio acordado y no modifica el inventario. Su vista previa se abre sobre el mostrador y permite guardar el PDF o imprimir.
 
-## Impresoras y tickets
+## Periféricos
 
-Como administrador, abre **Configuración → Impresoras y tickets**. Actualiza la lista de dispositivos instalados en Windows, selecciona uno y revisa el estado que comunica su controlador. Ajusta ancho de 58 u 80 mm, márgenes de 2 a 8 mm y de una a tres copias. Comprueba la vista previa y usa **Imprimir prueba** antes de activar impresión automática. Los anchos anunciados por el controlador son orientativos; algunos equipos requieren configurar un formulario personalizado en Windows. Una cola sin errores no garantiza que haya papel o conexión física.
+Como administrador, abre **Configuración → Periféricos**. La lista de impresoras instaladas se actualiza mientras la pantalla está abierta. Selecciona la ticketera para consultar el estado que comunica su controlador. Ajusta el ancho de 58 u 80 mm, los márgenes de 2 a 8 mm y de una a tres copias. Comprueba la vista previa y usa **Verificar impresión** antes de activar impresión automática. Algunos controladores requieren configurar un formato personalizado en el sistema operativo. Confirma la salida en papel con el comprobante de muestra.
+
+El panel muestra las impresoras USB y los lectores de clase POS que Windows identifica. Si tu lector funciona como teclado USB, enfoca **Verificación de lectura** y escanea un código con sufijo Enter o Tab. El panel muestra el código recibido y el artículo correspondiente. Este panel consulta el catálogo.
 
 Puedes activar el logo, usar su versión monocromática y editar el agradecimiento y la leyenda. La variante térmica se genera al dibujar y conserva el archivo original. Dirección y teléfono se editan en **Datos del negocio**. Los comprobantes no son CFDI.
 
@@ -55,7 +59,9 @@ Desde **Cotizaciones**, abre el detalle para generar el PDF o continuar al cobro
 
 ## Inventario, compras y clientes
 
-En **Inventario** busca y filtra productos, revisa existencias y abre el historial de movimientos. Un ajuste requiere motivo. Archivar un producto lo retira de nuevas operaciones sin borrar ventas anteriores. Los códigos de barras se imprimen desde la opción de etiquetas: hoja A4, escala 100%, etiquetas de 91 × 33 mm.
+En **Inventario** busca y filtra productos. **Editar** abre la ficha para cambiar datos como la categoría, los precios y la existencia mínima. El perfil Vendedor tiene **Ver ficha**. La existencia actual es el saldo registrado y el mínimo indica a partir de qué saldo aparece el aviso de stock bajo. **Ajustar existencias** permite agregar o quitar unidades y previsualizar el saldo. El motivo es opcional y el ajuste aparece en **Historial**.
+
+Escribe los precios en pesos y usa el punto para capturar centavos. Al dar de alta un producto puedes indicar su existencia inicial. Archivar un producto lo retira de nuevas operaciones y conserva las ventas anteriores. **Imprimir etiquetas** está en la ficha del producto y genera una hoja A4 con etiquetas de 91 × 33 mm para imprimir al 100 %.
 
 En **Compras** elige proveedor, referencia, fecha y productos. Puedes recibir unidades o empaques configurados. Revisa cantidades, costos y si el pago debe salir de la caja. La recepción confirma inventario y costo en conjunto.
 

@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useEffectEvent, useState, useRef } from 'react';
 import { listen } from '@tauri-apps/api/event';
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { getCurrentWindow, type CloseRequestedEvent } from '@tauri-apps/api/window';
 import { toast } from 'sonner';
-import { requestWorkspaceLeave } from '@/lib/leaveGuard';
+import { deferWorkspaceLeave, requestWorkspaceLeave } from '@/lib/leaveGuard';
 import { hasActiveOperation } from '@/components/common';
 import { motion } from 'motion/react';
 import {
@@ -49,6 +49,8 @@ import { HelpCenter, useTutorial } from '@/components/HelpCenter';
 import { Busy, Button, Modal, ErrorBoundary, reportError, Failure } from '@/components/common';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
+const closeBusyMessage = 'Espera a que termine la operación antes de cerrar.';
+
 export default function App() {
   useEffect(() => {
     // Desktop actions stay in the app. Reloading a webview would discard drafts.
@@ -73,6 +75,13 @@ export default function App() {
   const [carts, setCarts] = useState<Record<string, Cart>>({});
   const [restore, setRestore] = useState(false);
   const [quit, setQuit] = useState(false);
+  const closeWindow = () => {
+    if (hasActiveOperation()) {
+      toast.info(closeBusyMessage);
+      return;
+    }
+    void getCurrentWindow().destroy().catch(reportError);
+  };
   const generation = useRef(0);
   const onSession = useCallback((next: Bootstrap) => {
     generation.current++;
@@ -100,21 +109,23 @@ export default function App() {
     [onSession],
   );
   const hasDraft = Object.values(carts).some((c) => c.rows.length > 0);
+  const onCloseRequested = useEffectEvent((event: CloseRequestedEvent) => {
+    event.preventDefault();
+    if (hasActiveOperation()) {
+      toast.info(closeBusyMessage);
+      return;
+    }
+    const proceed = () => {
+      if (hasDraft) setQuit(true);
+      else closeWindow();
+    };
+    if (!deferWorkspaceLeave(proceed)) proceed();
+  });
   useEffect(() => {
     let active = true;
     let stop: (() => void) | undefined;
     void getCurrentWindow()
-      .onCloseRequested((event) => {
-        event.preventDefault();
-        if (hasActiveOperation()) {
-          toast.info('Espera a que termine la operación antes de cerrar.');
-          return;
-        }
-        requestWorkspaceLeave(() => {
-          if (hasDraft) setQuit(true);
-          else void getCurrentWindow().destroy().catch(reportError);
-        });
-      })
+      .onCloseRequested(onCloseRequested)
       .then((unlisten) => {
         if (active) stop = unlisten;
         else unlisten();
@@ -124,7 +135,7 @@ export default function App() {
       active = false;
       stop?.();
     };
-  }, [hasDraft]);
+  }, []);
   useEffect(() => {
     bootstrap();
     window.addEventListener('session-ended', bootstrap);
@@ -226,10 +237,7 @@ export default function App() {
             <Button variant="outline" onClick={() => setQuit(false)}>
               Volver al sistema
             </Button>
-            <Button
-              variant="destructive"
-              onClick={() => void getCurrentWindow().destroy().catch(reportError)}
-            >
+            <Button variant="destructive" onClick={closeWindow}>
               Salir y descartar borradores
             </Button>
           </div>
@@ -261,6 +269,7 @@ function Workspace({
   const actor = data.actor!;
   const home = actor.role === 0 ? 'dashboard' : 'pos';
   const [page, setPage] = useState(home);
+  const [dashboardCollapsed, setDashboardCollapsed] = useState(false);
   const [filters, setFilters] = useState<Record<string, unknown>>({});
   const [userMenu, setUserMenu] = useState(false);
   const visual = useVisual();
@@ -280,6 +289,10 @@ function Workspace({
         navigate('pos', { searchProduct: Date.now() });
       }
       if (e.key === 'F1') {
+        e.preventDefault();
+        if (page !== 'pos' && !document.querySelector('[role=dialog]')) navigate('pos');
+      }
+      if (e.key === 'F10') {
         e.preventDefault();
         if (!document.querySelector('[role=dialog]') && !hasActiveOperation()) onHelp();
       }
@@ -327,7 +340,12 @@ function Workspace({
     case 'dashboard':
       pageContent =
         actor.role === 0 ? (
-          <Dashboard data={data} onNavigate={navigate} />
+          <Dashboard
+            data={data}
+            onNavigate={navigate}
+            collapsed={dashboardCollapsed}
+            onToggle={() => setDashboardCollapsed((collapsed) => !collapsed)}
+          />
         ) : (
           <NotFound onHome={() => navigate(home)} />
         );
@@ -357,7 +375,7 @@ function Workspace({
       );
       break;
     case 'cash':
-      pageContent = <Cash />;
+      pageContent = <Cash onViewSale={(saleId) => navigate('sales', { saleId })} />;
       break;
     case 'reports':
       pageContent =
@@ -459,6 +477,7 @@ function Workspace({
                 <button
                   data-tour={`nav-${item.id}`}
                   aria-label={item.name}
+                  aria-keyshortcuts={item.id === 'pos' ? 'F1' : undefined}
                   aria-current={page === item.id ? 'page' : undefined}
                   className={page === item.id ? 'active' : ''}
                   onClick={() => navigate(item.id)}
@@ -484,7 +503,8 @@ function Workspace({
         <div className="sidebar-bottom">
           <button
             className="sidebar-help"
-            title="Ayuda y tutoriales"
+            title="Ayuda y tutoriales (F10)"
+            aria-keyshortcuts="F10"
             onClick={onHelp}
             data-tour="help"
           >
@@ -554,9 +574,6 @@ function Workspace({
             </button>
           </div>
         </header>
-        {data.demo && (
-          <div className="demo-strip">DEMOSTRACIÓN · Datos de ejemplo separados de tu negocio</div>
-        )}
         <div className="page-container">
           <ErrorBoundary>{pageContent}</ErrorBoundary>
         </div>
@@ -565,8 +582,7 @@ function Workspace({
             MXN · Español (México)<b>Donovan Systems</b>
           </span>
           <span>
-            F1 Ayuda · F2 Buscar producto · F3 Escanear · F8{' '}
-            {cart.editingQuote ? 'Guardar cotización' : 'Cobrar'}
+            {`F1 Punto de venta · F2 Buscar producto · F3 Escanear · F8 ${cart.editingQuote ? 'Guardar cotización' : 'Cobrar'} · F10 Ayuda`}
             <span>v{data.version}</span>
           </span>
         </footer>

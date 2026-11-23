@@ -42,6 +42,9 @@ describe('Cash at the register', () => {
           release = resolve;
         }) as never,
     );
+    expect((screen.getByLabelText('Efectivo recibido') as HTMLInputElement).value).toBe('0.00');
+    expect((screen.getByRole('button', { name: /Confirmar pago/ }) as HTMLButtonElement).disabled)
+      .toBe(true);
     fireEvent.change(screen.getByLabelText('Efectivo recibido'), { target: { value: '100' } });
     expect(
       (screen.getByRole('button', { name: /Confirmar pago/ }) as HTMLButtonElement).disabled,
@@ -91,6 +94,6 @@ describe('Cash at the register', () => {
     for (const key of '7500000000001') fireEvent.keyDown(input, { key });
     fireEvent.keyDown(input, { key: 'Enter' });
     expect(api).not.toHaveBeenCalled();
-    expect((input as HTMLInputElement).value).toBe('170.5');
+    expect((input as HTMLInputElement).value).toBe('0.00');
   });
 });

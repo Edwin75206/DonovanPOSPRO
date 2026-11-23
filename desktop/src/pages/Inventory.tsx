@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type AriaAttributes } from 'react';
 import { StockIndicator } from '@/components/StockIndicator';
+import { ProductAppearancePicker, ProductVisual } from '@/components/ProductVisual';
 import {
   Plus,
+  Minus,
   Search,
   SlidersHorizontal,
   History,
@@ -40,6 +42,8 @@ import {
 } from '@/components/common';
 import { DataGrid, type GridColumn } from '@/components/DataGrid';
 import { DocumentDialog } from '@/components/DocumentViewer';
+
+const maxQuantity = 100_000_000;
 
 export const newProduct = (): Product => ({
   id: 0,
@@ -87,6 +91,12 @@ export function Inventory({
   const [labelProduct, setLabelProduct] = useState<Product | null>(null);
   const [labelDocument, setLabelDocument] = useState<DocumentRequest | null>(null);
   const editable = can(actor, 'catalog');
+  const canAdjust = can(actor, 'stock');
+  const adjustTrigger = useRef<HTMLButtonElement>(null);
+  const openAdjustment = useCallback((product: Product, trigger: HTMLButtonElement) => {
+    adjustTrigger.current = trigger;
+    setAdjusting(product);
+  }, []);
   const refresh = useCallback(() => setRevision((v) => v + 1), []);
   useEffect(() => {
     setPage(0);
@@ -139,9 +149,7 @@ export function Inventory({
         value: (p) => p.name,
         render: (p) => (
           <button className="row-product" onClick={() => setEditing(p)}>
-            <span className="product-mini-icon">
-              <Package size={19} />
-            </span>
+            <ProductVisual product={p} />
             <span>
               <strong>{p.name}</strong>
               <small>
@@ -180,9 +188,7 @@ export function Inventory({
         label: 'Existencias',
         value: (p) => p.stockUnits,
         align: 'right',
-        render: (p) => (
-          <StockIndicator product={p} />
-        ),
+        render: (p) => <StockIndicator product={p} />,
       },
       {
         id: 'actions',
@@ -190,50 +196,41 @@ export function Inventory({
         value: () => '',
         sortable: false,
         render: (p) => (
-          <div className="row-actions">
-            {editable && p.active && (
-              <button
-                className="icon-button"
-                title="Imprimir etiquetas"
-                aria-label={`Etiquetas de ${p.name}`}
-                onClick={() => setLabelProduct(p)}
-              >
-                <Barcode size={16} />
-              </button>
-            )}
-            {editable && (
-              <button
-                className="icon-button"
-                title="Editar producto"
-                aria-label={`Editar ${p.name}`}
-                onClick={() => setEditing(p)}
-              >
-                <Pencil size={16} />
-              </button>
-            )}
-            {can(actor, 'stock') && (
-              <button
-                className="icon-button"
-                title="Ajustar existencias"
+          <div className="row-actions inventory-actions">
+            <Button
+              variant="outline"
+              size="sm"
+              aria-label={`${editable ? 'Editar' : 'Ver ficha de'} ${p.name}`}
+              onClick={() => setEditing(p)}
+            >
+              {editable && <Pencil size={15} />}
+              {editable ? 'Editar' : 'Ver ficha'}
+            </Button>
+            {canAdjust && (
+              <Button
+                variant="outline"
+                size="sm"
                 aria-label={`Ajustar existencias de ${p.name}`}
-                onClick={() => setAdjusting(p)}
+                onClick={(event) => openAdjustment(p, event.currentTarget)}
               >
-                <ArrowRightLeft size={16} />
-              </button>
+                <ArrowRightLeft size={15} />
+                Ajustar existencias
+              </Button>
             )}
-            <button
-              className="icon-button"
-              title="Ver movimientos"
+            <Button
+              variant="outline"
+              size="sm"
               aria-label={`Ver movimientos de ${p.name}`}
               onClick={() => setHistory(p)}
             >
-              <History size={16} />
-            </button>
+              <History size={15} />
+              Historial
+            </Button>
           </div>
         ),
       },
     ],
-    [actor, editable],
+    [canAdjust, editable, openAdjustment],
   );
   return (
     <div className="page-scroll inventory-page">
@@ -328,7 +325,8 @@ export function Inventory({
           <Busy>Consultando el catálogo…</Busy>
         )}
         <div className="table-footnote">
-          Precios de venta con impuestos incluidos. Los ajustes conservan su motivo y responsable.
+          Precios de venta con impuestos incluidos. El historial conserva cada ajuste y su
+          responsable.
         </div>
       </section>
       {editing && (
@@ -336,7 +334,11 @@ export function Inventory({
           product={editing}
           editable={editable}
           categories={data?.categories.map((c) => c.name) ?? []}
-          onClose={() => setEditing(null)}
+          onAdjust={!editable && canAdjust ? (trigger) => openAdjustment(editing, trigger) : undefined}
+          onLabels={editable && editing.active && editing.id ? () => setLabelProduct(editing) : undefined}
+          onClose={() => {
+            if (!adjusting && !labelProduct && !labelDocument) setEditing(null);
+          }}
           onSaved={() => {
             setEditing(null);
             refresh();
@@ -347,11 +349,19 @@ export function Inventory({
       {adjusting && (
         <StockAdjust
           product={adjusting}
+          returnFocusRef={adjustTrigger}
           onClose={() => setAdjusting(null)}
-          onSaved={() => {
+          onSaved={(saved) => {
             setAdjusting(null);
+            setEditing((product) => product?.id === saved.id ? saved : product);
+            setData((page) => page && {
+              ...page,
+              items: page.items.map((product) => product.id === saved.id ? saved : product),
+            });
             refresh();
-            toast.success('Existencias actualizadas.');
+            toast.success('Existencias actualizadas.', {
+              description: `${quantity(saved.stockUnits)} ${units[saved.unit]} en inventario.`,
+            });
           }}
         />
       )}
@@ -437,19 +447,29 @@ function ProductEditor({
   product,
   editable,
   categories,
+  onAdjust,
+  onLabels,
   onClose,
   onSaved,
 }: {
   product: Product;
   editable: boolean;
   categories: string[];
+  onAdjust?: (trigger: HTMLButtonElement) => void;
+  onLabels?: () => void;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [p, setP] = useState(product);
+  const [subdialog, setSubdialog] = useState<'category' | 'appearance' | null>(null);
+  const [addedCategories, setAddedCategories] = useState<string[]>([]);
+  const [stockReason, setStockReason] = useState('');
+  const activeHint = useId();
+  const categoryRef = useRef<HTMLSelectElement>(null);
+  const appearanceRef = useRef<HTMLButtonElement>(null);
   const [prices, setPrices] = useState({
-    price: (p.priceCents / 100).toFixed(2),
-    wholesale: (p.wholesaleCents / 100).toFixed(2),
+    price: p.id ? (p.priceCents / 100).toFixed(2) : '',
+    wholesale: p.wholesaleCents ? (p.wholesaleCents / 100).toFixed(2) : '',
     cost: p.costCents === null ? '' : (p.costCents / 100).toFixed(2),
     tax: (p.taxBasisPoints / 100).toString(),
     stock: (p.stockUnits / 10000).toString(),
@@ -461,24 +481,45 @@ function ProductEditor({
   const amount = (key: keyof typeof prices, value: string) =>
     setPrices((v) => ({ ...v, [key]: value }));
   const step = [1, 2, 3].includes(p.unit) ? '0.0001' : '1';
+  const options = [...new Set(['General', ...categories, ...addedCategories, p.category])].sort(
+    (a, b) => a.localeCompare(b, 'es-MX'),
+  );
+  const stockUnits = parseScaled(prices.stock, 10000);
+  const stockChanged = editable && p.id > 0 && prices.stock !== '' && stockUnits !== product.stockUnits;
   return (
     <Modal
       open
       onClose={() => {
-        if (!op.busy) onClose();
+        if (!op.busy && !subdialog) onClose();
       }}
-      className="large-dialog"
+      className="large-dialog product-dialog"
       title={
         p.id ? (editable ? 'Ficha del producto' : 'Consulta de producto') : 'Agrega un producto'
       }
       description={
-        p.id ? `${p.sku} · ${product.name}` : 'Define su unidad y precios para comenzar a venderlo.'
+        p.id ? `${p.sku} · ${product.name}` : 'Captura la categoría, el precio y las existencias.'
       }
     >
+      {(onAdjust || onLabels) && (
+        <div className="product-dialog-actions">
+          {onAdjust && (
+            <Button variant="outline" onClick={(event) => onAdjust(event.currentTarget)}>
+              <ArrowRightLeft size={16} />
+              Ajustar existencias
+            </Button>
+          )}
+          {onLabels && (
+            <Button variant="outline" onClick={onLabels} disabled={op.busy}>
+              <Barcode size={16} />
+              Imprimir etiquetas
+            </Button>
+          )}
+        </div>
+      )}
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          if (!editable) return;
+          if (!editable || subdialog) return;
           void op.run(
             () =>
               api('saveProduct', {
@@ -487,9 +528,12 @@ function ProductEditor({
                 wholesaleCents: parseScaled(prices.wholesale),
                 costCents: prices.cost.trim() === '' ? null : parseScaled(prices.cost),
                 taxBasisPoints: parseScaled(prices.tax),
-                stockUnits: parseScaled(prices.stock, 10000),
+                stockUnits,
                 minimumUnits: parseScaled(prices.minimum, 10000),
                 packUnits: parseScaled(prices.pack, 10000),
+                inventoryAdjustment: stockChanged
+                  ? { expectedStockUnits: product.stockUnits, reason: stockReason }
+                  : undefined,
               }),
             onSaved,
           );
@@ -497,7 +541,7 @@ function ProductEditor({
       >
         <fieldset disabled={!editable || op.busy}>
           <div className="form-grid">
-            <Field label="Descripción del producto">
+            <Field label="Descripción del producto" hint="Nombre que aparece en el buscador y en el ticket.">
               <input
                 autoFocus
                 required
@@ -506,7 +550,7 @@ function ProductEditor({
                 onChange={(e) => patch({ name: e.target.value })}
               />
             </Field>
-            <Field label="Clave interna">
+            <Field label="Clave interna" hint="Clave única que usa el negocio para identificar el producto.">
               <input
                 required
                 maxLength={40}
@@ -514,35 +558,38 @@ function ProductEditor({
                 onChange={(e) => patch({ sku: e.target.value })}
               />
             </Field>
-            <Field label="Código de barras" hint="Puedes usar el lector para capturarlo.">
+            <Field label="Código de barras" hint="Escanea la etiqueta o escribe el código para encontrarlo en caja.">
               <input
                 maxLength={64}
                 value={p.barcode ?? ''}
                 onChange={(e) => patch({ barcode: e.target.value || null })}
               />
             </Field>
-            <Field label="Categoría">
-              <input
-                required
-                maxLength={80}
-                list="product-categories"
+            <Field label="Categoría" hint="Agrupa productos y permite filtrarlos en el catálogo.">
+              <select
+                ref={categoryRef}
                 value={p.category}
-                onChange={(e) => patch({ category: e.target.value })}
-              />
-              <datalist id="product-categories">
-                {categories.map((c) => (
-                  <option key={c} value={c} />
+                onChange={(e) => {
+                  if (e.target.value === '') setSubdialog('category');
+                  else patch({ category: e.target.value });
+                }}
+              >
+                {options.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
                 ))}
-              </datalist>
+                <option value="">+ Agregar categoría…</option>
+              </select>
             </Field>
-            <Field label="Marca">
+            <Field label="Marca" hint="Marca que aparece en el empaque o la etiqueta.">
               <input
                 maxLength={200}
                 value={p.brand}
                 onChange={(e) => patch({ brand: e.target.value })}
               />
             </Field>
-            <Field label="Medida o presentación comercial">
+            <Field label="Medida o presentación comercial" hint="Tamaño, calibre o presentación, como saco de 50 kg.">
               <input
                 maxLength={200}
                 placeholder="Ej. Saco 50 kg, 1/2 pulgada…"
@@ -551,12 +598,28 @@ function ProductEditor({
               />
             </Field>
           </div>
+          <div className="material-field">
+            <ProductVisual product={p} />
+            <div>
+              <strong>Icono del producto</strong>
+              <small>Ayuda a reconocer el producto en inventario y al buscarlo en caja.</small>
+            </div>
+            {editable && (
+              <Button
+                ref={appearanceRef}
+                type="button"
+                variant="outline"
+                onClick={() => setSubdialog('appearance')}
+              >
+                Elegir icono y color
+              </Button>
+            )}
+          </div>
           <div className="form-section-heading">
             <h3>Precios y unidad de venta</h3>
-            <span>Todo se calcula en esta unidad base.</span>
           </div>
           <div className="form-grid">
-            <Field label="Unidad base">
+            <Field label="Unidad base" hint="Unidad en la que cuentas, vendes y asignas precios al producto.">
               <select value={p.unit} onChange={(e) => patch({ unit: Number(e.target.value) })}>
                 {['Pieza', 'Metro', 'Kilogramo', 'Litro', 'Caja', 'Rollo'].map((name, i) => (
                   <option key={name} value={i}>
@@ -565,7 +628,7 @@ function ProductEditor({
                 ))}
               </select>
             </Field>
-            <Field label="IVA incluido (%)">
+            <Field label="IVA incluido (%)" hint="Porcentaje de IVA que ya está incluido en los precios de venta.">
               <input
                 required
                 type="number"
@@ -576,79 +639,89 @@ function ProductEditor({
                 onChange={(e) => amount('tax', e.target.value)}
               />
             </Field>
-            <Field label="Precio público (IVA incluido)">
-              <input
+            <Field label="Precio público (IVA incluido)" hint="Importe por unidad en una venta normal.">
+              <PriceInput
                 required
-                type="number"
-                min="0"
-                step="0.01"
                 value={prices.price}
-                onChange={(e) => amount('price', e.target.value)}
+                onChange={(value) => amount('price', value)}
               />
             </Field>
-            <Field label="Precio de mayoreo (IVA incluido)">
-              <input
-                required
-                type="number"
-                min="0"
-                step="0.01"
+            <Field label="Precio de mayoreo (IVA incluido)" hint="Importe por unidad cuando se vende a mayoreo.">
+              <PriceInput
                 value={prices.wholesale}
-                onChange={(e) => amount('wholesale', e.target.value)}
+                onChange={(value) => amount('wholesale', value)}
               />
             </Field>
             {editable && (
-              <Field label="Costo base sin IVA" hint="Déjalo vacío si aún no conoces el costo.">
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
+              <Field label="Costo base sin IVA" hint="Lo que cuesta una unidad antes de IVA. Puedes dejarlo vacío.">
+                <PriceInput
                   placeholder="Sin capturar"
                   value={prices.cost}
-                  onChange={(e) => amount('cost', e.target.value)}
-                />
-              </Field>
-            )}
-            <Field label={`Existencia mínima (${units[p.unit]})`}>
-              <input
-                required
-                type="number"
-                min="0"
-                step={step}
-                value={prices.minimum}
-                onChange={(e) => amount('minimum', e.target.value)}
-              />
-            </Field>
-            {!p.id && (
-              <Field
-                label={`Existencia inicial (${units[p.unit]})`}
-                hint="Después del alta, utiliza Ajustar existencias o registra una compra."
-              >
-                <input
-                  required
-                  type="number"
-                  min="0"
-                  step={step}
-                  value={prices.stock}
-                  onChange={(e) => amount('stock', e.target.value)}
+                  onChange={(value) => amount('cost', value)}
                 />
               </Field>
             )}
           </div>
+          <div className="form-section-heading">
+            <h3>Inventario</h3>
+          </div>
+          <div className="form-grid">
+            <Field
+              label={`Existencia ${p.id ? 'actual' : 'inicial'} (${units[p.unit]})`}
+              hint={p.id ? 'Cantidad total registrada en inventario en este momento.' : 'Unidades que tienes al dar de alta este producto.'}
+            >
+              <input
+                required
+                type="number"
+                min="0"
+                max={maxQuantity}
+                step={step}
+                value={editable ? prices.stock : (product.stockUnits / 10000).toString()}
+                onFocus={(e) => e.currentTarget.select()}
+                onChange={(e) => amount('stock', e.target.value)}
+              />
+            </Field>
+            <Field
+              label={`Existencia mínima (${units[p.unit]})`}
+              hint="A esta cantidad o menos aparece Stock bajo. Si llega a cero, aparece Agotado."
+            >
+              <input
+                required
+                type="number"
+                min="0"
+                max={maxQuantity}
+                step={step}
+                value={prices.minimum}
+                onFocus={(e) => e.currentTarget.select()}
+                onChange={(e) => amount('minimum', e.target.value)}
+              />
+            </Field>
+          </div>
+          {stockChanged && (
+            <Field label="Motivo del ajuste (opcional)" hint="Nota que queda en el historial para explicar el cambio.">
+              <input
+                maxLength={300}
+                value={stockReason}
+                onChange={(e) => setStockReason(e.target.value)}
+              />
+            </Field>
+          )}
           <details className="form-details">
             <summary>Presentación de compra y términos de búsqueda</summary>
             <div className="form-grid">
-              <Field label="Presentación de compra">
+              <Field label="Presentación de compra" hint="Cómo lo recibes del proveedor, por ejemplo en un paquete.">
                 <input
                   maxLength={80}
                   value={p.packName}
                   onChange={(e) => patch({ packName: e.target.value })}
                 />
               </Field>
-              <Field label={`Cantidad de ${units[p.unit]} por presentación`}>
+              <Field label={`Cantidad de ${units[p.unit]} por presentación`} hint="Cuántas unidades base vienen en cada empaque.">
                 <input
                   required
                   type="number"
                   min={step}
+                  max={maxQuantity}
                   step={step}
                   value={prices.pack}
                   onChange={(e) => amount('pack', e.target.value)}
@@ -657,7 +730,7 @@ function ProductEditor({
             </div>
             <Field
               label="Otros nombres para encontrarlo"
-              hint="Ejemplo: cinta teflón, sellador rosca, cinta plomero."
+              hint="Incluye sinónimos o abreviaturas, como cinta teflón o cinta plomero."
             >
               <input
                 maxLength={1000}
@@ -669,10 +742,15 @@ function ProductEditor({
           <label className="checkbox-field">
             <input
               type="checkbox"
+              aria-labelledby={`${activeHint}-label`}
+              aria-describedby={activeHint}
               checked={p.active}
               onChange={(e) => patch({ active: e.target.checked })}
             />
-            <span>Producto activo para nuevas ventas</span>
+            <span>
+              <span id={`${activeHint}-label`}>Producto activo para nuevas ventas</span>
+              <small id={activeHint}>Al desactivarlo se archiva y se conserva su historial.</small>
+            </span>
           </label>
         </fieldset>
         <Failure error={op.error} />
@@ -688,23 +766,147 @@ function ProductEditor({
           )}
         </div>
       </form>
+      {subdialog === 'category' && (
+        <CategoryEditor
+          onClose={() => setSubdialog(null)}
+          returnFocusRef={categoryRef}
+          onAdd={(name) => {
+            const existing = options.find(
+              (option) => option.localeCompare(name, 'es-MX', { sensitivity: 'accent' }) === 0,
+            );
+            if (!existing) setAddedCategories((current) => [...current, name]);
+            patch({ category: existing ?? name });
+            setSubdialog(null);
+          }}
+        />
+      )}
+      {subdialog === 'appearance' && (
+        <ProductAppearancePicker
+          product={p}
+          returnFocusRef={appearanceRef}
+          onClose={() => setSubdialog(null)}
+          onApply={(appearance) => {
+            patch({ appearance });
+            setSubdialog(null);
+          }}
+        />
+      )}
     </Modal>
+  );
+}
+function CategoryEditor({
+  onClose,
+  onAdd,
+  returnFocusRef,
+}: {
+  onClose: () => void;
+  onAdd: (name: string) => void;
+  returnFocusRef: React.RefObject<HTMLSelectElement | null>;
+}) {
+  const [name, setName] = useState('');
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Agregar categoría"
+      description="Se incorporará al catálogo al guardar el producto."
+      returnFocusRef={returnFocusRef}
+    >
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          const category = name.trim().normalize('NFC');
+          if (category) onAdd(category);
+        }}
+      >
+        <Field label="Nombre de la categoría" hint="Nombre que aparecerá en el filtro de inventario.">
+          <input
+            autoFocus
+            required
+            maxLength={80}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+          />
+        </Field>
+        <div className="dialog-actions">
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={!name.trim()}>
+            Agregar y seleccionar
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+const groupPrice = (value: string) =>
+  value.replace(/^\d+/, (pesos) => pesos.replace(/\B(?=(\d{3})+(?!\d))/g, ','));
+function PriceInput({
+  value,
+  onChange,
+  placeholder = '0.00',
+  required,
+  ...accessibility
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  required?: boolean;
+} & AriaAttributes) {
+  return (
+    <input
+      {...accessibility}
+      inputMode="decimal"
+      required={required}
+      placeholder={placeholder}
+      pattern="[0-9,]+(\.[0-9]{0,2})?|\.[0-9]{1,2}"
+      value={groupPrice(value)}
+      onFocus={(event) => event.currentTarget.select()}
+      onBlur={() => onChange(value && value !== '.' ? Number(value).toFixed(2) : '')}
+      onChange={(event) => {
+        const input = event.currentTarget;
+        const raw = input.value.replaceAll(',', '');
+        if (!/^\d{0,10}(\.\d{0,2})?$/.test(raw)) return;
+        let digits = input.value
+          .slice(0, input.selectionStart ?? input.value.length)
+          .replaceAll(',', '').length;
+        const formatted = groupPrice(raw);
+        let caret = 0;
+        while (digits > 0 && caret < formatted.length) {
+          if (formatted[caret++] !== ',') digits--;
+        }
+        input.value = formatted;
+        input.setSelectionRange(caret, caret);
+        onChange(raw);
+      }}
+    />
   );
 }
 function StockAdjust({
   product,
+  returnFocusRef,
   onClose,
   onSaved,
 }: {
   product: Product;
+  returnFocusRef: React.RefObject<HTMLButtonElement | null>;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (product: Product) => void;
 }) {
   const [direction, setDirection] = useState(1);
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
   const op = useOperation();
-  const next = product.stockUnits + direction * parseScaled(amount, 10000);
+  const unit = units[product.unit];
+  const fraction = [1, 2, 3].includes(product.unit);
+  const step = fraction ? '0.0001' : '1';
+  const amountUnits = parseScaled(amount, 10000);
+  const validAmount = (fraction ? /^\d*(\.\d{0,4})?$/ : /^\d+$/).test(amount)
+    && amountUnits > 0 && amountUnits <= maxQuantity * 10000;
+  const delta = direction * amountUnits;
+  const next = product.stockUnits + delta;
+  const validBalance = next >= 0 && next <= maxQuantity * 10000;
   return (
     <Modal
       open
@@ -713,80 +915,92 @@ function StockAdjust({
       }}
       title="Ajustar existencias"
       description={`${product.sku} · ${product.name}`}
+      returnFocusRef={returnFocusRef}
+      className="stock-adjust-dialog"
     >
       <form
         onSubmit={(e) => {
           e.preventDefault();
+          if (!validAmount || !validBalance) return;
           void op.run(
-            () =>
-              api('adjustStock', {
-                id: product.id,
-                delta: direction * parseScaled(amount, 10000),
-                reason,
-              }),
+            () => api('adjustStock', { id: product.id, delta, reason }),
             onSaved,
           );
         }}
       >
-        <div className="choice-group" role="group" aria-label="Tipo de ajuste">
-          <button
-            type="button"
-            className={direction === 1 ? 'selected' : ''}
-            aria-pressed={direction === 1}
-            onClick={() => setDirection(1)}
+        <fieldset disabled={op.busy}>
+          <div className="choice-group stock-direction" role="group" aria-label="Tipo de ajuste">
+            <button
+              type="button"
+              className={direction === 1 ? 'selected' : ''}
+              aria-pressed={direction === 1}
+              onClick={() => setDirection(1)}
+            >
+              <Plus size={16} />
+              Agregar
+            </button>
+            <button
+              type="button"
+              className={direction === -1 ? 'selected' : ''}
+              aria-pressed={direction === -1}
+              onClick={() => setDirection(-1)}
+            >
+              <Minus size={16} />
+              Quitar
+            </button>
+          </div>
+          <Field
+            label={`Cantidad a ${direction === 1 ? 'agregar' : 'quitar'} (${unit})`}
+            hint={direction === 1 ? 'Indica cuántas unidades llegaron.' : 'Indica cuántas unidades quieres descontar.'}
           >
-            Entrada de unidades
-          </button>
-          <button
-            type="button"
-            className={direction === -1 ? 'selected' : ''}
-            aria-pressed={direction === -1}
-            onClick={() => setDirection(-1)}
-          >
-            Salida de unidades
-          </button>
-        </div>
-        <div className="form-grid">
-          <Field label={`Cantidad (${units[product.unit]})`}>
             <input
               autoFocus
               required
               type="number"
-              min={[1, 2, 3].includes(product.unit) ? '.0001' : '1'}
-              step={[1, 2, 3].includes(product.unit) ? '.0001' : '1'}
+              inputMode={fraction ? 'decimal' : 'numeric'}
+              min={step}
+              max={maxQuantity}
+              step={step}
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
             />
           </Field>
           <div className="adjust-summary">
-            <span>
-              {quantity(product.stockUnits)} {units[product.unit]} actuales
-            </span>
-            <strong className={next < 0 ? 'negative' : ''}>
-              {quantity(next)} {units[product.unit]} después
-            </strong>
+            <div>
+              <span>Existencia actual</span>
+              <strong>{quantity(product.stockUnits)} {unit}</strong>
+            </div>
+            <div aria-live="polite">
+              <span>Después del ajuste</span>
+              <strong className={!validBalance ? 'negative' : ''}>
+                {validAmount ? `${quantity(next)} ${unit}` : '—'}
+              </strong>
+            </div>
           </div>
-        </div>
-        <Field label="Motivo del ajuste">
-          <textarea
-            required
-            maxLength={300}
-            placeholder="Ej. Corrección de conteo, mercancía dañada…"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-          />
-        </Field>
-        <div className="notice">
-          Para una entrada de proveedor, registra una compra: así también se actualiza el costo
-          promedio.
-        </div>
+          {validAmount && !validBalance && (
+            <p className="stock-adjust-error negative" role="alert">
+              {next < 0 ? 'La cantidad supera las existencias disponibles.' : 'El saldo supera el límite de inventario.'}
+            </p>
+          )}
+          <details className="form-details stock-adjust-reason">
+            <summary>Añadir motivo (opcional)</summary>
+            <Field label="Motivo del ajuste" hint="La nota quedará en el historial de este producto.">
+              <input
+                maxLength={300}
+                placeholder="Corrección de conteo, mercancía dañada…"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+              />
+            </Field>
+          </details>
+        </fieldset>
         <Failure error={op.error} />
         <div className="dialog-actions">
           <Button type="button" variant="outline" onClick={onClose} disabled={op.busy}>
             Cancelar
           </Button>
-          <Button disabled={op.busy || next < 0}>
-            {op.busy ? 'Guardando…' : 'Confirmar ajuste'}
+          <Button disabled={op.busy || !validAmount || !validBalance}>
+            {op.busy ? 'Guardando…' : 'Guardar ajuste'}
           </Button>
         </div>
       </form>

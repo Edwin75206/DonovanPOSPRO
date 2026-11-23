@@ -485,10 +485,7 @@ table td {
 .setup-layout > section {
   min-width: 0;
 }
-.auth-business h1 {
-  font-size: 2.8rem;
-}
-.auth-form h2 {
+.auth-form h1 {
   font-size: 2rem;
 }
 .form-grid > label {

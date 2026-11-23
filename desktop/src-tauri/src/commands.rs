@@ -11,7 +11,6 @@ use tauri::{Emitter, Manager};
 pub struct AppState {
     pub engine: Mutex<Option<Result<Engine>>>,
     pub root: PathBuf,
-    pub demo: bool,
 }
 #[derive(Deserialize)]
 #[serde(
@@ -33,9 +32,6 @@ pub enum Request {
     Unlock {
         password: String,
     },
-    DemoLogin {
-        role: i64,
-    },
     Products {
         search: String,
         category: String,
@@ -44,13 +40,19 @@ pub enum Request {
         status: String,
         page: i64,
     },
-    SaveProduct(Product),
+    SaveProduct {
+        #[serde(flatten)]
+        product: Product,
+        #[serde(default)]
+        inventory_adjustment: Option<crate::catalog::InventoryAdjustment>,
+    },
     ProductForCode {
         code: String,
     },
     AdjustStock {
         id: i64,
         delta: i64,
+        #[serde(default)]
         reason: String,
     },
     StockHistory {
@@ -80,11 +82,26 @@ pub enum Request {
     Sale {
         id: i64,
     },
+    #[cfg(feature = "invoice-requests")]
+    InvoiceRequest {
+        id: i64,
+    },
+    #[cfg(feature = "invoice-requests")]
+    SaveInvoiceRequest {
+        id: i64,
+        data: crate::invoices::InvoiceData,
+    },
+    #[cfg(feature = "invoice-requests")]
+    RecordInvoiceUuid {
+        id: i64,
+        uuid: String,
+    },
     Document(crate::documents::DocumentRequest),
     Report(crate::reports::ReportQuery),
     ExportReport(crate::reports::ReportQuery),
     ExportDocument(crate::documents::DocumentRequest),
     Printers,
+    PeripheralStatus,
     PrinterDetails {
         printer: String,
     },
@@ -259,7 +276,6 @@ fn dispatch(engine: &mut Engine, window: &tauri::WebviewWindow, request: Request
         Request::Logout => engine.logout(),
         Request::Lock => engine.lock_screen(),
         Request::Unlock { password } => engine.unlock(&password),
-        Request::DemoLogin { role } => engine.demo_login(role),
         Request::Products {
             search,
             category,
@@ -267,7 +283,9 @@ fn dispatch(engine: &mut Engine, window: &tauri::WebviewWindow, request: Request
             status,
             page,
         } => engine.products_by_brand(&search, &category, &brand, &status, page),
-        Request::SaveProduct(input) => engine.save_product(input),
+        Request::SaveProduct { product, inventory_adjustment } => {
+            engine.save_product_with_stock(product, inventory_adjustment)
+        }
         Request::ProductForCode { code } => engine.product_for_code(&code),
         Request::AdjustStock { id, delta, reason } => engine.adjust_stock(id, delta, &reason),
         Request::StockHistory { id } => engine.stock_history(id),
@@ -292,6 +310,12 @@ fn dispatch(engine: &mut Engine, window: &tauri::WebviewWindow, request: Request
         Request::CheckoutResult { request_id } => engine.checkout_result(&request_id),
         Request::Checkout(request) => engine.checkout(&request),
         Request::Sale { id } => engine.sale(id),
+        #[cfg(feature = "invoice-requests")]
+        Request::InvoiceRequest { id } => engine.invoice_request(id),
+        #[cfg(feature = "invoice-requests")]
+        Request::SaveInvoiceRequest { id, data } => engine.save_invoice_request(id, data),
+        #[cfg(feature = "invoice-requests")]
+        Request::RecordInvoiceUuid { id, uuid } => engine.record_invoice_uuid(id, &uuid),
         Request::Document(input) => Ok(serde_json::to_value(engine.business_document(&input)?)?),
         Request::Report(input) => Ok(serde_json::to_value(engine.report(&input)?)?),
         Request::ExportReport(input) => {
@@ -316,6 +340,9 @@ fn dispatch(engine: &mut Engine, window: &tauri::WebviewWindow, request: Request
                 None => Ok(Value::Null),
             }
         }
+        Request::PeripheralStatus => Err(AppError::rule(
+            "UNEXPECTED", "No pudimos consultar los periféricos.",
+        )),
         Request::Printers | Request::PrinterDetails { .. } | Request::PrintDocument { .. } => Err(
             AppError::rule("UNEXPECTED", "No pudimos iniciar la impresión."),
         ),
@@ -542,7 +569,7 @@ impl Request {
             Self::ReturnSale(_) => "Devolver o cancelar venta",
             Self::ReceivePurchase(_) => "Recibir compra",
             Self::CreditPayment(_) => "Registrar abono",
-            Self::SaveProduct(_) => "Guardar producto",
+            Self::SaveProduct { .. } => "Guardar producto",
             Self::AdjustStock { .. } => "Ajustar inventario",
             Self::SaveQuote(_) => "Guardar cotización",
             Self::SaveHeld(_) => "Suspender venta",
@@ -580,17 +607,13 @@ pub async fn execute(
         let mut guard = state.engine.lock().map_err(|_| AppError::rule("UNEXPECTED", "Ocurrió un problema. Cierra y vuelve a abrir Donovan POS Pro."))?;
         if guard.is_none() || (matches!(request, Request::RetryStorage) && guard.as_ref().is_some_and(Result::is_err)) {
             let runtime=window.app_handle().path().resource_dir().map_err(|e|AppError::internal("MYSQL_RUNTIME_MISSING","No encontramos los recursos del instalador.",e))?.join("runtime/mysql");
-            let opened=if state.demo{Engine::open(&state.root)}else{Engine::open_desktop(&state.root,runtime)};
-            *guard = Some(opened.and_then(|mut engine| {
-                if state.demo { engine.seed_demo()?; }
-                Ok(engine)
-            }));
+            *guard = Some(Engine::open_desktop(&state.root, runtime));
         }
         let engine = match guard.as_mut().expect("engine initialized") {
             Ok(engine) => engine,
             Err(error) => {
                 if matches!(request, Request::Bootstrap | Request::RetryStorage) {
-                    return Ok(json!({"storageError":error,"version":env!("CARGO_PKG_VERSION"),"uiContext":null}));
+                    return Ok(json!({"storageError":error,"version":crate::engine::COMMERCIAL_VERSION,"uiContext":null}));
                 }
                 return Err(error.clone());
             }
@@ -616,6 +639,11 @@ pub async fn execute(
             engine.actor("sell")?;
             drop(guard);
             return Ok(serde_json::to_value(crate::documents::printing::printers()?)?);
+        }
+        if matches!(request, Request::PeripheralStatus) {
+            engine.actor("settings")?;
+            drop(guard);
+            return Ok(serde_json::to_value(crate::peripherals::status()?)?);
         }
         if let Request::PrinterDetails { printer } = &request {
             engine.actor("sell")?; let printer=printer.clone(); drop(guard);

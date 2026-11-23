@@ -16,6 +16,8 @@ import {
   CalendarDays,
   Activity,
   ShoppingBag,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { api, type Bootstrap, type DashboardData, type UiFailure, normalizeError } from '@/lib/api';
 import { useVisual } from '@/lib/appearance';
@@ -36,7 +38,17 @@ const dateAgo = (days: number) => {
 const axisMoney = (value: number) =>
   '$' +
   new Intl.NumberFormat('es-MX', { notation: 'compact', maximumFractionDigits: 1 }).format(value);
-export function Dashboard({ data, onNavigate }: { data: Bootstrap; onNavigate: Navigate }) {
+export function Dashboard({
+  data,
+  onNavigate,
+  collapsed,
+  onToggle,
+}: {
+  data: Bootstrap;
+  onNavigate: Navigate;
+  collapsed: boolean;
+  onToggle: () => void;
+}) {
   const [range, setRange] = useState({ from: dateAgo(6), to: today() });
   const [draft, setDraft] = useState(range);
   const [custom, setCustom] = useState(false);
@@ -145,6 +157,10 @@ export function Dashboard({ data, onNavigate }: { data: Bootstrap; onNavigate: N
         description="La información que importa, a tiempo para decidir."
         actions={
           <>
+            <Button variant="outline" aria-expanded={!collapsed} onClick={onToggle}>
+              {collapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+              {collapsed ? 'Expandir Dashboard' : 'Contraer Dashboard'}
+            </Button>
             <Button
               variant="outline"
               onClick={() => setRefresh((v) => v + 1)}
@@ -191,80 +207,82 @@ export function Dashboard({ data, onNavigate }: { data: Bootstrap; onNavigate: N
       <Failure error={error} retry={() => setRefresh((v) => v + 1)} />
       {!report && !error && <Busy>Consultando las operaciones del negocio…</Busy>}
       {report && (
-        <>
-          <section className="dashboard-metrics" data-tour="metrics">
-            <motion.article
-              className="executive-metric featured"
-              initial={visual.motion ? { opacity: 0, y: 5 } : false}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: visual.duration }}
+        <section className="dashboard-metrics" data-tour="metrics">
+          <motion.article
+            className="executive-metric featured"
+            initial={visual.motion ? { opacity: 0, y: 5 } : false}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: visual.duration }}
+          >
+            <div>
+              <span>Ventas netas del periodo</span>
+              <ChartNoAxesCombined size={19} />
+            </div>
+            <strong>{money(report.totalCents)}</strong>
+            <p>
+              <span className={`metric-change ${change !== null && change < 0 ? 'down' : ''}`}>
+                {change === null
+                  ? 'Sin periodo comparable'
+                  : `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`}
+              </span>
+              {change !== null && <span>vs. periodo anterior</span>}
+            </p>
+            <small>
+              {report.operations} operaciones · {money(report.returnsCents)} en devoluciones
+            </small>
+          </motion.article>
+          <article className="executive-metric">
+            <div>
+              <span>Efectivo en caja</span>
+              <Wallet size={18} />
+            </div>
+            <strong>{money(report.cashCents)}</strong>
+            <p>
+              <i className={report.cashSession ? 'status-dot green' : 'status-dot'} />
+              {report.cashSession ? 'Caja abierta · saldo actual' : 'Caja cerrada'}
+            </p>
+            <button className="text-button secondary" onClick={() => onNavigate('cash')}>
+              Revisar caja <ArrowRight size={13} />
+            </button>
+          </article>
+          <article className="executive-metric">
+            <div>
+              <span>Pendiente por cobrar</span>
+              <Users size={18} />
+            </div>
+            <strong>{money(report.receivableCents)}</strong>
+            <p>Saldo actual de clientes</p>
+            <button
+              className="text-button secondary"
+              onClick={() => onNavigate('customers', { tab: 'credit' })}
             >
-              <div>
-                <span>Ventas netas del periodo</span>
-                <ChartNoAxesCombined size={19} />
-              </div>
-              <strong>{money(report.totalCents)}</strong>
-              <p>
-                <span className={`metric-change ${change !== null && change < 0 ? 'down' : ''}`}>
-                  {change === null
-                    ? 'Sin periodo comparable'
-                    : `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`}
-                </span>
-                {change !== null && <span>vs. periodo anterior</span>}
-              </p>
-              <small>
-                {report.operations} operaciones · {money(report.returnsCents)} en devoluciones
-              </small>
-            </motion.article>
-            <article className="executive-metric">
-              <div>
-                <span>Efectivo en caja</span>
-                <Wallet size={18} />
-              </div>
-              <strong>{money(report.cashCents)}</strong>
-              <p>
-                <i className={report.cashSession ? 'status-dot green' : 'status-dot'} />
-                {report.cashSession ? 'Caja abierta · saldo actual' : 'Caja cerrada'}
-              </p>
-              <button className="text-button secondary" onClick={() => onNavigate('cash')}>
-                Revisar caja <ArrowRight size={13} />
-              </button>
-            </article>
-            <article className="executive-metric">
-              <div>
-                <span>Pendiente por cobrar</span>
-                <Users size={18} />
-              </div>
-              <strong>{money(report.receivableCents)}</strong>
-              <p>Saldo actual de clientes</p>
-              <button
-                className="text-button secondary"
-                onClick={() => onNavigate('customers', { tab: 'credit' })}
-              >
-                Ver cuentas <ArrowRight size={13} />
-              </button>
-            </article>
-            <article className="executive-metric">
-              <div>
-                <span>Ganancia estimada</span>
-                <ArrowUpRight size={18} />
-              </div>
-              <strong className={report.profitCents === null ? 'metric-unavailable' : ''}>
-                {report.profitCents === null ? 'Costo pendiente' : money(report.profitCents)}
-              </strong>
-              <p>
-                {report.profitCents === null
-                  ? 'Hay productos sin costo registrado'
-                  : 'Sin IVA · antes de gastos'}
-              </p>
-              <button
-                className="text-button secondary"
-                onClick={() => onNavigate('reports', { ...range, kind: 'profit' })}
-              >
-                Revisar detalle <ArrowRight size={13} />
-              </button>
-            </article>
-          </section>
+              Ver cuentas <ArrowRight size={13} />
+            </button>
+          </article>
+          <article className="executive-metric">
+            <div>
+              <span>Ganancia estimada</span>
+              <ArrowUpRight size={18} />
+            </div>
+            <strong className={report.profitCents === null ? 'metric-unavailable' : ''}>
+              {report.profitCents === null ? 'Costo pendiente' : money(report.profitCents)}
+            </strong>
+            <p>
+              {report.profitCents === null
+                ? 'Hay productos sin costo registrado'
+                : 'Sin IVA · antes de gastos'}
+            </p>
+            <button
+              className="text-button secondary"
+              onClick={() => onNavigate('reports', { ...range, kind: 'profit' })}
+            >
+              Revisar detalle <ArrowRight size={13} />
+            </button>
+          </article>
+        </section>
+      )}
+      {report && !collapsed && (
+        <>
           <section className="dashboard-charts" data-tour="charts">
             <article className="panel trend-panel">
               <div className="panel-heading">

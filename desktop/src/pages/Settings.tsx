@@ -33,7 +33,7 @@ import { useLeaveGuard } from '@/lib/leaveGuard';
 
 const sections = [
   { id: 'business', label: 'Datos del negocio', icon: Building2 },
-  { id: 'printers', label: 'Impresoras y tickets', icon: Printer },
+  { id: 'printers', label: 'Periféricos', icon: Printer },
   { id: 'data', label: 'Administración de datos', icon: Database },
   { id: 'users', label: 'Usuarios y permisos', icon: Users },
   { id: 'about', label: 'Acerca de', icon: Info },
@@ -305,7 +305,7 @@ function BusinessSettings({
             </div>
             <p className="muted">Los tickets son comprobantes de venta; no sustituyen un CFDI.</p>
             <p className="muted">
-              Configura el papel, márgenes, copias y vista previa en Impresoras y tickets.
+              Configura el papel, márgenes, copias y vista previa en Periféricos.
             </p>
           </fieldset>
         </section>
@@ -339,7 +339,7 @@ function BusinessSettings({
 const roles = ['Administrador', 'Vendedor', 'Encargado'];
 const roleDescriptions = [
   'Control del negocio, reportes, usuarios, respaldos, devoluciones y configuración.',
-  'Ventas, caja, productos de consulta, cotizaciones y sus propios tickets. Sin acceso a costos, crédito ni administración.',
+  'Ventas, caja, consulta de productos, ajustes de existencias, cotizaciones y sus propios tickets.',
   'Operación de mostrador, compras, inventario, costos, descuentos y crédito. Sin administrar usuarios, respaldos o devoluciones.',
 ];
 type User = Actor & { active: boolean };

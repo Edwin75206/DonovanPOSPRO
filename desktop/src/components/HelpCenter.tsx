@@ -39,7 +39,7 @@ function stepsFor(role: number): DriveStep[] {
           [
             'help',
             'Siempre hay una guía a la mano',
-            'Regresa aquí cuando lo necesites. También puedes abrir la ayuda con F1.',
+            'Regresa aquí cuando lo necesites. También puedes abrir la ayuda con F10.',
           ],
         ]
       : [
@@ -71,7 +71,7 @@ function stepsFor(role: number): DriveStep[] {
           [
             'help',
             'Ya tienes lo esencial',
-            'Abre F1 para consultar los atajos o repetir este recorrido cuando quieras.',
+            'Presiona F10 para consultar los atajos o repetir este recorrido cuando quieras.',
           ],
         ];
   return steps.map(([element, title, description]) => ({
@@ -215,10 +215,11 @@ export function HelpCenter({
       <h3>Atajos para avanzar más rápido</h3>
       <div className="shortcut-grid">
         {[
+          ['F1', 'Abrir Punto de venta'],
           ['F2', 'Buscar y agregar un producto'],
           ['F3', 'Volver a la captura de códigos'],
           ['F8', 'Abrir el cobro de la venta'],
-          ['F1', 'Abrir esta ayuda'],
+          ['F10', 'Abrir esta ayuda'],
         ].map(([key, text]) => (
           <div key={key}>
             <kbd>{key}</kbd>

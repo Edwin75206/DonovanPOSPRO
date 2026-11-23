@@ -759,6 +759,19 @@
 .records-toolbar .field input {
   font-size: 0.76rem;
 }
+.sales-filters {
+  --sales-control-height: max(44px, 2.75rem);
+  align-items: flex-end;
+}
+.sales-filters > .records-search,
+.sales-filters > select,
+.sales-filters > .field input[type='date'] {
+  height: var(--sales-control-height);
+  min-height: 0;
+}
+.sales-filters > .records-search input {
+  padding-block: 0;
+}
 .sale-payments {
   min-width: 14rem;
 }

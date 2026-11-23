@@ -152,7 +152,7 @@ pub fn cash_state(db: &Connection) -> Result<Value> {
         .next();
     let id = open.as_ref().and_then(|v| v["id"].as_i64()).unwrap_or(0);
     Ok(
-        json!({"open":open,"expectedCents":if id>0{cash_balance(db,id)?}else{0},"movementCount":db::scalar(db,"SELECT COUNT(*) FROM CashMovement WHERE CashSessionId=?1",[id])?,"movements":db::all(db,"SELECT * FROM CashMovement WHERE CashSessionId=?1 ORDER BY Id DESC LIMIT 1000",[id])?,"history":db::all(db,"SELECT * FROM CashSession WHERE ClosedAt IS NOT NULL ORDER BY Id DESC LIMIT 200",[])?}),
+        json!({"open":open,"expectedCents":if id>0{cash_balance(db,id)?}else{0},"movementCount":db::scalar(db,"SELECT COUNT(*) FROM CashMovement WHERE CashSessionId=?1",[id])?,"movements":db::all(db,"SELECT m.*,s.Id AS SaleId FROM CashMovement m LEFT JOIN Sale s ON m.Kind='Venta' AND s.Folio=m.Reference WHERE m.CashSessionId=?1 ORDER BY m.Id DESC LIMIT 1000",[id])?,"history":db::all(db,"SELECT * FROM CashSession WHERE ClosedAt IS NOT NULL ORDER BY Id DESC LIMIT 200",[])?}),
     )
 }
 pub fn sale_detail(db: &Connection, actor: &Actor, id: i64) -> Result<Value> {

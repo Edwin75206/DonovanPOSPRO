@@ -16,6 +16,8 @@ pub mod mysql_dialect;
 pub mod mysql_runtime;
 pub mod mysql_store;
 pub mod operations;
+#[cfg(feature = "desktop")]
+mod peripherals;
 pub mod purchasing;
 pub mod quotes;
 pub mod recovery;
@@ -30,4 +32,6 @@ pub mod documents;
 pub mod exporting;
 pub mod history;
 pub mod importing;
+#[cfg(feature = "invoice-requests")]
+pub mod invoices;
 pub mod tickets;

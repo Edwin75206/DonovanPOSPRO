@@ -47,7 +47,7 @@ export function Sales({ data, filters }: { data: Bootstrap; filters: Record<stri
             : 'Consulta tus ventas y vuelve a imprimir cualquier ticket.'
         }
       />
-      <div className="records-toolbar">
+      <div className="records-toolbar sales-filters">
         <div className="records-search">
           <Search size={18} />
           <input

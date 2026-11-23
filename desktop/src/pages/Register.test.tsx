@@ -164,10 +164,21 @@ async function ready() {
   return screen.getByRole('textbox', { name: 'Capturar código de producto' });
 }
 async function scan(target: HTMLElement, code: string, suffix = 'Enter') {
-  await act(async () => {
-    for (const key of code) fireEvent.keyDown(target, { key });
-    fireEvent.keyDown(target, { key: suffix });
-  });
+  await keyboardBurst(() =>
+    act(async () => {
+      for (const key of code) fireEvent.keyDown(target, { key });
+      fireEvent.keyDown(target, { key: suffix });
+    }),
+  );
+}
+async function keyboardBurst(sendKeys: () => Promise<void>) {
+  const at = performance.now();
+  const clock = vi.spyOn(performance, 'now').mockReturnValue(at);
+  try {
+    await sendKeys();
+  } finally {
+    clock.mockRestore();
+  }
 }
 async function picker() {
   fireEvent.keyDown(window, { key: 'F2' });
@@ -300,7 +311,7 @@ test('scanner bursts into quantity and payment fields preserve values and never 
   const user = userEvent.setup({ delay: 1 });
   await user.click(qty);
   const before = vi.mocked(api).mock.calls.filter((c) => c[0] === 'productForCode').length;
-  await user.type(qty, '7500000000001{Enter}', { skipClick: true });
+  await keyboardBurst(() => user.type(qty, '7500000000001{Enter}', { skipClick: true }));
   expect(current.rows[0].quantityUnits).toBe(25000);
   expect(qty.value).toBe('2.5');
   expect(vi.mocked(api).mock.calls.filter((c) => c[0] === 'productForCode')).toHaveLength(before);
@@ -311,14 +322,14 @@ test('scanner bursts into quantity and payment fields preserve values and never 
   const received = (await screen.findByLabelText('Efectivo recibido')) as HTMLInputElement;
   fireEvent.change(received, { target: { value: '100' } });
   await user.click(received);
-  await user.type(received, '7500000000001{Enter}', { skipClick: true });
+  await keyboardBurst(() => user.type(received, '7500000000001{Enter}', { skipClick: true }));
   expect(received.value).toBe('100');
   expect(current.rows).toHaveLength(1);
   expect(vi.mocked(api).mock.calls.some((c) => c[0] === 'checkout')).toBe(false);
   expect(vi.mocked(api).mock.calls.filter((c) => c[0] === 'productForCode')).toHaveLength(before);
 });
 
-test('a multi-line cash sale is charged once despite a print failure and capture is ready immediately for the next sale', async () => {
+test('a multi-line cash sale is charged once and shows the ticket if printing fails', async () => {
   data.settings = {
     autoPrint: true,
     printerName: 'Impresora de prueba desconectada',
@@ -332,7 +343,7 @@ test('a multi-line cash sale is charged once despite a print failure and capture
       target: { value: '2.5' },
     });
     await waitFor(() => expect(cobrar().disabled).toBe(false));
-    fireEvent.keyDown(window, { key: 'F8' });
+    fireEvent.click(cobrar());
     const received = await screen.findByLabelText('Efectivo recibido');
     fireEvent.change(received, { target: { value: '500' } });
     expect(screen.getByText('$218.75')).toBeTruthy();
@@ -340,12 +351,13 @@ test('a multi-line cash sale is charged once despite a print failure and capture
     fireEvent.click(confirm);
     fireEvent.click(confirm);
     await screen.findByText('Venta registrada · V000044');
+    const continueSale = await screen.findByRole('button', { name: 'Continuar' });
+    fireEvent.click(continueSale);
     await waitFor(() => expect(document.activeElement).toBe(capture));
     expect(current.rows).toHaveLength(0);
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(vi.mocked(api).mock.calls.filter((c) => c[0] === 'checkout')).toHaveLength(1);
     expect(vi.mocked(api).mock.calls.filter((c) => c[0] === 'printDocument')).toHaveLength(1);
-    expect(screen.getByRole('button', { name: 'Ver e imprimir ticket' })).toBeTruthy();
     await scan(capture, '7500000000002');
     await waitFor(() => expect(current.rows).toHaveLength(1));
     expect(screen.queryByText('Venta registrada · V000044')).toBeNull();

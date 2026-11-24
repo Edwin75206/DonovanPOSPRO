@@ -23,6 +23,7 @@ export interface Product {
   costCents: number | null;
   priceCents: number;
   wholesaleCents: number;
+  wholesaleMinimumUnits?: number | null;
   stockUnits: number;
   minimumUnits: number;
   taxBasisPoints: number;
@@ -219,8 +220,9 @@ export interface Item {
   productId: number;
   quantityUnits: number;
   wholesale: boolean;
+  retail?: boolean;
 }
-export interface ChargeLine extends Omit<Item, 'wholesale'> {
+export interface ChargeLine extends Omit<Item, 'wholesale' | 'retail'> {
   sku: string;
   name: string;
   category: string;
@@ -255,6 +257,7 @@ export interface Sale {
 }
 export interface SaleDetail {
   creditBalanceCents: number;
+  canDelete?: boolean;
   sale: Sale;
   lines: (ChargeLine & { id: number; returnedUnits: number; refundedCents: number })[];
   payments: Payment[];
@@ -597,6 +600,10 @@ export interface Calls {
   contact: [{ supplier: boolean; id: number }, Contact];
   contacts: [{ supplier: boolean; search: string; archived: boolean }, Contact[]];
   saveContact: [{ supplier: boolean; contact: Contact }, Contact];
+  deleteContact: [{ supplier: boolean; id: number }, { deleted: boolean }];
+  deleteProduct: [{ id: number }, { deleted: boolean }];
+  deleteQuote: [{ id: number }, { deleted: boolean }];
+  deleteSale: [{ id: number; reason: string }, { deleted: boolean; folio: string }];
   customerLedger: [{ id: number }, CustomerLedger];
   creditPayment: [
     {
@@ -628,7 +635,7 @@ export interface Calls {
     { id: number },
     {
       sale: HeldSale;
-      rows: { product: Product; quantityUnits: number; wholesale: boolean }[];
+      rows: { product: Product; quantityUnits: number; wholesale: boolean; retail?: boolean }[];
       notices: string[];
     },
   ];

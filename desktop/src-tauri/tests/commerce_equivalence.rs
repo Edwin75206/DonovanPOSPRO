@@ -14,6 +14,7 @@ fn item(id: i64, quantity: i64) -> SaleItem {
         product_id: id,
         quantity_units: quantity,
         wholesale: false,
+        retail: false,
     }
 }
 fn payment(method: i64, cents: i64) -> Payment {

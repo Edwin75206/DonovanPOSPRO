@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { Search, ArrowRight, Plus, FileText, Printer, PencilLine } from 'lucide-react';
-import { api, type Quote, type QuoteDetail, type Product, type Bootstrap } from '@/lib/api';
+import { Search, ArrowRight, Plus, FileText, Printer, PencilLine, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { api, can, type Quote, type QuoteDetail, type Product, type Bootstrap } from '@/lib/api';
 import { DocumentDialog } from '@/components/DocumentViewer';
 import { useResource } from '@/lib/useResource';
 import { dateTime, money, quantity, units, today } from '@/lib/utils';
 import { Button, Busy, Failure, Modal, PageTitle, useOperation } from '@/components/common';
 import { DataGrid } from '@/components/DataGrid';
 import { freshCart, type Cart } from './Register';
+import { DeleteRecordDialog } from '@/components/DeleteRecordDialog';
 
 export function Quotes({
   data,
@@ -129,6 +131,11 @@ export function Quotes({
           hasCart={hasCart}
           onSale={onSale}
           onClose={() => setSelected(null)}
+          onDeleted={() => {
+            setSelected(null);
+            list.reload();
+            toast.success('Cotización eliminada.');
+          }}
           onLoad={onLoad}
         />
       )}
@@ -140,6 +147,7 @@ function QuoteViewer({
   id,
   hasCart,
   onClose,
+  onDeleted,
   onSale,
   onLoad,
 }: {
@@ -147,6 +155,7 @@ function QuoteViewer({
   id: number;
   hasCart: boolean;
   onClose: () => void;
+  onDeleted: () => void;
   onSale: () => void;
   onLoad: (cart: Cart) => void;
 }) {
@@ -155,11 +164,13 @@ function QuoteViewer({
   const quote = detail.data?.quote;
   const [paper, setPaper] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const actor = data.actor;
   return (
     <Modal
       open
       onClose={() => {
-        if (!op.busy) onClose();
+        if (!op.busy && !deleting) onClose();
       }}
       title={quote ? `Cotización ${quote.folio}` : 'Cotización'}
       description={
@@ -271,7 +282,7 @@ function QuoteViewer({
             <Modal
               open
               title={`Editar ${quote?.folio}`}
-              description="Se usarán los precios actuales de menudeo y el descuento comenzará en cero. La propuesta anterior se conserva hasta que guardes los cambios."
+              description="Se usarán las tarifas vigentes según la cantidad. El descuento comienza en cero y la propuesta anterior se conserva hasta que guardes los cambios."
               onClose={() => {
                 if (!op.busy) setEditing(false);
               }}
@@ -320,6 +331,18 @@ function QuoteViewer({
                 </Button>
               </div>
             </Modal>
+          )}
+          {quote && !quote.saleId && actor && (can(actor, 'catalog') || quote.userId === actor.id) && (
+            <div className="dialog-actions">
+              <Button variant="outline" disabled={op.busy} onClick={() => setDeleting(true)}>
+                <Trash2 size={16} /> Eliminar cotización
+              </Button>
+              {deleting && (
+                <DeleteRecordDialog label="Eliminar cotización" name={quote.folio}
+                  onDelete={() => api('deleteQuote', { id })} onClose={() => setDeleting(false)}
+                  onDeleted={onDeleted} />
+              )}
+            </div>
           )}
         </>
       )}

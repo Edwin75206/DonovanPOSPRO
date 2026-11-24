@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Plus, Search, Pencil, Wallet, Users, Truck } from 'lucide-react';
+import { Plus, Search, Pencil, Wallet, Users, Truck, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, can, type Actor, type Contact, type CustomerLedger } from '@/lib/api';
 import { useResource } from '@/lib/useResource';
 import { dateTime, money, parseScaled, today } from '@/lib/utils';
 import { DataGrid } from '@/components/DataGrid';
 import { Button, Busy, Failure, Field, Modal, PageTitle, useOperation } from '@/components/common';
+import { DeleteRecordDialog } from '@/components/DeleteRecordDialog';
 
 export const newContact = (): Contact => ({
   id: 0,
@@ -146,6 +147,11 @@ export function Contacts({ actor, supplier = false }: { actor: Actor; supplier?:
             setEditing(null);
             list.reload();
           }}
+          onDeleted={editing.id && editable ? () => {
+            setEditing(null);
+            list.reload();
+            toast.success(supplier ? 'Proveedor eliminado.' : 'Cliente eliminado.');
+          } : undefined}
         />
       )}
       {ledgerId && (
@@ -166,19 +172,23 @@ export function ContactEditor({
   supplier = false,
   onClose,
   onSaved,
+  onDeleted,
 }: {
   contact: Contact;
   supplier?: boolean;
   onClose: () => void;
   onSaved: (contact: Contact) => void;
+  onDeleted?: () => void;
 }) {
   const [draft, setDraft] = useState({ ...newContact(), ...contact });
   const op = useOperation();
+  const [deleting, setDeleting] = useState(false);
+  const deleteLabel = supplier ? 'Eliminar proveedor' : 'Eliminar cliente';
   return (
     <Modal
       open
       onClose={() => {
-        if (!op.busy) onClose();
+        if (!op.busy && !deleting) onClose();
       }}
       title={`${contact.id ? 'Editar' : 'Nuevo'} ${supplier ? 'proveedor' : 'cliente'}`}
       description="Completa lo necesario. Podrás actualizarlo después."
@@ -261,6 +271,11 @@ export function ContactEditor({
         </fieldset>
         <Failure error={op.error} />
         <div className="dialog-actions">
+          {onDeleted && (
+            <Button type="button" variant="outline" disabled={op.busy} onClick={() => setDeleting(true)}>
+              <Trash2 size={16} /> {deleteLabel}
+            </Button>
+          )}
           <Button type="button" variant="outline" disabled={op.busy} onClick={onClose}>
             Cancelar
           </Button>
@@ -269,6 +284,11 @@ export function ContactEditor({
           </Button>
         </div>
       </form>
+      {deleting && onDeleted && (
+        <DeleteRecordDialog label={deleteLabel} name={contact.name}
+          onDelete={() => api('deleteContact', { supplier, id: contact.id })}
+          onClose={() => setDeleting(false)} onDeleted={onDeleted} />
+      )}
     </Modal>
   );
 }

@@ -132,6 +132,7 @@ export function SaveDraft({
     productId: r.product.id,
     quantityUnits: r.quantityUnits,
     wholesale: r.wholesale,
+    retail: r.retail,
   }));
   return (
     <Modal
@@ -278,11 +279,11 @@ export function HeldSales({
         ? await api('contact', { supplier: false, id: result.sale.customerId })
         : null;
       const permitted = can(actor, 'discount');
-      const rows = result.rows.map((r) => ({ ...r, wholesale: permitted && r.wholesale }));
+      const rows = result.rows.map((r) => ({ ...r, wholesale: permitted && r.wholesale, retail: permitted && r.retail }));
       const discountParts = permitted ? result.sale.discountParts : 0;
       const notices = [...result.notices];
-      if (!permitted && (result.sale.discountParts > 0 || result.rows.some((r) => r.wholesale)))
-        notices.push('Tu perfil actual recuperará esta venta a precio de menudeo, sin descuentos.');
+      if (!permitted && result.sale.discountParts > 0)
+        notices.push('Tu perfil recuperará esta venta con la tarifa automática y sin descuentos.');
       if (customer && !customer.active)
         notices.push(
           'El cliente está archivado. Recuperaremos el ticket como Público en general para que puedas elegir un cliente activo.',
@@ -292,6 +293,7 @@ export function HeldSales({
           productId: r.product.id,
           quantityUnits: r.quantityUnits,
           wholesale: r.wholesale,
+          retail: r.retail,
         })),
         discountParts,
       }).catch((error) => {

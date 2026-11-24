@@ -18,6 +18,8 @@ Usa **Contraer Dashboard** para ver solo los indicadores principales. **Expandir
 
 El personal de caja inicia en el punto de venta. Su perfil operativo permite atender el mostrador y consultar sus operaciones; las opciones administrativas y los costos requieren los permisos correspondientes. Cambiar la apariencia de una cuenta no modifica la de los demás usuarios.
 
+El Encargado puede operar caja y mostrador, editar el catálogo y los costos, recibir compras y gestionar proveedores, clientes y saldos. También puede aplicar descuentos y cambiar la tarifa de cada partida. El Administrador gestiona usuarios, respaldos y devoluciones.
+
 La sesión persiste al cerrar y abrir el programa, hasta un máximo fijo de 24 horas desde el inicio de sesión. Bloquea la pantalla cuando te alejes del mostrador. Recuperar una base en otro equipo requiere iniciar sesión nuevamente.
 
 ## Hacer una venta
@@ -37,6 +39,8 @@ La captura global se pausa al editar otro campo o abrir otros diálogos. Cantida
 
 **Efectivo y pagos mixtos:** Exacto y las denominaciones rápidas rellenan el dinero entregado. En Mixto, los importes aplicados deben sumar el total; «Efectivo recibido» puede exceder solamente la parte en efectivo y de ahí se calcula el cambio. Tarjeta y transferencia son registros manuales, no conexiones a una terminal bancaria.
 
+**Mayoreo:** en Inventario → Editar guarda el precio de mayoreo y captura **Mayoreo desde** en la unidad base. Al alcanzar esa cantidad, el renglón aplica automáticamente la tarifa. Administrador y Encargado pueden usar **Menudeo** o **Mayoreo** debajo del precio para cambiar la tarifa. Pulsa el control otra vez para volver al cálculo automático. Deja el mínimo vacío si la tarifa se aplicará manualmente.
+
 F1 abre **Punto de venta** y F10 abre **Ayuda y tutoriales**. F2 abre el buscador de productos desde cualquier módulo. F3 enfoca la captura de códigos. F8 abre el cobro o el guardado de una cotización en edición. F5 y Ctrl+R se desactivan para proteger el ticket en curso.
 
 **Poner en espera** guarda la venta en SQLite sin cobrar ni apartar existencias. Recupérala desde **En espera** incluso después de reiniciar; la aplicación revisa precios y disponibilidad. Abrir el buscador, filtrar o cerrarlo conserva el ticket actual. Un carrito que no se haya guardado no es un respaldo frente a un corte de energía: guarda el trabajo pendiente antes de cerrar o cambiar de base.
@@ -44,6 +48,8 @@ F1 abre **Punto de venta** y F10 abre **Ayuda y tutoriales**. F2 abre el buscado
 ## Cotizaciones
 
 Prepara las partidas desde el punto de venta y pulsa **Cotizar**. Revisa cliente, vigencia y observaciones antes de guardar. La cotización conserva su precio acordado y no modifica el inventario. Su vista previa se abre sobre el mostrador y permite guardar el PDF o imprimir.
+
+En **Ver cotización**, **Eliminar cotización** borra una propuesta que aún no se convierte en venta. Un Vendedor puede eliminar sus cotizaciones. Administrador y Encargado pueden eliminar propuestas de otros usuarios que sigan sin convertir.
 
 ## Periféricos
 
@@ -55,7 +61,7 @@ Puedes activar el logo, usar su versión monocromática y editar el agradecimien
 
 Sin impresora configurada puedes vender, consultar el ticket y guardarlo como PDF. La impresión automática requiere seleccionar una impresora física; PDF, XPS y dispositivos virtuales se usan manualmente. Si Windows informa un fallo, revisa su cola antes de reenviar: el folio registrado se conserva. Cambiar de impresora no requiere reinstalar el programa.
 
-Desde **Cotizaciones**, abre el detalle para generar el PDF o continuar al cobro con los importes acordados. Una propuesta vencida debe renovarse antes de vender. **Editar partidas y vigencia** abre una revisión con precios actuales de menudeo y descuento inicial en cero; la propuesta anterior se conserva hasta pulsar **Guardar cambios**. Una cotización convertida en venta conserva su historial y no puede volver a convertirse.
+Desde **Cotizaciones**, abre el detalle para generar el PDF o continuar al cobro con los importes acordados. Una propuesta vencida debe renovarse antes de vender. **Editar partidas y vigencia** abre una revisión con las tarifas vigentes según la cantidad y descuento inicial en cero. La propuesta anterior se conserva hasta pulsar **Guardar cambios**. Una cotización convertida en venta conserva su historial.
 
 ## Inventario, compras y clientes
 
@@ -67,9 +73,13 @@ En **Compras** elige proveedor, referencia, fecha y productos. Puedes recibir un
 
 En **Clientes** consulta el saldo y las ventas pendientes de cada cuenta. Un abono se aplica a la venta seleccionada y conserva su referencia. El límite de crédito controla nuevas ventas a crédito; archivar una cuenta no elimina la deuda existente.
 
+Desde la ficha puedes usar **Eliminar producto**, **Eliminar cliente** o **Eliminar proveedor** si el registro carece de operaciones asociadas. Un producto que solo tiene la carga de alta se elimina junto con esa carga. Si el registro tiene historial, usa la opción de archivarlo.
+
 ## Devoluciones y caja
 
 Desde **Ventas**, abre el folio original. Selecciona cantidades a devolver, escribe el motivo y revisa el método de reembolso. La aplicación limita la devolución a lo pendiente, reintegra las existencias y distingue entre reducir una deuda y devolver dinero ya cobrado. La cancelación conserva un historial del documento original.
+
+El administrador puede usar **Eliminar última venta** desde el detalle de la última venta de la caja abierta. Registra el motivo. Si la venta se puede revertir, Donovan recupera existencias, ajusta la caja y deja libre el folio para un ticket nuevo. Para ventas anteriores, con devoluciones o abonos, o con movimientos de inventario posteriores, usa los controles de devolución o cancelación que correspondan.
 
 En **Caja** registra ingresos y egresos con motivo. Al terminar la jornada, cuenta el efectivo e indica el importe real. El cierre compara lo contado con el efectivo esperado y conserva la diferencia. Una compra pagada desde caja y un reembolso en efectivo afectan ese saldo; un pago por tarjeta no agrega billetes a la caja.
 

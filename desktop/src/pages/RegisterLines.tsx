@@ -6,6 +6,7 @@ import { money, quantity, units } from '@/lib/utils';
 import { useVisual } from '@/lib/appearance';
 import { QuantityEditor } from '@/components/QuantityEditor';
 import { StockIndicator } from '@/components/StockIndicator';
+import { usesWholesale } from '@/lib/register';
 import type { Cart } from './Register';
 
 export function RegisterLines({
@@ -100,6 +101,8 @@ export function RegisterLines({
           {cart.rows.map((row, index) => {
             const line = charge?.lines.find((l) => l.productId === row.product.id);
             const amount = line?.totalCents ?? lineCents?.[index];
+            const wholesale = usesWholesale(row);
+            const manualPrice = Boolean(row.wholesale || row.retail);
             return (
               <motion.tr
                 key={row.product.id}
@@ -140,19 +143,21 @@ export function RegisterLines({
                   <span>
                     {money(
                       line?.priceCents ??
-                        (row.wholesale ? row.product.wholesaleCents : row.product.priceCents),
+                        (wholesale ? row.product.wholesaleCents : row.product.priceCents),
                     )}
                   </span>
-                  {canDiscount && !locked && (
+                  {canDiscount && !locked && row.product.wholesaleCents > 0 && (
                     <button
                       className="price-mode"
                       onClick={() => onWholesale(row.product.id)}
                       aria-label={`Cambiar tarifa de ${row.product.name}`}
+                      title={manualPrice ? 'Volver a la tarifa automática' : 'Cambiar la tarifa de esta partida'}
                     >
-                      {row.wholesale ? 'Mayoreo' : 'Menudeo'}
+                      {wholesale ? 'Mayoreo' : 'Menudeo'}{manualPrice ? ' manual' : ''}
                       <SlidersHorizontal size={11} />
                     </button>
                   )}
+                  {!canDiscount && !locked && wholesale && <small className="muted">Mayoreo</small>}
                 </td>
                 {cart.discountParts > 0 && (
                   <td className="numeric discount-cell">{quantity(cart.discountParts)}%</td>

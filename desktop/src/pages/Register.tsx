@@ -31,13 +31,14 @@ import { toast } from 'sonner';
 import { CustomerPicker, SaveDraft, HeldSales } from './CartActions';
 import { useVisual } from '@/lib/appearance';
 import { RegisterCash, RegisterRecent } from './RegisterTools';
-import { addQuantity, previewAmounts, ScanBuffer, validQuantity } from '@/lib/register';
+import { addQuantity, previewAmounts, ScanBuffer, usesWholesale, validQuantity } from '@/lib/register';
 import { ProductPicker } from './ProductPicker';
 import { RegisterLines } from './RegisterLines';
 export interface CartRow {
   product: Product;
   quantityUnits: number;
   wholesale: boolean;
+  retail?: boolean;
 }
 export interface Cart {
   rows: CartRow[];
@@ -134,6 +135,7 @@ export function Register({
     productId: r.product.id,
     quantityUnits: r.quantityUnits,
     wholesale: r.wholesale,
+    retail: r.retail,
   }));
   useEffect(() => {
     void api('cashOverview').then(setCash).catch(reportError);
@@ -261,6 +263,7 @@ export function Register({
           productId: r.product.id,
           quantityUnits: r.quantityUnits,
           wholesale: r.wholesale,
+          retail: r.retail,
         })),
         discountParts: cart.discountParts,
         quoteId: cart.quoteId,
@@ -503,7 +506,12 @@ export function Register({
         onWholesale={(id) =>
           updateCart((c) => ({
             ...c,
-            rows: c.rows.map((r) => (r.product.id === id ? { ...r, wholesale: !r.wholesale } : r)),
+            rows: c.rows.map((r) => {
+              if (r.product.id !== id) return r;
+              if (r.wholesale || r.retail) return { ...r, wholesale: false, retail: false };
+              const automatic = usesWholesale(r);
+              return { ...r, wholesale: !automatic, retail: automatic };
+            }),
           }))
         }
       />

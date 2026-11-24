@@ -10,10 +10,12 @@
   !define DONOVAN_CLOSE_ID ${__LINE__}
   Push $R0
   Push $R1
+  Push $R2
   Push $0
   Push $1
   Push $2
   Push $3
+  StrCpy $R2 0
 
   donovan_retry_${DONOVAN_CLOSE_ID}:
   StrCpy $R1 0
@@ -30,6 +32,13 @@
     ${EndIf}
   ${EndIf}
   ${If} $R1 = ${ERROR_MORE_DATA}
+    ; Restart Manager can briefly report the executable after the database
+    ; shutdown helper has exited. Recheck before displaying the close prompt.
+    ${If} $R2 < 12
+      IntOp $R2 $R2 + 1
+      Sleep 250
+      Goto donovan_retry_${DONOVAN_CLOSE_ID}
+    ${EndIf}
     IfSilent donovan_cancel_${DONOVAN_CLOSE_ID} 0
     ${If} $PassiveMode = 1
       Goto donovan_cancel_${DONOVAN_CLOSE_ID}
@@ -50,6 +59,7 @@
   Pop $2
   Pop $1
   Pop $0
+  Pop $R2
   Pop $R1
   Pop $R0
   !undef DONOVAN_CLOSE_ID

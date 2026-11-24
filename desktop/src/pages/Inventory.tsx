@@ -14,6 +14,7 @@ import {
   Check,
   LoaderCircle,
   Barcode,
+  Trash2,
 } from 'lucide-react';
 import type { SortingState } from '@tanstack/react-table';
 import { toast } from 'sonner';
@@ -42,6 +43,7 @@ import {
 } from '@/components/common';
 import { DataGrid, type GridColumn } from '@/components/DataGrid';
 import { DocumentDialog } from '@/components/DocumentViewer';
+import { DeleteRecordDialog } from '@/components/DeleteRecordDialog';
 
 const maxQuantity = 100_000_000;
 
@@ -336,6 +338,12 @@ export function Inventory({
           categories={data?.categories.map((c) => c.name) ?? []}
           onAdjust={!editable && canAdjust ? (trigger) => openAdjustment(editing, trigger) : undefined}
           onLabels={editable && editing.active && editing.id ? () => setLabelProduct(editing) : undefined}
+          onDeleted={editable && editing.id > 0 ? () => {
+            setEditing(null);
+            if (page > 0 && data?.items.length === 1) setPage(page - 1);
+            refresh();
+            toast.success('Producto eliminado.');
+          } : undefined}
           onClose={() => {
             if (!adjusting && !labelProduct && !labelDocument) setEditing(null);
           }}
@@ -451,6 +459,7 @@ function ProductEditor({
   onLabels,
   onClose,
   onSaved,
+  onDeleted,
 }: {
   product: Product;
   editable: boolean;
@@ -459,9 +468,10 @@ function ProductEditor({
   onLabels?: () => void;
   onClose: () => void;
   onSaved: () => void;
+  onDeleted?: () => void;
 }) {
   const [p, setP] = useState(product);
-  const [subdialog, setSubdialog] = useState<'category' | 'appearance' | null>(null);
+  const [subdialog, setSubdialog] = useState<'category' | 'appearance' | 'delete' | null>(null);
   const [addedCategories, setAddedCategories] = useState<string[]>([]);
   const [stockReason, setStockReason] = useState('');
   const activeHint = useId();
@@ -470,6 +480,7 @@ function ProductEditor({
   const [prices, setPrices] = useState({
     price: p.id ? (p.priceCents / 100).toFixed(2) : '',
     wholesale: p.wholesaleCents ? (p.wholesaleCents / 100).toFixed(2) : '',
+    wholesaleMinimum: p.wholesaleMinimumUnits ? String(p.wholesaleMinimumUnits / 10000) : '',
     cost: p.costCents === null ? '' : (p.costCents / 100).toFixed(2),
     tax: (p.taxBasisPoints / 100).toString(),
     stock: (p.stockUnits / 10000).toString(),
@@ -500,7 +511,7 @@ function ProductEditor({
         p.id ? `${p.sku} · ${product.name}` : 'Captura la categoría, el precio y las existencias.'
       }
     >
-      {(onAdjust || onLabels) && (
+      {(onAdjust || onLabels || onDeleted) && (
         <div className="product-dialog-actions">
           {onAdjust && (
             <Button variant="outline" onClick={(event) => onAdjust(event.currentTarget)}>
@@ -512,6 +523,11 @@ function ProductEditor({
             <Button variant="outline" onClick={onLabels} disabled={op.busy}>
               <Barcode size={16} />
               Imprimir etiquetas
+            </Button>
+          )}
+          {onDeleted && (
+            <Button variant="outline" disabled={op.busy} onClick={() => setSubdialog('delete')}>
+              <Trash2 size={16} /> Eliminar producto
             </Button>
           )}
         </div>
@@ -526,6 +542,7 @@ function ProductEditor({
                 ...p,
                 priceCents: parseScaled(prices.price),
                 wholesaleCents: parseScaled(prices.wholesale),
+                wholesaleMinimumUnits: prices.wholesaleMinimum === '' ? null : parseScaled(prices.wholesaleMinimum, 10000),
                 costCents: prices.cost.trim() === '' ? null : parseScaled(prices.cost),
                 taxBasisPoints: parseScaled(prices.tax),
                 stockUnits,
@@ -651,6 +668,10 @@ function ProductEditor({
                 value={prices.wholesale}
                 onChange={(value) => amount('wholesale', value)}
               />
+            </Field>
+            <Field label={`Mayoreo desde (${units[p.unit]})`} hint="Aplica la tarifa al llegar a esta cantidad. Déjalo vacío para aplicarla manualmente.">
+              <input type="number" min={step} max={maxQuantity} step={step}
+                value={prices.wholesaleMinimum} onChange={(event) => amount('wholesaleMinimum', event.target.value)} />
             </Field>
             {editable && (
               <Field label="Costo base sin IVA" hint="Lo que cuesta una unidad antes de IVA. Puedes dejarlo vacío.">
@@ -790,6 +811,12 @@ function ProductEditor({
             setSubdialog(null);
           }}
         />
+      )}
+      {subdialog === 'delete' && onDeleted && (
+        <DeleteRecordDialog label="Eliminar producto" name={`${product.sku} · ${product.name}`}
+          description="Se elimina la ficha y, si existe, su carga inicial. Las operaciones posteriores requieren archivar el producto."
+          onDelete={() => api('deleteProduct', { id: product.id })}
+          onClose={() => setSubdialog(null)} onDeleted={onDeleted} />
       )}
     </Modal>
   );

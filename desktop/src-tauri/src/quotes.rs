@@ -57,6 +57,11 @@ impl Engine {
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         if let Some(result) = operations::previous(&tx, &actor, &input.request_id, "quote", &hash)?
         {
+            ensure(
+                db::scalar(&tx, "SELECT COUNT(*) FROM Quote WHERE Id=?1", [result["quote"]["id"].as_i64().unwrap_or(0)])? == 1,
+                "NOT_FOUND",
+                "Esta cotización ya se eliminó.",
+            )?;
             return Ok(result);
         }
         let valid = chrono::NaiveDate::parse_from_str(&input.valid_until, "%Y-%m-%d").ok();
@@ -123,6 +128,26 @@ impl Engine {
         tx.commit()?;
         Ok(result)
     }
+    pub fn delete_quote(&mut self, id: i64) -> Result<Value> {
+        let actor = self.actor("quote")?;
+        let now = self.now_string();
+        let tx = self.db_mut()?.transaction()?;
+        let quote = db::one(&tx, "SELECT * FROM Quote WHERE Id=?1", [id])?;
+        ensure(
+            actor.can("catalog") || quote["userId"] == actor.id,
+            "FORBIDDEN",
+            "Solo puedes eliminar tus cotizaciones.",
+        )?;
+        ensure(
+            quote["saleId"].is_null(),
+            "ALREADY_COMPLETED",
+            "Esta cotización se convirtió en venta y conserva su historial.",
+        )?;
+        tx.execute("DELETE FROM Quote WHERE Id=?1", [id])?;
+        db::audit(&tx, &now, Some(actor.id), "Eliminar cotización", quote["folio"].as_str().unwrap_or(""), "")?;
+        tx.commit()?;
+        Ok(json!({"deleted": true}))
+    }
     pub fn held_sales(&self) -> Result<Value> {
         let actor = self.actor("sell")?;
         Ok(json!(db::all(
@@ -176,6 +201,16 @@ impl Engine {
         for (line, requested) in charge.lines.iter().zip(&input.items) {
             tx.execute("INSERT INTO HeldSaleLine(HeldSaleId,ProductId,QuantityUnits,Wholesale,OriginalPriceCents) VALUES (?1,?2,?3,?4,?5)",params![id,line.product_id,line.quantity_units,requested.wholesale,line.price_cents])?;
         }
+        let retail_key = format!("held-retail:{id}");
+        let retail: Vec<_> = input.items.iter().filter(|item| item.retail).map(|item| item.product_id).collect();
+        if retail.is_empty() {
+            tx.execute("DELETE FROM AppMeta WHERE Key=?1", [retail_key])?;
+        } else {
+            tx.execute(
+                "INSERT INTO AppMeta(Key,Value) VALUES (?1,?2) ON CONFLICT(Key) DO UPDATE SET Value=excluded.Value",
+                params![retail_key, serde_json::to_string(&retail)?],
+            )?;
+        }
         let result = db::one(&tx, "SELECT * FROM HeldSale WHERE Id=?1", [id])?;
         db::audit(
             &tx,
@@ -205,6 +240,10 @@ impl Engine {
         )?;
         let mut lines = vec![];
         let mut notices = vec![];
+        let retail: Vec<i64> = db::all(db, "SELECT Value FROM AppMeta WHERE Key=?1", [format!("held-retail:{id}")])?
+            .first()
+            .and_then(|row| serde_json::from_str(row["value"].as_str()?).ok())
+            .unwrap_or_default();
         for row in db::all(
             db,
             "SELECT * FROM HeldSaleLine WHERE HeldSaleId=?1 ORDER BY Id",
@@ -212,7 +251,10 @@ impl Engine {
         )? {
             let mut p = catalog::product(db, row["productId"].as_i64().unwrap_or(0))?;
             let units = row["quantityUnits"].as_i64().unwrap_or(0);
-            let wholesale = row["wholesale"] == true;
+            let manual_wholesale = row["wholesale"] == true;
+            let manual_retail = retail.contains(&p.id);
+            let wholesale = actor.can("discount") && manual_wholesale && p.wholesale_cents > 0;
+            let retail = actor.can("discount") && manual_retail;
             if !p.active {
                 notices.push(format!(
                     "{} está archivado. Retíralo antes de cobrar.",
@@ -225,22 +267,16 @@ impl Engine {
                     p.name
                 ));
             }
-            if row["originalPriceCents"]
-                != if wholesale {
-                    p.wholesale_cents
-                } else {
-                    p.price_cents
-                }
-            {
+            if row["originalPriceCents"] != commerce::unit_price(&p, units, wholesale, retail) {
                 notices.push(format!("{} se actualizó al precio vigente.", p.name));
             }
-            if wholesale && !actor.can("discount") {
-                notices.push("El precio de mayoreo requiere autorización.".into());
+            if (manual_wholesale || manual_retail) && !actor.can("discount") {
+                notices.push("Tu perfil recuperará esta partida con la tarifa automática.".into());
             }
             if !actor.can("catalog") {
                 p.cost_cents = None;
             }
-            lines.push(json!({"product":p,"quantityUnits":units,"wholesale":wholesale}));
+            lines.push(json!({"product":p,"quantityUnits":units,"wholesale":wholesale,"retail":retail}));
         }
         Ok(json!({"sale":held,"rows":lines,"notices":notices}))
     }

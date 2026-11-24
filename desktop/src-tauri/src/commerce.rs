@@ -3,12 +3,21 @@ use crate::{
     catalog, db,
     engine::Engine,
     error::{Result, ensure, text},
-    models::{Actor, Charge, ChargeLine, Checkout, SaleItem},
+    models::{Actor, Charge, ChargeLine, Checkout, Product, SaleItem},
     money, operations,
 };
 use rusqlite::params;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, HashSet};
+
+pub(crate) fn unit_price(product: &Product, units: i64, wholesale: bool, retail: bool) -> i64 {
+    let automatic = product.wholesale_minimum_units.is_some_and(|minimum| units >= minimum);
+    if product.wholesale_cents > 0 && !retail && (wholesale || automatic) {
+        product.wholesale_cents
+    } else {
+        product.price_cents
+    }
+}
 
 pub fn calculate(
     db: &Connection,
@@ -27,7 +36,7 @@ pub fn calculate(
         "El descuento debe estar entre 0 y 100%.",
     )?;
     ensure(
-        discount == 0 && !items.iter().any(|x| x.wholesale) || actor.can("discount"),
+        discount == 0 && !items.iter().any(|x| x.wholesale || x.retail) || actor.can("discount"),
         "FORBIDDEN",
         "Los descuentos y precios de mayoreo requieren autorización.",
     )?;
@@ -46,11 +55,11 @@ pub fn calculate(
             "Un producto está archivado. Retíralo antes de continuar.",
         )?;
         money::quantity(p.unit, item.quantity_units)?;
-        let price = if item.wholesale {
-            p.wholesale_cents
-        } else {
-            p.price_cents
-        };
+        ensure(!item.wholesale || (!item.retail && p.wholesale_cents > 0),
+            "WHOLESALE_UNAVAILABLE",
+            "Elige una tarifa válida. El mayoreo requiere un precio configurado.",
+        )?;
+        let price = unit_price(&p, item.quantity_units, item.wholesale, item.retail);
         lines.push(ChargeLine {
             product_id: p.id,
             sku: p.sku,
@@ -174,6 +183,13 @@ pub fn sale_detail(db: &Connection, actor: &Actor, id: i64) -> Result<Value> {
     }
     Ok(
         json!({"creditBalanceCents":if let Some(customer)=sale["customerId"].as_i64(){credit_balance(db,customer,Some(id))?}else{0},"sale":sale,"lines":lines,"payments":db::all(db,"SELECT * FROM PaymentRecord WHERE SaleId=?1",[id])?,"returns":db::all(db,"SELECT * FROM SaleReturn WHERE SaleId=?1",[id])?}),
+    )
+}
+fn latest_open_sale(db: &Connection) -> Result<i64> {
+    db::scalar(
+        db,
+        "SELECT COALESCE(MAX(s.Id),0) FROM Sale s JOIN CashSession c ON c.Id=s.CashSessionId WHERE c.ClosedAt IS NULL",
+        [],
     )
 }
 impl Engine {
@@ -388,7 +404,7 @@ impl Engine {
         let tx = self
             .db_mut()?
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-        operations::previous(&tx, &actor, &request.request_id, "checkout", &hash)?;
+        let receipt = operations::previous(&tx, &actor, &request.request_id, "checkout", &hash)?;
         let existing = db::all(
             &tx,
             "SELECT Id FROM Sale WHERE RequestId=?1",
@@ -397,6 +413,7 @@ impl Engine {
         if let Some(existing) = existing.first() {
             return sale_detail(&tx, &actor, existing["id"].as_i64().unwrap_or(0));
         }
+        ensure(receipt.is_none(), "SALE_DELETED", "Esta referencia corresponde a una venta eliminada. Inicia un ticket nuevo.")?;
         let cash = open_cash(&tx)?;
         if let Some(id) = request.held_sale_id {
             let held = db::one(&tx, "SELECT * FROM HeldSale WHERE Id=?1", [id])?;
@@ -563,7 +580,79 @@ impl Engine {
     }
     pub fn sale(&self, id: i64) -> Result<Value> {
         let actor = self.actor("sell")?;
-        sale_detail(self.db()?, &actor, id)
+        let db = self.db()?;
+        let mut detail = sale_detail(db, &actor, id)?;
+        detail["canDelete"] = json!(actor.role == 0
+            && detail["sale"]["cancelled"] == false
+            && detail["returns"].as_array().is_some_and(Vec::is_empty)
+            && latest_open_sale(db)? == id);
+        Ok(detail)
+    }
+
+    pub fn delete_sale(&mut self, id: i64, reason: &str) -> Result<Value> {
+        let actor = self.actor("settings")?;
+        let reason = text(reason, "Motivo", 300)?;
+        let now = self.now_string();
+        let tx = self.db_mut()?.transaction()?;
+        let sale = db::one(&tx, "SELECT * FROM Sale WHERE Id=?1", [id])?;
+        ensure(
+            latest_open_sale(&tx)? == id,
+            "SALE_NOT_LATEST",
+            "Solo se puede eliminar la última venta de la caja abierta.",
+        )?;
+        let folio = sale["folio"].as_str().unwrap_or("");
+        let cash = sale["cashSessionId"].as_i64().unwrap_or(0);
+        ensure(
+            sale["cancelled"] == false && db::scalar(&tx,
+                "SELECT (SELECT COUNT(*) FROM SaleReturn WHERE SaleId=?1)
+                      + (SELECT COUNT(*) FROM CreditEntry WHERE SaleId=?1 AND Kind<>'Venta a crédito')
+                      + (SELECT COUNT(*) FROM SaleLine WHERE SaleId=?1 AND (ReturnedUnits<>0 OR RefundedCents<>0))",
+                [id],
+            )? == 0 && db::scalar(&tx, "SELECT COUNT(*) FROM AppMeta WHERE Key=?1", [format!("sale-invoice-request:{id}")])? == 0,
+            "SALE_IN_USE",
+            "Esta venta tiene devoluciones, abonos o datos de factura. Conserva su folio.",
+        )?;
+        let sequence = db::scalar(&tx, "SELECT COALESCE(MAX(Value),0) FROM Sequence WHERE Key='sales'", [])?;
+        let settings = db::one(&tx, "SELECT FolioPrefix FROM StoreSettings LIMIT 1", [])?;
+        let prefix = settings["folioPrefix"].as_str().unwrap_or("V");
+        ensure(
+            sequence > 0 && folio == format!("{prefix}-{sequence:06}"),
+            "FOLIO_CHANGED",
+            "El consecutivo o prefijo cambió. Conserva el folio de esta venta.",
+        )?;
+        let cash_paid = db::scalar(&tx, "SELECT COALESCE(SUM(AmountCents),0) FROM PaymentRecord WHERE SaleId=?1 AND Method=0", [id])?;
+        let cash_recorded = db::scalar(&tx, "SELECT COALESCE(SUM(AmountCents),0) FROM CashMovement WHERE CashSessionId=?1 AND Kind='Venta' AND Reference=?2", params![cash, folio])?;
+        ensure(
+            cash_paid == cash_recorded && cash_balance(&tx, cash)? >= cash_paid,
+            "SALE_CASH_CONFLICT",
+            "Revisa el efectivo disponible y los movimientos de caja antes de eliminar esta venta.",
+        )?;
+        for line in db::all(&tx, "SELECT ProductId,QuantityUnits FROM SaleLine WHERE SaleId=?1 ORDER BY ProductId", [id])? {
+            let product_id = line["productId"].as_i64().unwrap_or(0);
+            let quantity = line["quantityUnits"].as_i64().unwrap_or(0);
+            let product = catalog::product(&tx, product_id)?;
+            let movement = db::one(&tx, "SELECT * FROM StockMovement WHERE ProductId=?1 ORDER BY Id DESC LIMIT 1", [product_id])?;
+            ensure(
+                movement["kind"] == "Venta" && movement["reference"] == folio
+                    && movement["deltaUnits"] == -quantity && movement["balanceUnits"] == product.stock_units
+                    && product.stock_units + quantity <= money::MAX_UNITS,
+                "SALE_STOCK_CHANGED",
+                "Hubo movimientos de inventario posteriores a esta venta. Usa Devolver / cancelar para conservar el historial.",
+            )?;
+            tx.execute("UPDATE Product SET StockUnits=StockUnits+?1 WHERE Id=?2", params![quantity, product_id])?;
+            tx.execute("DELETE FROM StockMovement WHERE Id=?1", [movement["id"].as_i64().unwrap_or(0)])?;
+        }
+        tx.execute("DELETE FROM CashMovement WHERE CashSessionId=?1 AND Kind='Venta' AND Reference=?2", params![cash, folio])?;
+        tx.execute("DELETE FROM CreditEntry WHERE SaleId=?1", [id])?;
+        tx.execute("UPDATE Quote SET SaleId=NULL WHERE SaleId=?1", [id])?;
+        tx.execute("UPDATE HeldSale SET SaleId=NULL WHERE SaleId=?1", [id])?;
+        tx.execute("DELETE FROM PaymentRecord WHERE SaleId=?1", [id])?;
+        tx.execute("DELETE FROM SaleLine WHERE SaleId=?1", [id])?;
+        tx.execute("DELETE FROM Sale WHERE Id=?1", [id])?;
+        tx.execute("UPDATE Sequence SET Value=Value-1 WHERE Key='sales'", [])?;
+        db::audit(&tx, &now, Some(actor.id), "Eliminar última venta", folio, &format!("Registro {id} · {reason}"))?;
+        tx.commit()?;
+        Ok(json!({"deleted":true,"folio":folio}))
     }
     pub fn sales(&self, from: &str, to: &str, page: i64) -> Result<Value> {
         let actor = self.actor("sell")?;

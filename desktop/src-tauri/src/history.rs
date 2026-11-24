@@ -39,7 +39,7 @@ impl Engine {
                 && query.search.len() <= 300
                 && (0..=10_000_000).contains(&query.page)
                 && query.method.is_none_or(|method| (0..=3).contains(&method))
-                && ["all", "active", "refunded"].contains(&query.status.as_str()),
+                && ["all", "active", "cancelled", "refunded"].contains(&query.status.as_str()),
             "VALIDATION",
             "Revisa las fechas y filtros de la consulta.",
         )?;
@@ -62,7 +62,7 @@ impl Engine {
         let snapshot = self.db()?.unchecked_transaction()?;
         let db = &snapshot;
         let end = format!("{} 23:59:59.9999999", query.to);
-        let predicate = "s.CreatedAt>=?1 AND s.CreatedAt<=?2 AND (?3=0 OR s.UserId=?4) AND (s.Folio LIKE '%'||?5||'%' OR s.CustomerName LIKE '%'||?5||'%' OR s.Cashier LIKE '%'||?5||'%') AND (?6 IS NULL OR EXISTS(SELECT 1 FROM PaymentRecord WHERE SaleId=s.Id AND Method=?6)) AND (?7='all' OR (?7='active' AND s.Cancelled=0) OR (?7='refunded' AND EXISTS(SELECT 1 FROM SaleReturn WHERE SaleId=s.Id)))";
+        let predicate = "s.CreatedAt>=?1 AND s.CreatedAt<=?2 AND (?3=0 OR s.UserId=?4) AND (s.Folio LIKE '%'||?5||'%' OR s.CustomerName LIKE '%'||?5||'%' OR s.Cashier LIKE '%'||?5||'%') AND (?6 IS NULL OR EXISTS(SELECT 1 FROM PaymentRecord WHERE SaleId=s.Id AND Method=?6)) AND (?7='all' OR (?7='active' AND s.Cancelled=0) OR (?7='cancelled' AND s.Cancelled=1) OR (?7='refunded' AND EXISTS(SELECT 1 FROM SaleReturn WHERE SaleId=s.Id)))";
         let summary = db::one(
             db,
             &format!(

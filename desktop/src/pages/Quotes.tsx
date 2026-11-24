@@ -134,7 +134,6 @@ export function Quotes({
           onDeleted={() => {
             setSelected(null);
             list.reload();
-            toast.success('Cotización eliminada.');
           }}
           onLoad={onLoad}
         />
@@ -339,7 +338,16 @@ function QuoteViewer({
               </Button>
               {deleting && (
                 <DeleteRecordDialog label="Eliminar cotización" name={quote.folio}
-                  onDelete={() => api('deleteQuote', { id })} onClose={() => setDeleting(false)}
+                  description="La eliminación es definitiva. Si es la última cotización, la siguiente podrá usar su folio."
+                  onDelete={async () => {
+                    const result = await api('deleteQuote', { id });
+                    toast.success(
+                      result.reusableFolio
+                        ? `Cotización eliminada. La próxima usará ${result.reusableFolio}.`
+                        : 'Cotización eliminada.',
+                    );
+                  }}
+                  onClose={() => setDeleting(false)}
                   onDeleted={onDeleted} />
               )}
             </div>

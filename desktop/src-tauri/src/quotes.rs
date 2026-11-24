@@ -8,6 +8,9 @@ use crate::{
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+const QUOTE_SEQUENCE: &str = "quotes";
+const QUOTE_PREFIX: &str = "CT";
+
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QuoteInput {
@@ -86,7 +89,7 @@ impl Engine {
             "Público en general".into()
         };
         let (id, folio) = if input.id == 0 {
-            let folio = db::folio(&tx, "quotes", "CT")?;
+            let folio = db::folio(&tx, QUOTE_SEQUENCE, QUOTE_PREFIX)?;
             tx.execute("INSERT INTO Quote(Folio,CreatedAt,ValidUntil,CustomerId,CustomerName,Notes,TotalCents,TaxCents,SaleId,UserId) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,NULL,?9)",params![folio,now,input.valid_until,input.customer_id,customer,input.notes.trim(),charge.total_cents,charge.tax_cents,actor.id])?;
             (tx.last_insert_rowid(), folio)
         } else {
@@ -143,10 +146,29 @@ impl Engine {
             "ALREADY_COMPLETED",
             "Esta cotización se convirtió en venta y conserva su historial.",
         )?;
+        let latest = db::scalar(&tx, "SELECT COALESCE(MAX(Id),0) FROM Quote", [])? == id;
+        let folio = quote["folio"].as_str().unwrap_or("");
         tx.execute("DELETE FROM Quote WHERE Id=?1", [id])?;
-        db::audit(&tx, &now, Some(actor.id), "Eliminar cotización", quote["folio"].as_str().unwrap_or(""), "")?;
+        let mut reusable_folio = None;
+        if latest {
+            let sequence = folio
+                .strip_prefix(QUOTE_PREFIX)
+                .and_then(|suffix| suffix.strip_prefix('-'))
+                .and_then(|number| number.parse::<i64>().ok())
+                .filter(|number| *number > 0 && folio == format!("{QUOTE_PREFIX}-{number:06}"));
+            if let Some(sequence) = sequence {
+                let updated = tx.execute(
+                    "UPDATE Sequence SET Value=?1 WHERE Key=?2 AND Value>=?3",
+                    params![sequence - 1, QUOTE_SEQUENCE, sequence],
+                )?;
+                if updated == 1 {
+                    reusable_folio = Some(folio);
+                }
+            }
+        }
+        db::audit(&tx, &now, Some(actor.id), "Eliminar cotización", folio, &format!("Registro {id}"))?;
         tx.commit()?;
-        Ok(json!({"deleted": true}))
+        Ok(json!({"deleted": true, "reusableFolio": reusable_folio}))
     }
     pub fn held_sales(&self) -> Result<Value> {
         let actor = self.actor("sell")?;

@@ -617,7 +617,7 @@ export interface Calls {
   saveContact: [{ supplier: boolean; contact: Contact }, Contact];
   deleteContact: [{ supplier: boolean; id: number }, { deleted: boolean }];
   deleteProduct: [{ id: number }, { deleted: boolean }];
-  deleteQuote: [{ id: number }, { deleted: boolean }];
+  deleteQuote: [{ id: number }, { deleted: boolean; reusableFolio: string | null }];
   deleteSale: [{ id: number; reason: string }, { deleted: boolean; folio: string }];
   customerLedger: [{ id: number }, CustomerLedger];
   creditPayment: [

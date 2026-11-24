@@ -175,7 +175,7 @@ impl Engine {
                 paper.paragraph("COMPROBANTE DE VENTA", 9.0, true, true, INK);
                 paper.paragraph(s(sale, "folio"), 13.0, true, true, INK);
                 if sale["cancelled"] == true {
-                    paper.paragraph("CANCELADA / DEVUELTA", 9.0, true, true, INK);
+                    paper.paragraph("CANCELADA", 9.0, true, true, INK);
                 }
                 paper.paragraph(&date(s(sale, "createdAt")), 7.5, false, true, GRAY);
                 paper.space(5.0);

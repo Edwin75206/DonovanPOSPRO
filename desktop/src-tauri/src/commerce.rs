@@ -642,7 +642,7 @@ impl Engine {
                     && movement["deltaUnits"] == -quantity && movement["balanceUnits"] == product.stock_units
                     && product.stock_units + quantity <= money::MAX_UNITS,
                 "SALE_STOCK_CHANGED",
-                "Hubo movimientos de inventario posteriores a esta venta. Usa Devolver / cancelar para conservar el historial.",
+                "Hubo movimientos de inventario posteriores a esta venta. Usa Cancelar venta para conservar el historial.",
             )?;
             tx.execute("UPDATE Product SET StockUnits=StockUnits+?1 WHERE Id=?2", params![quantity, product_id])?;
             tx.execute("DELETE FROM StockMovement WHERE Id=?1", [movement["id"].as_i64().unwrap_or(0)])?;

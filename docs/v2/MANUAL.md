@@ -63,6 +63,8 @@ Sin impresora configurada puedes vender, consultar el ticket y guardarlo como PD
 
 Desde **Cotizaciones**, abre el detalle para generar el PDF o continuar al cobro con los importes acordados. Una propuesta vencida debe renovarse antes de vender. **Editar partidas y vigencia** abre una revisión con las tarifas vigentes según la cantidad y descuento inicial en cero. La propuesta anterior se conserva hasta pulsar **Guardar cambios**. Una cotización convertida en venta conserva su historial.
 
+Al eliminar la última cotización, la siguiente reutiliza su folio. Por ejemplo, si eliminas **CT-000003**, ese mismo número se asigna al volver a cotizar. Eliminar una cotización anterior conserva el consecutivo actual.
+
 ## Inventario, compras y clientes
 
 En **Inventario** busca y filtra productos. **Editar** abre la ficha para cambiar datos como la categoría, los precios y la existencia mínima. El perfil Vendedor tiene **Ver ficha**. La existencia actual es el saldo registrado y el mínimo indica a partir de qué saldo aparece el aviso de stock bajo. **Ajustar existencias** permite agregar o quitar unidades y previsualizar el saldo. El motivo es opcional y el ajuste aparece en **Historial**.
@@ -77,7 +79,9 @@ Desde la ficha puedes usar **Eliminar producto**, **Eliminar cliente** o **Elimi
 
 ## Devoluciones y caja
 
-Desde **Ventas**, abre el folio original. Selecciona cantidades a devolver, escribe el motivo y revisa el método de reembolso. La aplicación limita la devolución a lo pendiente, reintegra las existencias y distingue entre reducir una deuda y devolver dinero ya cobrado. La cancelación conserva un historial del documento original.
+En **Ventas → Ver venta**, el administrador puede pulsar **Devolver productos** para seleccionar cantidades o **Cancelar venta** para reintegrar todas las unidades pendientes. Escribe el motivo, revisa el importe y selecciona la forma de reembolso antes de confirmar. Al cancelar con reembolso en efectivo, el egreso aparece como **Cancelación** en la caja abierta y reduce el efectivo esperado.
+
+La venta conserva su folio y aparece como **Cancelada** en el historial y al reimprimir el ticket. Usa el filtro **Canceladas** para localizarla.
 
 El administrador puede usar **Eliminar última venta** desde el detalle de la última venta de la caja abierta. Registra el motivo. Si la venta se puede revertir, Donovan recupera existencias, ajusta la caja y deja libre el folio para un ticket nuevo. Para ventas anteriores, con devoluciones o abonos, o con movimientos de inventario posteriores, usa los controles de devolución o cancelación que correspondan.
 

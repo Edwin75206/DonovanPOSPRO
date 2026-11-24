@@ -3,8 +3,11 @@ mod common;
 use common::{ADMIN_PASSWORD, SELLER_PASSWORD, request_id, rig};
 use donovan_core::{
     contacts::Contact,
+    documents::{DocumentRequest, layout::Draw},
+    history::SalesQuery,
     models::{Checkout, Payment, Product, SaleItem},
     quotes::{HeldInput, QuoteInput},
+    returns::ReturnInput,
 };
 
 fn product(sku: &str) -> Product {
@@ -110,4 +113,102 @@ fn only_latest_sale_can_be_removed_and_its_folio_is_reused() {
     assert_eq!(replacement["sale"]["folio"], "V-000002");
     assert_ne!(replacement["sale"]["id"], second_id);
     assert_eq!(app.cash_overview().unwrap()["expectedCents"], 70_000);
+}
+
+#[test]
+fn deleting_the_last_quote_reuses_its_folio_but_deleting_an_older_one_keeps_the_sequence() {
+    let mut rig = rig();
+    let app = &mut rig.app;
+    let id = app.save_product(product("P-COTIZAR")).unwrap()["id"].as_i64().unwrap();
+    let input = |request_id| QuoteInput {
+        request_id, id: 0, items: vec![item(id, 10_000)], customer_id: None,
+        discount_parts: 0, valid_until: "2026-12-01".into(), notes: String::new(),
+    };
+    let first = app.save_quote(input(request_id())).unwrap();
+    let second = app.save_quote(input(request_id())).unwrap();
+    let original_request = input(request_id());
+    let third = app.save_quote(original_request.clone()).unwrap();
+    let quote_id = |quote: &serde_json::Value| quote["quote"]["id"].as_i64().unwrap();
+
+    let removed_middle = app.delete_quote(quote_id(&second)).unwrap();
+    assert!(removed_middle["reusableFolio"].is_null());
+    let fourth = app.save_quote(input(request_id())).unwrap();
+    assert_eq!(fourth["quote"]["folio"], "CT-000004");
+    assert_eq!(
+        app.delete_quote(quote_id(&fourth)).unwrap()["reusableFolio"],
+        "CT-000004"
+    );
+    assert_eq!(
+        app.delete_quote(quote_id(&third)).unwrap()["reusableFolio"],
+        "CT-000003"
+    );
+    let replacement = app.save_quote(input(request_id())).unwrap();
+    assert_eq!(replacement["quote"]["folio"], "CT-000003");
+    assert_ne!(quote_id(&replacement), quote_id(&third));
+    assert_eq!(app.save_quote(original_request).unwrap_err().code, "NOT_FOUND");
+    app.delete_quote(quote_id(&replacement)).unwrap();
+    assert_eq!(
+        app.delete_quote(quote_id(&first)).unwrap()["reusableFolio"],
+        "CT-000001"
+    );
+    assert_eq!(
+        app.save_quote(input(request_id())).unwrap()["quote"]["folio"], "CT-000001"
+    );
+}
+
+#[test]
+fn cancelling_an_earlier_sale_keeps_the_folio_and_reverses_cash_and_stock_once() {
+    let mut rig = rig();
+    let app = &mut rig.app;
+    let sku = app.save_product(product("P-CANCELAR")).unwrap()["id"].as_i64().unwrap();
+    app.cash_open(50_000).unwrap();
+    let sale = |method| Checkout {
+        request_id: request_id(),
+        items: vec![item(sku, 10_000)],
+        payments: vec![Payment { method, amount_cents: 10_000, reference: String::new() }],
+        tendered_cents: if method == 0 { 10_000 } else { 0 },
+        ..Checkout::default()
+    };
+    app.checkout(&sale(0)).unwrap();
+    let second = app.checkout(&sale(0)).unwrap();
+    app.checkout(&sale(1)).unwrap();
+    let second_id = second["sale"]["id"].as_i64().unwrap();
+    assert_eq!(app.get_product(sku).unwrap()["stockUnits"], 220_000);
+    assert_eq!(app.cash_overview().unwrap()["expectedCents"], 70_000);
+
+    let cancel = ReturnInput {
+        request_id: request_id(),
+        sale_id: second_id,
+        items: vec![],
+        reason: "Corrección de la venta".into(),
+        method: 0,
+        cancel: true,
+    };
+    let result = app.return_sale_checked(cancel.clone(), Some((10_000, 10_000))).unwrap();
+    assert_eq!(app.return_sale(cancel).unwrap(), result);
+    assert_eq!(result["cancelled"], true);
+    let drawer = app.cash_overview().unwrap();
+    assert_eq!(drawer["expectedCents"], 60_000);
+    assert_eq!(drawer["movements"][0]["kind"], "Cancelación");
+    assert_eq!(drawer["movements"][0]["reference"], result["return"]["folio"]);
+    assert_eq!(drawer["movements"][0]["amountCents"], -10_000);
+    assert_eq!(app.get_product(sku).unwrap()["stockUnits"], 230_000);
+
+    let retained = app.sale(second_id).unwrap();
+    assert_eq!(retained["sale"]["folio"], "V-000002");
+    assert_eq!(retained["sale"]["cancelled"], true);
+    assert_eq!(retained["canDelete"], false);
+    let date = app.now_string()[..10].to_owned();
+    let cancelled = app.sales_page(SalesQuery {
+        from: date.clone(), to: date, search: String::new(), method: None,
+        status: "cancelled".into(), page: 0, sort: "folio".into(), descending: true,
+    }).unwrap();
+    assert_eq!(cancelled["total"], 1);
+    assert_eq!(cancelled["items"][0]["folio"], "V-000002");
+    let ticket = app.business_document(&DocumentRequest {
+        kind: "sale".into(), id: second_id, width_mm: None, ticket: None, copies: None, report: None,
+    }).unwrap();
+    assert!(ticket.pages.iter().flat_map(|page| &page.operations)
+        .any(|draw| matches!(draw, Draw::Text { text, .. } if text == "CANCELADA")));
+    assert_eq!(app.checkout(&sale(0)).unwrap()["sale"]["folio"], "V-000004");
 }

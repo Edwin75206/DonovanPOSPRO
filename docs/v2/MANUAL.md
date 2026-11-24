@@ -111,7 +111,15 @@ La base permanece fuera de la carpeta del programa. Si la nueva versión requier
 
 La versión 2.2 se actualiza mediante instalador. No incorpora todavía un botón de descarga automática. Esa modalidad requiere una dirección HTTPS de publicación y paquetes firmados; la operación del mostrador puede seguir siendo local y sin conexión.
 
-## Importar productos desde Excel
+## Exportar e importar con Excel
+
+Desde **Configuración → Exportar a Excel** el administrador puede guardar los datos de un área o pulsar **Exportar toda la base a Excel**. Elige la carpeta de destino y espera el aviso con la ubicación del archivo.
+
+- **Ventas de hoy** usa la fecha local de la computadora. **Todas las ventas** incluye el historial. Ambos libros reúnen los folios, las partidas y las formas de pago en tres hojas.
+- **Clientes**, **Proveedores**, **Productos e inventario**, **Cotizaciones**, **Compras**, **Devoluciones**, **Caja** y **Crédito** se pueden exportar por separado.
+- El archivo de toda la base reúne esas áreas en hojas con encabezados fijos y filtros. Las claves, teléfonos y códigos de barras se conservan como texto. Para restaurar el sistema, usa el respaldo `.donovanbackup` de **Administración de datos**.
+
+### Cargar un catálogo
 
 Usa la plantilla del sistema o selecciona tu archivo desde Administración de datos. Elige hoja y columnas; conserva los códigos como texto si incluyen ceros iniciales. Revisa la vista previa y corrige los errores. Las políticas iniciales conservan precios y existencias existentes; cambiarlas requiere una elección explícita. Solo la confirmación final escribe los productos, en una sola operación.
 

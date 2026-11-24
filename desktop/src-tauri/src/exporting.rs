@@ -12,14 +12,14 @@ use std::{
     io::Write,
     path::Path,
 };
-fn excel(error: impl std::fmt::Display) -> AppError {
+pub(crate) fn excel(error: impl std::fmt::Display) -> AppError {
     AppError::internal(
         "EXPORT_FAILED",
         "No pudimos preparar el archivo de Excel. Revisa el espacio disponible e intenta nuevamente.",
         error,
     )
 }
-fn save(workbook: &mut Workbook, folder: &Path, name: &str) -> Result<Value> {
+pub(crate) fn save(workbook: &mut Workbook, folder: &Path, name: &str) -> Result<Value> {
     ensure(
         folder.is_dir(),
         "INVALID_PATH",

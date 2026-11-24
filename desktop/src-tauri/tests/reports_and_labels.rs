@@ -2,12 +2,14 @@ mod common;
 use calamine::{Data, Reader};
 use common::*;
 use donovan_core::{
+    business_export::BusinessExport,
     catalog,
     contacts::{Contact, CreditPayment},
     db,
     documents::{DocumentRequest, layout::Draw, pdf},
     models::{Checkout, Payment, Product, SaleItem},
     purchasing::{PurchaseInput, PurchaseItem},
+    quotes::QuoteInput,
     reports::ReportQuery,
     returns::{ReturnInput, ReturnItem},
 };
@@ -186,6 +188,19 @@ fn reports_reconcile_event_dates_credit_returns_cash_and_exact_purchase_costs() 
     })
     .unwrap();
 
+    let previous = app
+        .export_business(rig.directory.path(), BusinessExport::SalesToday)
+        .unwrap();
+    let mut book: calamine::Xlsx<_> =
+        calamine::open_workbook(previous["path"].as_str().unwrap()).unwrap();
+    assert_eq!(
+        book.sheet_names(),
+        ["Ventas", "Partidas de ventas", "Pagos de ventas"]
+    );
+    for sheet in book.sheet_names() {
+        assert_eq!(book.worksheet_range(&sheet).unwrap().height(), 1);
+    }
+
     let daily = app.report(&query("daily", &day1, &day2)).unwrap();
     assert_eq!(daily.rows.len(), 2);
     assert_eq!(daily.rows[0]["netCents"], 23200);
@@ -352,6 +367,204 @@ fn reports_reconcile_event_dates_credit_returns_cash_and_exact_purchase_costs() 
         })
         .unwrap_err()
         .code,
+        "FORBIDDEN"
+    );
+}
+
+#[test]
+fn exports_separate_areas_and_a_workbook_with_linked_operating_records() {
+    let mut rig = rig();
+    let app = &mut rig.app;
+    let product_id = app
+        .save_product(Product {
+            sku: "M-15".into(),
+            barcode: Some("00012345678901234567".into()),
+            name: "Manguera reforzada".into(),
+            unit: 1,
+            price_cents: 11_600,
+            wholesale_cents: 10_000,
+            wholesale_minimum_units: Some(35_000),
+            stock_units: 200_000,
+            tax_basis_points: 1600,
+            ..Default::default()
+        })
+        .unwrap()["id"]
+        .as_i64()
+        .unwrap();
+    let customer_id = app
+        .save_contact(
+            false,
+            Contact {
+                name: "=2+2".into(),
+                phone: "001234567890".into(),
+                credit_limit_cents: 50_000,
+                ..Default::default()
+            },
+        )
+        .unwrap()["id"]
+        .as_i64()
+        .unwrap();
+    let supplier_id = app
+        .save_contact(
+            true,
+            Contact {
+                name: "Distribuidora del centro".into(),
+                email: "proveedor@example.test".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap()["id"]
+        .as_i64()
+        .unwrap();
+    let items = vec![SaleItem {
+        product_id,
+        quantity_units: 15_000,
+        wholesale: false,
+        retail: false,
+    }];
+    app.cash_open(50_000).unwrap();
+    let first = app
+        .checkout(&Checkout {
+            items: items.clone(),
+            customer_id: Some(customer_id),
+            due_date: Some("2026-12-15".into()),
+            payments: vec![Payment {
+                method: 3,
+                amount_cents: 17_400,
+                reference: String::new(),
+            }],
+            ..Default::default()
+        })
+        .unwrap();
+    rig.clock.advance(24 * 3600);
+    app.login("admin", ADMIN_PASSWORD).unwrap();
+    let today = app.now_string()[..10].to_owned();
+    let second = app
+        .checkout(&Checkout {
+            items: items.clone(),
+            payments: vec![Payment {
+                method: 0,
+                amount_cents: 17_400,
+                reference: String::new(),
+            }],
+            tendered_cents: 20_000,
+            ..Default::default()
+        })
+        .unwrap();
+    app.return_sale(ReturnInput {
+        request_id: request_id(),
+        sale_id: second["sale"]["id"].as_i64().unwrap(),
+        items: vec![ReturnItem {
+            sale_line_id: second["lines"][0]["id"].as_i64().unwrap(),
+            quantity_units: 5_000,
+        }],
+        reason: "Devolución de media unidad".into(),
+        method: 0,
+        cancel: false,
+    })
+    .unwrap();
+    app.save_quote(QuoteInput {
+        request_id: request_id(),
+        id: 0,
+        items,
+        customer_id: Some(customer_id),
+        discount_parts: 0,
+        valid_until: "2026-12-15".into(),
+        notes: "Entrega a domicilio".into(),
+    })
+    .unwrap();
+    app.receive_purchase(PurchaseInput {
+        request_id: request_id(),
+        supplier_id,
+        reference: "FAC-CENTRO-1".into(),
+        date: today.clone(),
+        paid_from_cash: false,
+        items: vec![PurchaseItem {
+            product_id,
+            quantity_units: 30_000,
+            unit_cost_cents: 6400,
+            by_pack: false,
+        }],
+    })
+    .unwrap();
+
+    let open = |scope| {
+        let result = app.export_business(rig.directory.path(), scope).unwrap();
+        let path = result["path"].as_str().unwrap();
+        let book: calamine::Xlsx<_> = calamine::open_workbook(path).unwrap();
+        (path.to_owned(), book)
+    };
+    let (filename, mut daily) = open(BusinessExport::SalesToday);
+    assert!(filename.contains(&today));
+    let folio_today = second["sale"]["folio"].as_str().unwrap();
+    for tab in daily.sheet_names() {
+        let range = daily.worksheet_range(&tab).unwrap();
+        assert_eq!(
+            range.height(),
+            2,
+            "{tab} debe contener solo la venta de hoy"
+        );
+        assert_eq!(range[(1, 0)], Data::String(folio_today.into()));
+        assert!(matches!(range[(1, 1)], Data::DateTime(_)));
+    }
+    let (_, mut sales) = open(BusinessExport::Sales);
+    let sales_tab = sales.worksheet_range("Ventas").unwrap();
+    assert_eq!(sales_tab.height(), 3);
+    assert_eq!(
+        sales_tab[(1, 0)],
+        Data::String(first["sale"]["folio"].as_str().unwrap().into())
+    );
+    assert_eq!(sales_tab[(2, 9)], Data::Float(174.0));
+    assert_eq!(sales_tab[(2, 10)], Data::Float(58.0));
+
+    let (_, mut customers) = open(BusinessExport::Customers);
+    assert_eq!(customers.sheet_names(), ["Clientes"]);
+    let directory = customers.worksheet_range("Clientes").unwrap();
+    assert_eq!(directory[(1, 0)], Data::String("=2+2".into()));
+    assert_eq!(directory[(1, 1)], Data::String("001234567890".into()));
+    assert_eq!(directory[(1, 5)], Data::Float(174.0));
+    assert!(customers.worksheet_formula("Clientes").unwrap().is_empty());
+    for (scope, first_tab) in [
+        (BusinessExport::Suppliers, "Proveedores"),
+        (BusinessExport::Inventory, "Productos"),
+        (BusinessExport::Purchases, "Compras"),
+        (BusinessExport::Quotes, "Cotizaciones"),
+        (BusinessExport::Returns, "Devoluciones"),
+        (BusinessExport::Cash, "Caja"),
+        (BusinessExport::Credit, "Movimientos de crédito"),
+    ] {
+        let (_, mut book) = open(scope);
+        assert_eq!(book.sheet_names()[0], first_tab);
+        assert!(book.worksheet_range(first_tab).unwrap().height() > 1);
+    }
+
+    let (filename, mut complete) = open(BusinessExport::All);
+    assert_eq!(complete.sheet_names().len(), 16);
+    for tab in complete.sheet_names() {
+        assert!(
+            complete.worksheet_range(&tab).unwrap().height() > 1,
+            "{tab}"
+        );
+    }
+    let catalog = complete.worksheet_range("Productos").unwrap();
+    assert_eq!(catalog[(1, 1)], Data::String("00012345678901234567".into()));
+    assert_eq!(catalog[(1, 12)], Data::Float(3.5));
+    assert_eq!(
+        complete.worksheet_range("Partidas de ventas").unwrap()[(1, 6)],
+        Data::Float(1.5)
+    );
+    assert_eq!(
+        complete.worksheet_range("Partidas de compras").unwrap()[(1, 10)],
+        Data::Float(192.0)
+    );
+    assert_eq!(complete.worksheet_range("Ventas").unwrap(), sales_tab);
+    fixture("base-del-negocio.xlsx", &std::fs::read(filename).unwrap());
+
+    app.login("negociante.uno", SELLER_PASSWORD).unwrap();
+    assert_eq!(
+        app.export_business(rig.directory.path(), BusinessExport::All)
+            .unwrap_err()
+            .code,
         "FORBIDDEN"
     );
 }

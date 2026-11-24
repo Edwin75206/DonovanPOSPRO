@@ -30,6 +30,7 @@ pub use engine::Engine;
 pub mod business;
 pub mod documents;
 pub mod exporting;
+pub mod business_export;
 pub mod history;
 pub mod importing;
 #[cfg(feature = "invoice-requests")]

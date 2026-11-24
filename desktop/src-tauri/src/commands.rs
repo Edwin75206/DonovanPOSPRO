@@ -106,6 +106,9 @@ pub enum Request {
     Document(crate::documents::DocumentRequest),
     Report(crate::reports::ReportQuery),
     ExportReport(crate::reports::ReportQuery),
+    ExportBusiness {
+        scope: crate::business_export::BusinessExport,
+    },
     ExportDocument(crate::documents::DocumentRequest),
     Printers,
     PeripheralStatus,
@@ -342,6 +345,17 @@ fn dispatch(engine: &mut Engine, window: &tauri::WebviewWindow, request: Request
                 .pick_folder()
             {
                 Some(folder) => engine.export_report(&folder, &input),
+                None => Ok(Value::Null),
+            }
+        }
+        Request::ExportBusiness { scope } => {
+            engine.actor("settings")?;
+            match rfd::FileDialog::new()
+                .set_parent(window)
+                .set_title("Guardar exportación de Excel")
+                .pick_folder()
+            {
+                Some(folder) => engine.export_business(&folder, scope),
                 None => Ok(Value::Null),
             }
         }
@@ -606,6 +620,7 @@ impl Request {
             }
             Self::CommitImport { .. } => "Importar Excel",
             Self::ExportProducts { .. } => "Exportar catálogo",
+            Self::ExportBusiness { .. } => "Exportar datos del negocio a Excel",
             Self::Report(_) | Self::ExportReport(_) => "Preparar reporte",
             Self::Document(_) | Self::ExportDocument(_) => "Preparar documento",
             Self::PrintDocument { .. } | Self::Printers => "Imprimir documento",

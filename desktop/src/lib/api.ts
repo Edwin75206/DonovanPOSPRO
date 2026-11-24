@@ -360,6 +360,19 @@ export interface BackupRecord {
   sha256: string;
   result: string;
 }
+export type BusinessExportScope =
+  | 'salesToday'
+  | 'sales'
+  | 'customers'
+  | 'suppliers'
+  | 'inventory'
+  | 'purchases'
+  | 'quotes'
+  | 'returns'
+  | 'cash'
+  | 'credit'
+  | 'all';
+
 export interface DataOverview {
   backend: string;
   canMigrateMysql: boolean;
@@ -558,6 +571,7 @@ export interface Calls {
   productForCode: [{ code: string }, Product];
   report: [ReportQuery, BusinessReport];
   exportReport: [ReportQuery, { path: string; bytes: number } | null];
+  exportBusiness: [{ scope: BusinessExportScope }, { path: string; bytes: number } | null];
   document: [DocumentRequest, BusinessDocument];
   exportDocument: [DocumentRequest, { path: string; bytes: number; pages: number } | null];
   printers: [undefined, Printer[]];

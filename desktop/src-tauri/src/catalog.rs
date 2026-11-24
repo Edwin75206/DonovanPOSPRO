@@ -42,10 +42,15 @@ fn read_product_options(record: &mut Value) {
         fields.insert("appearance".into(), json!(appearance));
         let minimum = fields
             .remove("wholesaleMinimumText")
-            .and_then(|value| value.as_str()?.parse::<i64>().ok())
-            .filter(|minimum| *minimum > 0 && *minimum <= money::MAX_UNITS);
+            .and_then(|value| wholesale_minimum(value.as_str()?));
         fields.insert("wholesaleMinimumUnits".into(), json!(minimum));
     }
+}
+
+pub(crate) fn wholesale_minimum(text: &str) -> Option<i64> {
+    text.parse::<i64>()
+        .ok()
+        .filter(|minimum| *minimum > 0 && *minimum <= money::MAX_UNITS)
 }
 
 fn product_record(db: &Connection, id: i64) -> Result<Value> {

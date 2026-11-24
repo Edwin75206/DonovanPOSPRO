@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   Building2,
   Database,
+  FileSpreadsheet,
   Users,
   Info,
   ImagePlus,
@@ -27,6 +28,7 @@ import {
 } from '@/components/common';
 import { DataGrid } from '@/components/DataGrid';
 import { DataManager } from './DataManager';
+import { BusinessExports } from './BusinessExports';
 import { PrinterSettings } from './PrinterSettings';
 import { Logo } from './Auth';
 import { useLeaveGuard } from '@/lib/leaveGuard';
@@ -35,6 +37,7 @@ const sections = [
   { id: 'business', label: 'Datos del negocio', icon: Building2 },
   { id: 'printers', label: 'Periféricos', icon: Printer },
   { id: 'data', label: 'Administración de datos', icon: Database },
+  { id: 'exports', label: 'Exportar a Excel', icon: FileSpreadsheet },
   { id: 'users', label: 'Usuarios y permisos', icon: Users },
   { id: 'about', label: 'Acerca de', icon: Info },
 ];
@@ -91,6 +94,8 @@ export function Settings({
           <PrinterSettings data={data} onSaved={onSession} onDirty={setDirty} />
         ) : section === 'data' ? (
           <DataManager data={data} onChanged={onChanged} hasDraft={hasDraft} />
+        ) : section === 'exports' ? (
+          <BusinessExports />
         ) : section === 'users' ? (
           <UserSettings data={data} onSession={onSession} />
         ) : (

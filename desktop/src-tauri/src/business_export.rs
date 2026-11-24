@@ -392,6 +392,7 @@ struct Formats {
     text: Format,
     money: Format,
     quantity: Format,
+    whole_quantity: Format,
     percent: Format,
     date: Format,
     date_time: Format,
@@ -404,12 +405,21 @@ impl Formats {
                 .set_font_color(Color::White)
                 .set_background_color(Color::RGB(0x24433B))
                 .set_text_wrap(),
-            text: Format::new().set_text_wrap(),
+            text: Format::new().set_num_format("@").set_text_wrap(),
             money: Format::new().set_num_format("\"$\"#,##0.00;-\"$\"#,##0.00"),
             quantity: Format::new().set_num_format("#,##0.####"),
-            percent: Format::new().set_num_format("0.##%"),
+            whole_quantity: Format::new().set_num_format("#,##0"),
+            percent: Format::new().set_num_format("0.00%"),
             date: Format::new().set_num_format("dd/mm/yyyy"),
             date_time: Format::new().set_num_format("dd/mm/yyyy hh:mm:ss"),
+        }
+    }
+
+    fn quantity(&self, scaled: i64) -> &Format {
+        if scaled % 10_000 == 0 {
+            &self.whole_quantity
+        } else {
+            &self.quantity
         }
     }
 }
@@ -457,18 +467,20 @@ fn write_cell(
         (Text, SqlValue::Text(text)) => {
             sheet.write_string_with_format(row, col, text, &formats.text)
         }
-        (Id, SqlValue::Integer(n)) => sheet.write_string(row, col, n.to_string()),
+        (Id, SqlValue::Integer(n)) => {
+            sheet.write_string_with_format(row, col, n.to_string(), &formats.text)
+        }
         (Money, SqlValue::Integer(n)) => {
             sheet.write_number_with_format(row, col, *n as f64 / 100.0, &formats.money)
         }
         (Quantity, SqlValue::Integer(n)) => {
-            sheet.write_number_with_format(row, col, *n as f64 / 10000.0, &formats.quantity)
+            sheet.write_number_with_format(row, col, *n as f64 / 10_000.0, formats.quantity(*n))
         }
         (Minimum, SqlValue::Text(text)) => {
             let Some(n) = catalog::wholesale_minimum(text) else {
                 return Ok(());
             };
-            sheet.write_number_with_format(row, col, n as f64 / 10000.0, &formats.quantity)
+            sheet.write_number_with_format(row, col, n as f64 / 10_000.0, formats.quantity(n))
         }
         (Percent, SqlValue::Integer(n)) => {
             sheet.write_number_with_format(row, col, *n as f64 / 10000.0, &formats.percent)

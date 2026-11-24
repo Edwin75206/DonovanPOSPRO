@@ -632,11 +632,13 @@ impl Engine {
             "SALE_CASH_CONFLICT",
             "Revisa el efectivo disponible y los movimientos de caja antes de eliminar esta venta.",
         )?;
-        for line in db::all(&tx, "SELECT ProductId,QuantityUnits FROM SaleLine WHERE SaleId=?1 ORDER BY ProductId", [id])? {
+        for line in db::all(&tx, "SELECT ProductId,QuantityUnits FROM SaleLine WHERE SaleId=?1 ORDER BY Id DESC", [id])? {
             let product_id = line["productId"].as_i64().unwrap_or(0);
             let quantity = line["quantityUnits"].as_i64().unwrap_or(0);
             let product = catalog::product(&tx, product_id)?;
-            let movement = db::one(&tx, "SELECT * FROM StockMovement WHERE ProductId=?1 ORDER BY Id DESC LIMIT 1", [product_id])?;
+            let (target, quantity) = catalog::stock_target(&product, quantity)?;
+            let product = if target == product_id { product } else { catalog::product(&tx, target)? };
+            let movement = db::one(&tx, "SELECT * FROM StockMovement WHERE ProductId=?1 ORDER BY Id DESC LIMIT 1", [target])?;
             ensure(
                 movement["kind"] == "Venta" && movement["reference"] == folio
                     && movement["deltaUnits"] == -quantity && movement["balanceUnits"] == product.stock_units
@@ -644,7 +646,7 @@ impl Engine {
                 "SALE_STOCK_CHANGED",
                 "Hubo movimientos de inventario posteriores a esta venta. Usa Cancelar venta para conservar el historial.",
             )?;
-            tx.execute("UPDATE Product SET StockUnits=StockUnits+?1 WHERE Id=?2", params![quantity, product_id])?;
+            tx.execute("UPDATE Product SET StockUnits=StockUnits+?1 WHERE Id=?2", params![quantity, target])?;
             tx.execute("DELETE FROM StockMovement WHERE Id=?1", [movement["id"].as_i64().unwrap_or(0)])?;
         }
         tx.execute("DELETE FROM CashMovement WHERE CashSessionId=?1 AND Kind='Venta' AND Reference=?2", params![cash, folio])?;

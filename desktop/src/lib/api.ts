@@ -31,6 +31,7 @@ export interface Product {
   packUnits: number;
   active: boolean;
   appearance?: ProductAppearance | null;
+  boxContent?: { productId: number; quantity: number; name?: string; unit?: number; stockUnits?: number } | null;
 }
 export interface Preferences {
   tutorialStatus: 'pending' | 'skipped' | 'in_progress' | 'completed';

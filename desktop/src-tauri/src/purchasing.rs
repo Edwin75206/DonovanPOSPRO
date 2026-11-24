@@ -141,6 +141,17 @@ impl Engine {
             } else {
                 cost
             };
+            let (stock_id, stock_units) = catalog::stock_target(&p, units)?;
+            if stock_id != p.id {
+                let contained = catalog::product(&tx, stock_id)?;
+                let prior_units = if contained.cost_cents.is_some() { contained.stock_units } else { 0 };
+                let cost = money::rounded(
+                    contained.cost_cents.unwrap_or(0) as i128 * prior_units as i128
+                        + line_total as i128 * 10_000,
+                    prior_units as i128 + stock_units as i128,
+                );
+                tx.execute("UPDATE Product SET CostCents=?1 WHERE Id=?2", params![cost, stock_id])?;
+            }
             catalog::stock(&tx, &now, actor.id, p.id, units, "Compra", &folio, "")?;
             tx.execute(
                 "UPDATE Product SET CostCents=?1 WHERE Id=?2",

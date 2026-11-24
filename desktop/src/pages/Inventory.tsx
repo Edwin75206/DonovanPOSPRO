@@ -44,6 +44,7 @@ import {
 import { DataGrid, type GridColumn } from '@/components/DataGrid';
 import { DocumentDialog } from '@/components/DocumentViewer';
 import { DeleteRecordDialog } from '@/components/DeleteRecordDialog';
+import { useResource } from '@/lib/useResource';
 
 const maxQuantity = 100_000_000;
 
@@ -88,6 +89,7 @@ export function Inventory({
   const [error, setError] = useState<UiFailure | null>(null);
   const [revision, setRevision] = useState(0);
   const [editing, setEditing] = useState<Product | null>(null);
+  const [deleting, setDeleting] = useState<Product | null>(null);
   const [history, setHistory] = useState<Product | null>(null);
   const [adjusting, setAdjusting] = useState<Product | null>(null);
   const [labelProduct, setLabelProduct] = useState<Product | null>(null);
@@ -100,6 +102,13 @@ export function Inventory({
     setAdjusting(product);
   }, []);
   const refresh = useCallback(() => setRevision((v) => v + 1), []);
+  const afterDelete = () => {
+    setDeleting(null);
+    setEditing(null);
+    if (page > 0 && data?.items.length === 1) setPage(page - 1);
+    refresh();
+    toast.success('Producto eliminado.');
+  };
   useEffect(() => {
     setPage(0);
     setStatus(typeof filters.status === 'string' ? filters.status : 'active');
@@ -228,6 +237,12 @@ export function Inventory({
               <History size={15} />
               Historial
             </Button>
+            {editable && (
+              <Button variant="outline" size="sm" aria-label={`Eliminar producto ${p.name}`} onClick={() => setDeleting(p)}>
+                <Trash2 size={15} />
+                Eliminar
+              </Button>
+            )}
           </div>
         ),
       },
@@ -338,12 +353,7 @@ export function Inventory({
           categories={data?.categories.map((c) => c.name) ?? []}
           onAdjust={!editable && canAdjust ? (trigger) => openAdjustment(editing, trigger) : undefined}
           onLabels={editable && editing.active && editing.id ? () => setLabelProduct(editing) : undefined}
-          onDeleted={editable && editing.id > 0 ? () => {
-            setEditing(null);
-            if (page > 0 && data?.items.length === 1) setPage(page - 1);
-            refresh();
-            toast.success('Producto eliminado.');
-          } : undefined}
+          onDeleted={editable && editing.id > 0 ? afterDelete : undefined}
           onClose={() => {
             if (!adjusting && !labelProduct && !labelDocument) setEditing(null);
           }}
@@ -353,6 +363,12 @@ export function Inventory({
             toast.success('Producto guardado.');
           }}
         />
+      )}
+      {deleting && (
+        <DeleteRecordDialog label="Eliminar producto" name={`${deleting.sku} · ${deleting.name}`}
+          description="Se elimina la ficha y su carga inicial. Para un producto con operaciones registradas, usa la opción de archivar desde su ficha."
+          onDelete={() => api('deleteProduct', { id: deleting.id })}
+          onClose={() => setDeleting(null)} onDeleted={afterDelete} />
       )}
       {adjusting && (
         <StockAdjust
@@ -451,7 +467,7 @@ function LabelSetup({
     </Modal>
   );
 }
-function ProductEditor({
+export function ProductEditor({
   product,
   editable,
   categories,
@@ -467,11 +483,11 @@ function ProductEditor({
   onAdjust?: (trigger: HTMLButtonElement) => void;
   onLabels?: () => void;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (saved: Product) => void;
   onDeleted?: () => void;
 }) {
   const [p, setP] = useState(product);
-  const [subdialog, setSubdialog] = useState<'category' | 'appearance' | 'delete' | null>(null);
+  const [subdialog, setSubdialog] = useState<'category' | 'appearance' | 'delete' | 'box' | null>(null);
   const [addedCategories, setAddedCategories] = useState<string[]>([]);
   const [stockReason, setStockReason] = useState('');
   const activeHint = useId();
@@ -496,7 +512,7 @@ function ProductEditor({
     (a, b) => a.localeCompare(b, 'es-MX'),
   );
   const stockUnits = parseScaled(prices.stock, 10000);
-  const stockChanged = editable && p.id > 0 && prices.stock !== '' && stockUnits !== product.stockUnits;
+  const stockChanged = editable && !p.boxContent && p.id > 0 && prices.stock !== '' && stockUnits !== product.stockUnits;
   return (
     <Modal
       open
@@ -535,17 +551,19 @@ function ProductEditor({
       <form
         onSubmit={(e) => {
           e.preventDefault();
+          e.stopPropagation();
           if (!editable || subdialog) return;
           void op.run(
             () =>
               api('saveProduct', {
                 ...p,
+                sku: p.sku || (p.boxContent && p.barcode ? `CAJA-${p.barcode.trim().slice(0, 35)}` : ''),
                 priceCents: parseScaled(prices.price),
                 wholesaleCents: parseScaled(prices.wholesale),
                 wholesaleMinimumUnits: prices.wholesaleMinimum === '' ? null : parseScaled(prices.wholesaleMinimum, 10000),
                 costCents: prices.cost.trim() === '' ? null : parseScaled(prices.cost),
                 taxBasisPoints: parseScaled(prices.tax),
-                stockUnits,
+                stockUnits: p.boxContent ? 0 : stockUnits,
                 minimumUnits: parseScaled(prices.minimum, 10000),
                 packUnits: parseScaled(prices.pack, 10000),
                 inventoryAdjustment: stockChanged
@@ -569,7 +587,7 @@ function ProductEditor({
             </Field>
             <Field label="Clave interna" hint="Clave única que usa el negocio para identificar el producto.">
               <input
-                required
+                required={!p.boxContent}
                 maxLength={40}
                 value={p.sku}
                 onChange={(e) => patch({ sku: e.target.value })}
@@ -577,6 +595,7 @@ function ProductEditor({
             </Field>
             <Field label="Código de barras" hint="Escanea la etiqueta o escribe el código para encontrarlo en caja.">
               <input
+                required={!!p.boxContent}
                 maxLength={64}
                 value={p.barcode ?? ''}
                 onChange={(e) => patch({ barcode: e.target.value || null })}
@@ -637,7 +656,11 @@ function ProductEditor({
           </div>
           <div className="form-grid">
             <Field label="Unidad base" hint="Unidad en la que cuentas, vendes y asignas precios al producto.">
-              <select value={p.unit} onChange={(e) => patch({ unit: Number(e.target.value) })}>
+              <select value={p.unit} onChange={(e) => {
+                const unit = Number(e.target.value);
+                if (unit !== 4 && p.boxContent) amount('stock', '0');
+                patch({ unit, boxContent: unit === 4 ? p.boxContent : null });
+              }}>
                 {['Pieza', 'Metro', 'Kilogramo', 'Litro', 'Caja', 'Rollo'].map((name, i) => (
                   <option key={name} value={i}>
                     {name}
@@ -656,7 +679,7 @@ function ProductEditor({
                 onChange={(e) => amount('tax', e.target.value)}
               />
             </Field>
-            <Field label="Precio público (IVA incluido)" hint="Importe por unidad en una venta normal.">
+            <Field label={p.unit === 4 ? 'Precio de la caja (IVA incluido)' : 'Precio público (IVA incluido)'} hint="Importe por unidad en una venta normal.">
               <PriceInput
                 required
                 value={prices.price}
@@ -683,13 +706,39 @@ function ProductEditor({
               </Field>
             )}
           </div>
+          {p.unit === 4 && (
+            <div className="form-grid">
+              <Field label="Producto contenido" hint="Al cobrar una caja, se descontarán las unidades de este producto.">
+                <div className="page-actions">
+                  <Button type="button" variant="outline" aria-label={p.boxContent ? `Cambiar producto contenido: ${p.boxContent.name ?? ''}` : 'Seleccionar producto'} onClick={() => setSubdialog('box')}>
+                    {p.boxContent?.name ?? 'Seleccionar producto'}
+                  </Button>
+                  {p.boxContent && (
+                    <Button type="button" variant="outline" onClick={() => {
+                      patch({ boxContent: null });
+                      amount('stock', '0');
+                    }}>
+                      Quitar vínculo
+                    </Button>
+                  )}
+                </div>
+              </Field>
+              {p.boxContent && (
+                <Field label="Cantidad que contiene la caja" hint="Ejemplo 10 sacos de cemento por caja.">
+                  <input type="number" required min={1} max={maxQuantity} step={1}
+                    value={p.boxContent.quantity || ''}
+                    onChange={(e) => patch({ boxContent: { ...p.boxContent!, quantity: Number(e.target.value) } })} />
+                </Field>
+              )}
+            </div>
+          )}
           <div className="form-section-heading">
             <h3>Inventario</h3>
           </div>
           <div className="form-grid">
             <Field
               label={`Existencia ${p.id ? 'actual' : 'inicial'} (${units[p.unit]})`}
-              hint={p.id ? 'Cantidad total registrada en inventario en este momento.' : 'Unidades que tienes al dar de alta este producto.'}
+              hint={p.boxContent ? 'Calculada a partir del inventario del producto contenido.' : p.id ? 'Cantidad total registrada en inventario en este momento.' : 'Unidades que tienes al dar de alta este producto.'}
             >
               <input
                 required
@@ -697,7 +746,10 @@ function ProductEditor({
                 min="0"
                 max={maxQuantity}
                 step={step}
-                value={editable ? prices.stock : (product.stockUnits / 10000).toString()}
+                readOnly={!!p.boxContent}
+                value={p.boxContent
+                  ? Math.floor((p.boxContent.stockUnits ?? 0) / (Math.max(1, p.boxContent.quantity) * 10000))
+                  : editable ? prices.stock : (product.stockUnits / 10000).toString()}
                 onFocus={(e) => e.currentTarget.select()}
                 onChange={(e) => amount('stock', e.target.value)}
               />
@@ -817,6 +869,51 @@ function ProductEditor({
           description="Se elimina la ficha y, si existe, su carga inicial. Las operaciones posteriores requieren archivar el producto."
           onDelete={() => api('deleteProduct', { id: product.id })}
           onClose={() => setSubdialog(null)} onDeleted={onDeleted} />
+      )}
+      {subdialog === 'box' && (
+        <CatalogPicker title="Selecciona el producto de la caja" eligible={(item) => item.id !== p.id && !item.boxContent} onClose={() => setSubdialog(null)} onSelect={(item) => {
+          patch({ boxContent: { productId: item.id, quantity: p.boxContent?.quantity || 1,
+            name: item.name, unit: item.unit, stockUnits: item.stockUnits } });
+          setSubdialog(null);
+        }} />
+      )}
+    </Modal>
+  );
+}
+export function CatalogPicker({ title, eligible, onClose, onSelect }: {
+  title: string;
+  eligible?: (item: Product) => boolean;
+  onClose: () => void;
+  onSelect: (item: Product) => void;
+}) {
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(0);
+  const products = useResource(
+    () => api('products', { search, category: '', status: 'active', page }),
+    [search, page],
+  );
+  const items = products.data?.items.filter((item) => !eligible || eligible(item)) ?? [];
+  return (
+    <Modal open title={title} onClose={onClose}>
+      <Field label="Buscar por nombre, clave o código">
+        <input autoFocus value={search} maxLength={200} onChange={(e) => { setSearch(e.target.value); setPage(0); }} />
+      </Field>
+      <Failure error={products.error} />
+      {products.busy ? <Busy /> : !products.error && (
+        <div className="box-picker-results">
+          {items.map((item) => (
+            <Button key={item.id} type="button" variant="outline" onClick={() => onSelect(item)}>
+              {item.name} · {item.sku}{item.barcode && ` · ${item.barcode}`}
+            </Button>
+          ))}
+          {!items.length && <p className="muted">No hay productos disponibles en esta página.</p>}
+        </div>
+      )}
+      {products.data && products.data.total > products.data.pageSize && (
+        <div className="dialog-actions">
+          <Button type="button" variant="outline" disabled={!page || products.busy} onClick={() => setPage(page - 1)}>Anterior</Button>
+          <Button type="button" variant="outline" disabled={(page + 1) * products.data.pageSize >= products.data.total || products.busy} onClick={() => setPage(page + 1)}>Siguiente</Button>
+        </div>
       )}
     </Modal>
   );
@@ -1035,13 +1132,15 @@ function StockAdjust({
   );
 }
 function StockHistory({ product, onClose }: { product: Product; onClose: () => void }) {
+  const stockId = product.boxContent?.productId ?? product.id;
+  const stockUnit = product.boxContent?.unit ?? product.unit;
   const [rows, setRows] = useState<StockMovement[] | null>(null);
   const [error, setError] = useState<UiFailure | null>(null);
   useEffect(() => {
-    void api('stockHistory', { id: product.id })
+    void api('stockHistory', { id: stockId })
       .then(setRows)
       .catch((e) => setError(normalizeError(e)));
-  }, [product.id]);
+  }, [stockId]);
   const columns = useMemo<GridColumn<StockMovement>[]>(
     () => [
       { id: 'createdAt', label: 'Fecha', value: (r) => r.createdAt },
@@ -1064,7 +1163,7 @@ function StockHistory({ product, onClose }: { product: Product; onClose: () => v
         render: (r) => (
           <span className={r.deltaUnits < 0 ? 'negative' : 'positive'}>
             {r.deltaUnits > 0 ? '+' : ''}
-            {quantity(r.deltaUnits)} {units[product.unit]}
+            {quantity(r.deltaUnits)} {units[stockUnit]}
           </span>
         ),
       },
@@ -1073,10 +1172,10 @@ function StockHistory({ product, onClose }: { product: Product; onClose: () => v
         label: 'Existencia posterior',
         value: (r) => r.balanceUnits,
         align: 'right',
-        render: (r) => `${quantity(r.balanceUnits)} ${units[product.unit]}`,
+        render: (r) => `${quantity(r.balanceUnits)} ${units[stockUnit]}`,
       },
     ],
-    [product.unit],
+    [stockUnit],
   );
   return (
     <Modal
@@ -1084,7 +1183,7 @@ function StockHistory({ product, onClose }: { product: Product; onClose: () => v
       onClose={onClose}
       className="large-dialog"
       title="Historia de existencias"
-      description={`${product.sku} · ${product.name} · Últimos 500 movimientos`}
+      description={product.boxContent ? `Inventario compartido con ${product.boxContent.name ?? 'el producto contenido'}` : `${product.sku} · ${product.name} · Últimos 500 movimientos`}
     >
       <Failure error={error} />
       {rows ? (

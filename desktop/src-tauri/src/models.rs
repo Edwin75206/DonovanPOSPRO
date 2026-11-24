@@ -23,6 +23,8 @@ pub struct Product {
     pub pack_units: i64,
     pub active: bool,
     pub appearance: Option<ProductAppearance>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub box_content: Option<BoxContent>,
 }
 impl Default for Product {
     fn default() -> Self {
@@ -47,8 +49,15 @@ impl Default for Product {
             pack_units: 10000,
             active: true,
             appearance: None,
+            box_content: None,
         }
     }
+}
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct BoxContent {
+    pub product_id: i64,
+    pub quantity: i64,
 }
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default)]

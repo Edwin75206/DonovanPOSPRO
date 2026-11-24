@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { api, type Actor, type Bootstrap } from '@/lib/api';
 import { Inventory, newProduct } from './Inventory';
+import { Purchases } from './Purchases';
 
 vi.mock('@/lib/api', async (original) => ({
   ...(await original<typeof import('@/lib/api')>()),
@@ -20,7 +21,7 @@ beforeEach(() => {
   vi.mocked(api)
     .mockReset()
     .mockImplementation((async (name: string, payload: unknown) => {
-      if (name === 'inventory') {
+      if (name === 'inventory' || name === 'products') {
         return {
           items: [current], total: 1, page: 0, pageSize: 60,
           categories: [{ name: 'Construcción', count: 1 }], brands: [],
@@ -34,6 +35,47 @@ beforeEach(() => {
     }) as typeof api);
 });
 afterEach(cleanup);
+
+test('receiving opens the catalog before typing and adds a new product without discarding the draft', async () => {
+  const box = {
+    ...newProduct(), id: 8, sku: 'CAJA-CEM', name: 'Caja de cemento', barcode: '200000001010',
+    unit: 4, boxContent: { productId: item.id, quantity: 10, unit: item.unit, name: item.name },
+  };
+  vi.mocked(api).mockImplementation((async (method: string, payload: unknown) => {
+    if (method === 'purchases') return [];
+    if (method === 'products') {
+      const { search, page } = payload as { search: string; page: number };
+      const items = search ? [box] : page === 0 ? [item] : [box];
+      return { items, page, pageSize: 1, total: search ? 1 : 2, categories: [] };
+    }
+    if (method === 'saveProduct') return { ...payload as object, id: 9 };
+    throw new Error(`Unexpected API method: ${method}`);
+  }) as typeof api);
+
+  const user = userEvent.setup();
+  render(<Purchases data={{ actor } as Bootstrap} onSuppliers={() => {}} />);
+  await user.click(screen.getByRole('button', { name: 'Recibir compra' }));
+  const purchase = within(screen.getByRole('dialog', { name: 'Recibir una compra' }));
+  fireEvent.change(purchase.getByLabelText('Folio / factura del proveedor'), { target: { value: 'PROV-10' } });
+  await user.click(purchase.getByRole('button', { name: 'Buscar producto' }));
+  const catalog = within(screen.getByRole('dialog', { name: 'Buscar producto' }));
+  expect(await catalog.findByRole('button', { name: 'Cemento gris · CEM-50' })).toBeTruthy();
+  await user.click(catalog.getByRole('button', { name: 'Siguiente' }));
+  await user.click(await catalog.findByRole('button', { name: /Caja de cemento.*200000001010/ }));
+  expect(purchase.getByText('Entrarán 10 pza de Cemento gris')).toBeTruthy();
+
+  await user.click(purchase.getByRole('button', { name: 'Nuevo producto' }));
+  const editor = within(screen.getByRole('dialog', { name: 'Agrega un producto' }));
+  fireEvent.change(editor.getByLabelText('Descripción del producto'), { target: { value: 'Tornillo' } });
+  fireEvent.change(editor.getByLabelText('Clave interna'), { target: { value: 'TOR' } });
+  await user.type(editor.getByLabelText('Precio público (IVA incluido)'), '25');
+  await user.click(editor.getByRole('button', { name: 'Guardar producto' }));
+
+  expect(await purchase.findByText('Tornillo')).toBeTruthy();
+  expect(purchase.getByText('Caja de cemento')).toBeTruthy();
+  expect(purchase.getByLabelText<HTMLInputElement>('Folio / factura del proveedor').value).toBe('PROV-10');
+  expect(api).not.toHaveBeenCalledWith('receivePurchase', expect.anything());
+});
 
 async function openInventory(user = actor) {
   render(<Inventory actor={user} business={{} as Bootstrap} filters={filters} />);
@@ -75,17 +117,44 @@ test('creates a category above the product form and saves the amount typed in pe
   ]);
 });
 
-test('keeps three row actions for editing, adjusting and history, with labels inside the editor', async () => {
+test('shows product deletion beside the existing inventory actions', async () => {
   const rowButton = await openInventory();
   const actions = within(rowButton.closest('tr')!.lastElementChild as HTMLElement);
   expect(actions.getAllByRole('button').map((button) => button.textContent)).toEqual([
-    'Editar', 'Ajustar existencias', 'Historial',
+    'Editar', 'Ajustar existencias', 'Historial', 'Eliminar',
   ]);
   fireEvent.click(actions.getByRole('button', { name: 'Editar Cemento gris' }));
   const editor = within(screen.getByRole('dialog', { name: 'Ficha del producto' }));
   expect(editor.getByRole('button', { name: 'Imprimir etiquetas' })).toBeTruthy();
   expect(editor.getByLabelText('Precio público (IVA incluido)').getAttribute('aria-describedby')).toBeTruthy();
   expect(editor.getByText(/A esta cantidad o menos aparece Stock bajo/)).toBeTruthy();
+});
+
+test('lets the administrator delete directly from the inventory row', async () => {
+  await openInventory();
+  fireEvent.click(screen.getByRole('button', { name: 'Eliminar producto Cemento gris' }));
+  const dialog = within(screen.getByRole('dialog', { name: 'Eliminar producto' }));
+  fireEvent.click(dialog.getByRole('button', { name: 'Eliminar producto' }));
+  expect(api).toHaveBeenCalledWith('deleteProduct', { id: 7 });
+});
+
+test('captures the separate barcode, price and contents of a box', async () => {
+  await openInventory();
+  fireEvent.click(screen.getByRole('button', { name: 'Nuevo producto' }));
+  const editor = within(screen.getByRole('dialog', { name: 'Agrega un producto' }));
+  fireEvent.change(editor.getByLabelText('Unidad base'), { target: { value: '4' } });
+  fireEvent.click(editor.getByRole('button', { name: 'Seleccionar producto' }));
+  const picker = within(screen.getByRole('dialog', { name: 'Selecciona el producto de la caja' }));
+  fireEvent.click(await picker.findByRole('button', { name: 'Cemento gris · CEM-50' }));
+  fireEvent.change(editor.getByLabelText('Descripción del producto'), { target: { value: 'Caja de cemento' } });
+  fireEvent.change(editor.getByLabelText('Código de barras'), { target: { value: '200000001010' } });
+  fireEvent.change(editor.getByLabelText('Cantidad que contiene la caja'), { target: { value: '10' } });
+  fireEvent.change(editor.getByLabelText('Precio de la caja (IVA incluido)'), { target: { value: '1800' } });
+  fireEvent.click(editor.getByRole('button', { name: 'Guardar producto' }));
+  expect(api).toHaveBeenCalledWith('saveProduct', expect.objectContaining({
+    barcode: '200000001010', unit: 4, priceCents: 180000, stockUnits: 0,
+    boxContent: expect.objectContaining({ productId: 7, quantity: 10 }),
+  }));
 });
 
 test('a cashier can add and remove quantities from the product without changing its details', async () => {

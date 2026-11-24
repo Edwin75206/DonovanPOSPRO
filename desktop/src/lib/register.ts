@@ -31,14 +31,21 @@ export function addQuantity(product: Product, current = 0) {
   const increment = [1, 2, 3].includes(product.unit) ? Math.min(10000, remaining) : 10000;
   return increment > 0 && validQuantity(product, current + increment) ? current + increment : null;
 }
+type PriceRow = { product: Product; quantityUnits: number; wholesale: boolean; retail?: boolean };
+
+export function usesWholesale({ product, quantityUnits, wholesale, retail }: PriceRow) {
+  const minimum = product.wholesaleMinimumUnits;
+  return product.wholesaleCents > 0 && !retail && (wholesale || (minimum != null && quantityUnits >= minimum));
+}
+
 // Immediate display only. Rust recalculates prices, permissions, tax and stock before checkout.
 export function previewAmounts(
-  rows: { product: Product; quantityUnits: number; wholesale: boolean }[],
+  rows: PriceRow[],
   discount: number,
 ) {
   const gross = rows.map(
     (r) =>
-      (BigInt(r.wholesale ? r.product.wholesaleCents : r.product.priceCents) *
+      (BigInt(usesWholesale(r) ? r.product.wholesaleCents : r.product.priceCents) *
         BigInt(r.quantityUnits) +
         5000n) /
       10000n,

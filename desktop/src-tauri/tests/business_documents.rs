@@ -69,6 +69,7 @@ fn branded_documents_embed_fonts_preserve_amounts_paginate_and_respect_roles() {
         product_id: pid,
         quantity_units: 25000,
         wholesale: false,
+        retail: false,
     };
     let sale = app
         .checkout(&Checkout {
@@ -191,6 +192,7 @@ fn branded_documents_embed_fonts_preserve_amounts_paginate_and_respect_roles() {
             product_id: p["id"].as_i64().unwrap(),
             quantity_units: 10000,
             wholesale: false,
+            retail: false,
         });
     }
     let long_sale = app

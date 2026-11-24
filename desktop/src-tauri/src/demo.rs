@@ -207,6 +207,7 @@ impl Engine {
                 unit: *unit,
                 price_cents: *price,
                 wholesale_cents: price * 90 / 100,
+                wholesale_minimum_units: None,
                 cost_cents: Some(price * 68 / 100),
                 stock_units: *stock,
                 minimum_units: 50000,
@@ -223,6 +224,7 @@ impl Engine {
                     product_id: ids[index],
                     quantity_units: 10000,
                     wholesale: false,
+                    retail: false,
                 }],
                 payments: vec![Payment {
                     method: if i % 3 == 0 { 1 } else { 0 },

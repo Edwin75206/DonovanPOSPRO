@@ -93,6 +93,7 @@ export function PaymentForm({
             productId: r.product.id,
             quantityUnits: r.quantityUnits,
             wholesale: r.wholesale,
+            retail: r.retail,
           })),
           payments,
           tenderedCents: cash ? parseScaled(received) : 0,

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { SortingState } from '@tanstack/react-table';
-import { Search, ArrowRight, RotateCcw, ReceiptText } from 'lucide-react';
+import { Search, ArrowRight, RotateCcw, ReceiptText, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, type Bootstrap, type SaleDetail } from '@/lib/api';
 import { useResource } from '@/lib/useResource';
@@ -8,6 +8,7 @@ import { dateTime, money, quantity, units, today, parseScaled } from '@/lib/util
 import { Button, Busy, Failure, Field, Modal, PageTitle, useOperation } from '@/components/common';
 import { DataGrid } from '@/components/DataGrid';
 import { DocumentDialog } from '@/components/DocumentViewer';
+import { DeleteRecordDialog } from '@/components/DeleteRecordDialog';
 
 export function Sales({ data, filters }: { data: Bootstrap; filters: Record<string, unknown> }) {
   const [from, setFrom] = useState(
@@ -241,10 +242,13 @@ export function SaleViewer({
   const detail = useResource(() => api('sale', { id }), [id]);
   const [receipt, setReceipt] = useState(false);
   const [returning, setReturning] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   return (
     <Modal
       open
-      onClose={onClose}
+      onClose={() => {
+        if (!deleting) onClose();
+      }}
       title={detail.data ? `Venta ${detail.data.sale.folio}` : 'Detalle de venta'}
       description={
         detail.data
@@ -366,6 +370,11 @@ export function SaleViewer({
             </>
           )}
           <div className="dialog-actions">
+            {detail.data.canDelete && (
+              <Button variant="outline" onClick={() => setDeleting(true)}>
+                <Trash2 size={17} /> Eliminar última venta
+              </Button>
+            )}
             {data.actor?.role === 0 && !detail.data.sale.cancelled && (
               <Button variant="outline" onClick={() => setReturning(true)}>
                 <RotateCcw size={17} /> Devolver / cancelar
@@ -375,6 +384,16 @@ export function SaleViewer({
               <ReceiptText size={17} /> Ver y reimprimir ticket
             </Button>
           </div>
+          {deleting && (
+            <DeleteRecordDialog label="Eliminar última venta" name={detail.data.sale.folio}
+              description="La operación devuelve las existencias, revierte los importes en Donovan y deja libre el folio. Si hubo un cobro externo, corrígelo en la terminal o el banco."
+              requiresReason onDelete={(reason) => api('deleteSale', { id, reason })}
+              onClose={() => setDeleting(false)}
+              onDeleted={() => {
+                toast.success(`Venta eliminada. La próxima venta reutilizará ${detail.data?.sale.folio}.`);
+                onClose();
+              }} />
+          )}
           {returning && (
             <ReturnForm
               detail={detail.data}

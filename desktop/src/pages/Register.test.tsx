@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { api, type Product, type Bootstrap, type Item } from '@/lib/api';
-import { previewAmounts } from '@/lib/register';
+import { previewAmounts, usesWholesale } from '@/lib/register';
 import { Register, freshCart, type Cart } from './Register';
 vi.mock('@/lib/api', async (original) => ({
   ...(await original<typeof import('@/lib/api')>()),
@@ -64,12 +64,13 @@ const data = {
   actor: { id: 2, username: 'vendedor', name: 'Negociante Uno', role: 1 },
 } as Bootstrap;
 let current: Cart;
-function Harness() {
-  const [cart, setCart] = useState(freshCart);
+let latestPricing: Partial<Product>;
+function Harness({ initialCart, role = 1 }: { initialCart?: Cart; role?: number }) {
+  const [cart, setCart] = useState(() => initialCart ?? freshCart());
   current = cart;
   return (
     <Register
-      data={data}
+      data={{ ...data, actor: { ...data.actor!, role } }}
       cart={cart}
       setCart={setCart}
       onCash={() => {}}
@@ -80,6 +81,7 @@ function Harness() {
   );
 }
 beforeEach(() => {
+  latestPricing = {};
   vi.mocked(api).mockReset();
   vi.mocked(api).mockImplementation((async (op: string, input: Record<string, unknown> = {}) => {
     if (op === 'products') {
@@ -136,7 +138,7 @@ beforeEach(() => {
       };
     if (op === 'price') {
       const rows = (input.items as Item[]).map((i) => ({
-        product: products.find((p) => p.id === i.productId)!,
+        product: { ...products.find((p) => p.id === i.productId)!, ...latestPricing },
         ...i,
       }));
       const sums = previewAmounts(rows, 0);
@@ -144,9 +146,14 @@ beforeEach(() => {
         ...sums,
         taxCents: 0,
         lines: rows.map((r, i) => ({
-          ...r.product,
           productId: r.product.id,
           quantityUnits: r.quantityUnits,
+          priceCents: usesWholesale(r) ? r.product.wholesaleCents : r.product.priceCents,
+          catalogPricing: {
+            priceCents: r.product.priceCents,
+            wholesaleCents: r.product.wholesaleCents,
+            wholesaleMinimumUnits: r.product.wholesaleMinimumUnits ?? null,
+          },
           totalCents: sums.lineCents[i],
           taxCents: 0,
         })),
@@ -188,6 +195,37 @@ async function picker() {
   return input;
 }
 const cobrar = () => screen.getByRole('button', { name: /^Cobrar/ }) as HTMLButtonElement;
+
+test('the price and tariff update together after a catalog change and Mayoreo can be overridden per line', async () => {
+  latestPricing = { wholesaleCents: 20000, wholesaleMinimumUnits: 20000 };
+  render(
+    <Harness
+      role={2}
+      initialCart={{
+        ...freshCart(),
+        rows: [{ product: products[0], quantityUnits: 10000, wholesale: false }],
+      }}
+    />,
+  );
+  const tariff = (text: string) =>
+    screen.findByRole('button', { name: `Cambiar tarifa de Cemento gris: ${text}` });
+  const qty = screen.getByRole('textbox', { name: 'Cantidad de Cemento gris' });
+  await waitFor(() => expect(current.rows[0].product.wholesaleCents).toBe(20000));
+  await tariff('Menudeo');
+  fireEvent.change(qty, { target: { value: '2' } });
+  const wholesale = await tariff('Mayoreo');
+  expect(wholesale.parentElement?.textContent).toContain('$200.00');
+  fireEvent.click(wholesale);
+  const retail = await tariff('Menudeo manual');
+  expect(retail.parentElement?.textContent).toContain('$235.00');
+  fireEvent.change(qty, { target: { value: '3' } });
+  await waitFor(() => expect(cobrar().disabled).toBe(false));
+  expect(retail.parentElement?.textContent).toContain('$235.00');
+  fireEvent.click(retail);
+  await tariff('Mayoreo');
+  fireEvent.change(qty, { target: { value: '1' } });
+  await tariff('Menudeo');
+});
 
 test('main capture adds exact HID codes directly, repeats with Tab, and handles unknown codes without opening a modal', async () => {
   const capture = await ready();

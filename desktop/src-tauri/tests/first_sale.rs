@@ -141,6 +141,7 @@ fn first_full_sale_survives_restart_and_retries_without_double_stock() {
             product_id: id,
             quantity_units: 25000,
             wholesale: false,
+            retail: false,
         }],
         payments: vec![Payment {
             method: 0,

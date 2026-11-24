@@ -116,6 +116,38 @@ impl Engine {
         tx.commit()?;
         Ok(result)
     }
+    pub fn delete_contact(&mut self, supplier: bool, id: i64) -> Result<Value> {
+        let actor = self.actor(if supplier { "purchase" } else { "credit" })?;
+        let now = self.now_string();
+        let tx = self.db_mut()?.transaction()?;
+        let (table, dependencies, action, message) = if supplier {
+            (
+                "Supplier",
+                "SELECT COUNT(*) FROM Purchase WHERE SupplierId=?1",
+                "Eliminar proveedor",
+                "Este proveedor tiene compras registradas. Puedes archivarlo desde su ficha.",
+            )
+        } else {
+            (
+                "Customer",
+                "SELECT (SELECT COUNT(*) FROM Sale WHERE CustomerId=?1)
+                      + (SELECT COUNT(*) FROM Quote WHERE CustomerId=?1)
+                      + (SELECT COUNT(*) FROM HeldSale WHERE CustomerId=?1)
+                      + (SELECT COUNT(*) FROM CreditEntry WHERE CustomerId=?1)",
+                "Eliminar cliente",
+                "Este cliente tiene operaciones registradas. Puedes archivarlo desde su ficha.",
+            )
+        };
+        ensure(db::scalar(&tx, dependencies, [id])? == 0, "CONTACT_IN_USE", message)?;
+        ensure(
+            tx.execute(&format!("DELETE FROM {table} WHERE Id=?1"), [id])? == 1,
+            "NOT_FOUND",
+            "El contacto ya no está en el directorio.",
+        )?;
+        db::audit(&tx, &now, Some(actor.id), action, &id.to_string(), "")?;
+        tx.commit()?;
+        Ok(json!({"deleted": true}))
+    }
     pub fn customer_ledger(&self, id: i64) -> Result<Value> {
         self.actor("credit")?;
         let db = self.db()?;

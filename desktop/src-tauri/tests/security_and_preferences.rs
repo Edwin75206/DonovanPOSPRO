@@ -109,6 +109,7 @@ fn backend_permissions_hide_costs_and_restrict_other_cashiers_records() {
         product_id: id,
         quantity_units: 10000,
         wholesale: false,
+        retail: false,
     };
     let total = app.price(&[one.clone()], 0).unwrap().total_cents;
     app.cash_open(0).unwrap();

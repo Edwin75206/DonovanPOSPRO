@@ -19,8 +19,8 @@ pub struct InventoryAdjustment {
     pub reason: String,
 }
 
-const PRODUCT_APPEARANCE_JOIN: &str =
-    "LEFT JOIN AppMeta a ON a.Key=CONCAT('product-appearance:',p.Id)";
+const PRODUCT_OPTIONS_JOIN: &str = "LEFT JOIN AppMeta a ON a.Key=CONCAT('product-appearance:',p.Id)
+    LEFT JOIN AppMeta w ON w.Key=CONCAT('product-wholesale-minimum:',p.Id)";
 
 fn valid_appearance(appearance: &ProductAppearance) -> bool {
     [
@@ -33,13 +33,18 @@ fn valid_appearance(appearance: &ProductAppearance) -> bool {
             .contains(&appearance.color.as_str())
 }
 
-fn read_appearance(record: &mut Value) {
+fn read_product_options(record: &mut Value) {
     if let Some(fields) = record.as_object_mut() {
         let appearance = fields
             .remove("appearanceJson")
             .and_then(|value| serde_json::from_str::<ProductAppearance>(value.as_str()?).ok())
             .filter(valid_appearance);
         fields.insert("appearance".into(), json!(appearance));
+        let minimum = fields
+            .remove("wholesaleMinimumText")
+            .and_then(|value| value.as_str()?.parse::<i64>().ok())
+            .filter(|minimum| *minimum > 0 && *minimum <= money::MAX_UNITS);
+        fields.insert("wholesaleMinimumUnits".into(), json!(minimum));
     }
 }
 
@@ -47,20 +52,16 @@ fn product_record(db: &Connection, id: i64) -> Result<Value> {
     let mut record = db::one(
         db,
         &format!(
-            "SELECT p.*,a.Value AS AppearanceJson FROM Product p {PRODUCT_APPEARANCE_JOIN} WHERE p.Id=?1"
+            "SELECT p.*,a.Value AS AppearanceJson,w.Value AS WholesaleMinimumText FROM Product p {PRODUCT_OPTIONS_JOIN} WHERE p.Id=?1"
         ),
         [id],
     )?;
-    read_appearance(&mut record);
+    read_product_options(&mut record);
     Ok(record)
 }
 
 pub fn product(db: &Connection, id: i64) -> Result<Product> {
-    Ok(serde_json::from_value(db::one(
-        db,
-        "SELECT * FROM Product WHERE Id=?1",
-        [id],
-    )?)?)
+    Ok(serde_json::from_value(product_record(db, id)?)?)
 }
 pub fn validate(p: &mut Product) -> Result<()> {
     ensure(
@@ -103,6 +104,10 @@ pub fn validate(p: &mut Product) -> Result<()> {
     }
     if p.minimum_units > 0 {
         money::quantity(p.unit, p.minimum_units)?;
+    }
+    if let Some(minimum) = p.wholesale_minimum_units {
+        ensure(p.wholesale_cents > 0, "VALIDATION", "Captura un precio de mayoreo para configurar la cantidad mínima.")?;
+        money::quantity(p.unit, minimum)?;
     }
     Ok(())
 }
@@ -370,13 +375,13 @@ impl Engine {
         let mut items = db::all(
             self.db()?,
             &format!(
-                "SELECT p.*,a.Value AS AppearanceJson FROM Product p {PRODUCT_APPEARANCE_JOIN} {where_sql} ORDER BY CASE WHEN p.Sku=?2 COLLATE NOCASE OR p.Barcode=?2 THEN 0 ELSE 1 END,{order} {direction},p.Id LIMIT 60 OFFSET ?6"
+                "SELECT p.*,a.Value AS AppearanceJson,w.Value AS WholesaleMinimumText FROM Product p {PRODUCT_OPTIONS_JOIN} {where_sql} ORDER BY CASE WHEN p.Sku=?2 COLLATE NOCASE OR p.Barcode=?2 THEN 0 ELSE 1 END,{order} {direction},p.Id LIMIT 60 OFFSET ?6"
             ),
             bindings,
         )?;
         let can_view_cost = actor.can("catalog");
         for item in &mut items {
-            read_appearance(item);
+            read_product_options(item);
             if !can_view_cost {
                 item["costCents"] = Value::Null;
             }
@@ -423,6 +428,15 @@ impl Engine {
             None
         };
         let id = persist(&tx, &p)?;
+        let minimum_key = format!("product-wholesale-minimum:{id}");
+        if let Some(minimum) = p.wholesale_minimum_units {
+            tx.execute(
+                "INSERT INTO AppMeta(Key,Value) VALUES (?1,?2) ON CONFLICT(Key) DO UPDATE SET Value=excluded.Value",
+                params![minimum_key, minimum.to_string()],
+            )?;
+        } else {
+            tx.execute("DELETE FROM AppMeta WHERE Key=?1", [minimum_key])?;
+        }
         if let Some(appearance) = &p.appearance {
             let key = format!("product-appearance:{id}");
             if appearance.icon.is_empty() && appearance.color.is_empty() {
@@ -462,6 +476,36 @@ impl Engine {
         let saved = product_record(&tx, id)?;
         tx.commit()?;
         Ok(saved)
+    }
+    pub fn delete_product(&mut self, id: i64) -> Result<Value> {
+        let actor = self.actor("catalog")?;
+        let now = self.now_string();
+        let tx = self.db_mut()?.transaction()?;
+        let product = product(&tx, id)?;
+        let history = db::scalar(
+            &tx,
+            "SELECT (SELECT COUNT(*) FROM SaleLine WHERE ProductId=?1)
+                  + (SELECT COUNT(*) FROM PurchaseLine WHERE ProductId=?1)
+                  + (SELECT COUNT(*) FROM QuoteLine WHERE ProductId=?1)
+                  + (SELECT COUNT(*) FROM HeldSaleLine WHERE ProductId=?1)
+                  + (SELECT COUNT(*) FROM StockMovement WHERE ProductId=?1
+                       AND NOT (Kind='Alta' AND Reference='Catálogo' AND Reason='Existencia inicial'))",
+            [id],
+        )?;
+        ensure(
+            history == 0,
+            "PRODUCT_IN_USE",
+            "Este producto tiene operaciones registradas. Puedes archivarlo desde su ficha.",
+        )?;
+        tx.execute("DELETE FROM StockMovement WHERE ProductId=?1", [id])?;
+        tx.execute("DELETE FROM Product WHERE Id=?1", [id])?;
+        tx.execute(
+            "DELETE FROM AppMeta WHERE Key IN (?1,?2)",
+            params![format!("product-appearance:{id}"), format!("product-wholesale-minimum:{id}")],
+        )?;
+        db::audit(&tx, &now, Some(actor.id), "Eliminar producto", &product.sku, &id.to_string())?;
+        tx.commit()?;
+        Ok(json!({"deleted": true}))
     }
     pub fn adjust_stock(&mut self, id: i64, delta: i64, reason: &str) -> Result<Value> {
         let actor = self.actor("stock")?;

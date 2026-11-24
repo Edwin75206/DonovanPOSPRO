@@ -14,6 +14,7 @@ fn sale(product_id: i64, quantity_units: i64, amount: i64) -> Checkout {
             product_id,
             quantity_units,
             wholesale: false,
+            retail: false,
         }],
         payments: vec![Payment {
             method: 0,

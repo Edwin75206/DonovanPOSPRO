@@ -101,6 +101,7 @@ fn reports_reconcile_event_dates_credit_returns_cash_and_exact_purchase_costs() 
                 product_id: pid,
                 quantity_units: 20000,
                 wholesale: false,
+                retail: false,
             }],
             payments: vec![
                 Payment {
@@ -368,6 +369,7 @@ fn missing_cost_is_never_reported_as_zero_and_labels_preserve_codes() {
             product_id: pid,
             quantity_units: 10000,
             wholesale: false,
+            retail: false,
         }],
         payments: vec![Payment {
             method: 0,

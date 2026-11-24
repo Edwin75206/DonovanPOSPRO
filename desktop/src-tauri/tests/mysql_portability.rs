@@ -37,6 +37,7 @@ fn mysql_migration_sale_restart_and_restore_on_two_isolated_installations() {
             product_id: id,
             quantity_units: 25000,
             wholesale: false,
+            retail: false,
         }],
         payments: vec![Payment {
             method: 0,

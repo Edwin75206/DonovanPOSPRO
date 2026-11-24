@@ -29,6 +29,7 @@ fn schema_four_upgrades_with_safety_copy_and_keeps_commercial_data() {
             product_id: p["id"].as_i64().unwrap(),
             quantity_units: 10000,
             wholesale: false,
+            retail: false,
         }],
         payments: vec![Payment {
             method: 0,
@@ -48,6 +49,7 @@ fn schema_four_upgrades_with_safety_copy_and_keeps_commercial_data() {
                 product_id: p["id"].as_i64().unwrap(),
                 quantity_units: 20000,
                 wholesale: false,
+                retail: false,
             }],
             customer_id: None,
             discount_parts: 0,
@@ -266,6 +268,7 @@ fn mixed_checkout_rechecks_stock_and_failed_print_never_recharges() {
             product_id: p["id"].as_i64().unwrap(),
             quantity_units: qty,
             wholesale: false,
+            retail: false,
         });
     }
     let request = Checkout {

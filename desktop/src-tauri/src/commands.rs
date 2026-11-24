@@ -49,6 +49,9 @@ pub enum Request {
     ProductForCode {
         code: String,
     },
+    DeleteProduct {
+        id: i64,
+    },
     AdjustStock {
         id: i64,
         delta: i64,
@@ -81,6 +84,10 @@ pub enum Request {
     Checkout(Checkout),
     Sale {
         id: i64,
+    },
+    DeleteSale {
+        id: i64,
+        reason: String,
     },
     #[cfg(feature = "invoice-requests")]
     InvoiceRequest {
@@ -175,6 +182,10 @@ pub enum Request {
         supplier: bool,
         contact: crate::contacts::Contact,
     },
+    DeleteContact {
+        supplier: bool,
+        id: i64,
+    },
     CustomerLedger {
         id: i64,
     },
@@ -186,6 +197,9 @@ pub enum Request {
         id: i64,
     },
     SaveQuote(crate::quotes::QuoteInput),
+    DeleteQuote {
+        id: i64,
+    },
     HeldSales,
     HeldSale {
         id: i64,
@@ -286,6 +300,7 @@ fn dispatch(engine: &mut Engine, window: &tauri::WebviewWindow, request: Request
         Request::SaveProduct { product, inventory_adjustment } => {
             engine.save_product_with_stock(product, inventory_adjustment)
         }
+        Request::DeleteProduct { id } => engine.delete_product(id),
         Request::ProductForCode { code } => engine.product_for_code(&code),
         Request::AdjustStock { id, delta, reason } => engine.adjust_stock(id, delta, &reason),
         Request::StockHistory { id } => engine.stock_history(id),
@@ -310,6 +325,7 @@ fn dispatch(engine: &mut Engine, window: &tauri::WebviewWindow, request: Request
         Request::CheckoutResult { request_id } => engine.checkout_result(&request_id),
         Request::Checkout(request) => engine.checkout(&request),
         Request::Sale { id } => engine.sale(id),
+        Request::DeleteSale { id, reason } => engine.delete_sale(id, &reason),
         #[cfg(feature = "invoice-requests")]
         Request::InvoiceRequest { id } => engine.invoice_request(id),
         #[cfg(feature = "invoice-requests")]
@@ -412,12 +428,14 @@ fn dispatch(engine: &mut Engine, window: &tauri::WebviewWindow, request: Request
             archived,
         } => engine.contacts(supplier, &search, archived),
         Request::SaveContact { supplier, contact } => engine.save_contact(supplier, contact),
+        Request::DeleteContact { supplier, id } => engine.delete_contact(supplier, id),
         Request::CustomerLedger { id } => engine.customer_ledger(id),
         Request::CreditPayment(input) => engine.credit_payment(input),
         Request::Contact { supplier, id } => engine.contact(supplier, id),
         Request::Quotes { search } => engine.quotes(&search),
         Request::Quote { id } => engine.quote(id),
         Request::SaveQuote(input) => engine.save_quote(input),
+        Request::DeleteQuote { id } => engine.delete_quote(id),
         Request::HeldSales => engine.held_sales(),
         Request::HeldSale { id } => engine.held_sale(id),
         Request::SaveHeld(input) => engine.save_held(input),
@@ -566,10 +584,14 @@ impl Request {
             Self::Setup(_) => "Configuración inicial",
             Self::SaveUser { .. } => "Guardar usuario",
             Self::Checkout(_) => "Cobrar venta",
+            Self::DeleteSale { .. } => "Eliminar última venta",
             Self::ReturnSale(_) => "Devolver o cancelar venta",
             Self::ReceivePurchase(_) => "Recibir compra",
             Self::CreditPayment(_) => "Registrar abono",
             Self::SaveProduct { .. } => "Guardar producto",
+            Self::DeleteProduct { .. } => "Eliminar producto",
+            Self::DeleteContact { .. } => "Eliminar contacto",
+            Self::DeleteQuote { .. } => "Eliminar cotización",
             Self::AdjustStock { .. } => "Ajustar inventario",
             Self::SaveQuote(_) => "Guardar cotización",
             Self::SaveHeld(_) => "Suspender venta",

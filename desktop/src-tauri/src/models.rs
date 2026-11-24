@@ -15,6 +15,7 @@ pub struct Product {
     pub cost_cents: Option<i64>,
     pub price_cents: i64,
     pub wholesale_cents: i64,
+    pub wholesale_minimum_units: Option<i64>,
     pub stock_units: i64,
     pub minimum_units: i64,
     pub tax_basis_points: i64,
@@ -38,6 +39,7 @@ impl Default for Product {
             cost_cents: None,
             price_cents: 0,
             wholesale_cents: 0,
+            wholesale_minimum_units: None,
             stock_units: 0,
             minimum_units: 0,
             tax_basis_points: 1600,
@@ -100,6 +102,8 @@ pub struct SaleItem {
     pub quantity_units: i64,
     #[serde(default)]
     pub wholesale: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub retail: bool,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -139,6 +143,13 @@ impl Default for Checkout {
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CatalogPricing {
+    pub price_cents: i64,
+    pub wholesale_cents: i64,
+    pub wholesale_minimum_units: Option<i64>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ChargeLine {
     pub product_id: i64,
     pub sku: String,
@@ -147,6 +158,8 @@ pub struct ChargeLine {
     pub unit: i64,
     pub quantity_units: i64,
     pub price_cents: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub catalog_pricing: Option<CatalogPricing>,
     pub cost_cents: Option<i64>,
     pub tax_basis_points: i64,
     pub total_cents: i64,

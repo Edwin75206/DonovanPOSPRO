@@ -119,6 +119,14 @@
 .inventory-actions > button {
   font-size: 0.72rem;
 }
+.inventory-actions { flex-wrap: wrap; }
+.box-picker-results {
+  display: grid;
+  gap: 0.4rem;
+  max-height: 45vh;
+  overflow: auto;
+}
+.box-picker-results > button { justify-content: flex-start; white-space: normal; height: auto; }
 .stock-status {
   display: inline-flex;
   flex-direction: column;

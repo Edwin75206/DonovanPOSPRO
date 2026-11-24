@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { Search, Plus, Truck, ArrowRight, Trash2, PackageCheck, Printer } from 'lucide-react';
 import { toast } from 'sonner';
-import { api, type Contact, type Product, type Bootstrap } from '@/lib/api';
+import { api, can, type Contact, type Product, type Bootstrap } from '@/lib/api';
 import { DocumentDialog } from '@/components/DocumentViewer';
 import { useResource } from '@/lib/useResource';
 import { dateTime, money, quantity, units, today, parseScaled } from '@/lib/utils';
 import { Button, Busy, Failure, Field, Modal, PageTitle, useOperation } from '@/components/common';
 import { DataGrid } from '@/components/DataGrid';
 import { ContactEditor, newContact } from './Contacts';
+import { CatalogPicker, newProduct, ProductEditor } from './Inventory';
 
 export function Purchases({ data, onSuppliers }: { data: Bootstrap; onSuppliers: () => void }) {
   const [search, setSearch] = useState('');
@@ -104,6 +105,7 @@ export function Purchases({ data, onSuppliers }: { data: Bootstrap; onSuppliers:
       )}
       {create && (
         <PurchaseForm
+          canCreateProduct={data.actor !== null && can(data.actor, 'catalog')}
           onClose={() => setCreate(false)}
           onSaved={(id) => {
             setCreate(false);
@@ -229,15 +231,17 @@ function PurchaseViewer({
 }
 type PurchaseRow = { id: number; product: Product; amount: string; cost: string; byPack: boolean };
 function PurchaseForm({
+  canCreateProduct,
   onClose,
   onSaved,
 }: {
+  canCreateProduct: boolean;
   onClose: () => void;
   onSaved: (id: number) => void;
 }) {
   const [supplier, setSupplier] = useState<Contact | null>(null);
   const [pickSupplier, setPickSupplier] = useState(false);
-  const [search, setSearch] = useState('');
+  const [productDialog, setProductDialog] = useState<'pick' | 'create' | null>(null);
   const [rows, setRows] = useState<PurchaseRow[]>([]);
   const [reference, setReference] = useState('');
   const [date, setDate] = useState(today);
@@ -245,11 +249,19 @@ function PurchaseForm({
   const [confirmed, setConfirmed] = useState(false);
   const [abandon, setAbandon] = useState(false);
   const [requestId] = useState(() => crypto.randomUUID());
-  const products = useResource(
-    () => api('products', { search, category: '', status: 'active', page: 0 }),
-    [search],
-  );
   const op = useOperation();
+  const addProduct = (product: Product) => {
+    setRows((current) => {
+      if (current.some((row) => row.id === product.id)) {
+        return current.map((row) => row.id === product.id
+          ? { ...row, amount: String((parseScaled(row.amount, 10000) + 10000) / 10000) }
+          : row);
+      }
+      return [...current, { id: product.id, product, amount: '1', cost: '', byPack: false }];
+    });
+    setConfirmed(false);
+    setProductDialog(null);
+  };
   const update = (id: number, partial: Partial<PurchaseRow>) => {
     setRows((all) => all.map((r) => (r.id === id ? { ...r, ...partial } : r)));
     setConfirmed(false);
@@ -263,7 +275,7 @@ function PurchaseForm({
     );
   const total = rows.reduce((sum, row) => sum + lineTotal(row), 0);
   const close = () => {
-    if (!op.busy) {
+    if (!op.busy && !pickSupplier && !productDialog) {
       if (rows.length || reference) setAbandon(true);
       else onClose();
     }
@@ -358,62 +370,16 @@ function PurchaseForm({
               />
             </Field>
           </div>
-          <div className="records-search">
-            <Search size={18} />
-            <input
-              aria-label="Agregar producto a compra"
-              placeholder="Busca por código, nombre, marca o medida…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              maxLength={300}
-            />
+          <div className="page-actions">
+            <Button type="button" variant="outline" disabled={rows.length >= 500} onClick={() => setProductDialog('pick')}>
+              <Search size={17} /> Buscar producto
+            </Button>
+            {canCreateProduct && (
+              <Button type="button" variant="outline" disabled={rows.length >= 500} onClick={() => setProductDialog('create')}>
+                <Plus size={17} /> Nuevo producto
+              </Button>
+            )}
           </div>
-          {search && (
-            <div className="purchase-suggestions">
-              {products.data?.items.slice(0, 8).map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  disabled={rows.length >= 500}
-                  onClick={() => {
-                    setRows((current) =>
-                      current.some((r) => r.id === p.id)
-                        ? current.map((r) =>
-                            r.id === p.id
-                              ? {
-                                  ...r,
-                                  amount: String((parseScaled(r.amount, 10000) + 10000) / 10000),
-                                }
-                              : r,
-                          )
-                        : [
-                            ...current,
-                            { id: p.id, product: p, amount: '1', cost: '', byPack: false },
-                          ],
-                    );
-                    setConfirmed(false);
-                    setSearch('');
-                  }}
-                >
-                  <span>
-                    <strong>{p.name}</strong>
-                    <small>
-                      {p.sku} · {p.brand} · {p.size}
-                    </small>
-                  </span>
-                  <Plus size={17} />
-                </button>
-              ))}
-              {products.busy ? (
-                <p>Buscando…</p>
-              ) : (
-                !products.data?.items.length && (
-                  <p>No encontramos productos activos con esa búsqueda.</p>
-                )
-              )}
-            </div>
-          )}
-          <Failure error={products.error} />
           <DataGrid
             rows={rows}
             caption="Productos de la compra"
@@ -455,15 +421,13 @@ function PurchaseForm({
                     </select>
                     <small>
                       Entrarán{' '}
-                      {quantity(
-                        r.byPack
-                          ? Number(
-                              (BigInt(parseScaled(r.amount, 10000)) * BigInt(r.product.packUnits)) /
-                                10000n,
-                            )
-                          : parseScaled(r.amount, 10000),
-                      )}{' '}
-                      {units[r.product.unit]}
+                      {quantity(Number(
+                        BigInt(parseScaled(r.amount, 10000)) *
+                        BigInt(r.byPack ? r.product.packUnits : 10000) *
+                        BigInt(r.product.boxContent?.quantity ?? 1) / 10000n,
+                      ))}{' '}
+                      {units[r.product.boxContent?.unit ?? r.product.unit]}
+                      {r.product.boxContent?.name && ` de ${r.product.boxContent.name}`}
                     </small>
                   </div>
                 ),
@@ -581,6 +545,12 @@ function PurchaseForm({
           </Button>
         </div>
       </form>
+      {productDialog === 'pick' && (
+        <CatalogPicker title="Buscar producto" onClose={() => setProductDialog(null)} onSelect={addProduct} />
+      )}
+      {productDialog === 'create' && (
+        <PurchaseProductEditor onClose={() => setProductDialog(null)} onSaved={addProduct} />
+      )}
       {pickSupplier && (
         <SupplierPicker
           onClose={() => setPickSupplier(false)}
@@ -607,6 +577,29 @@ function PurchaseForm({
         </div>
       </Modal>
     </Modal>
+  );
+}
+function PurchaseProductEditor({ onClose, onSaved }: { onClose: () => void; onSaved: (product: Product) => void }) {
+  const categories = useResource(
+    () => api('products', { search: '', category: '', status: 'active', page: 0 }),
+    [],
+  );
+  return (
+    <ProductEditor
+      product={newProduct()}
+      categories={categories.data?.categories.map((category) => category.name) ?? []}
+      editable
+      onClose={onClose}
+      onSaved={(product) => {
+        if (!product.active) {
+          toast.success('Producto archivado guardado. Actívalo para recibirlo en una compra.');
+          onClose();
+          return;
+        }
+        onSaved(product);
+        toast.success('Producto creado y agregado a la compra.');
+      }}
+    />
   );
 }
 function SupplierPicker({

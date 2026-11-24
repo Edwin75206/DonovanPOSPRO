@@ -33,9 +33,15 @@ pub struct HeldInput {
     pub discount_parts: i64,
 }
 pub fn quote_detail(db: &Connection, id: i64) -> Result<Value> {
-    Ok(
-        json!({"quote":db::one(db,"SELECT * FROM Quote WHERE Id=?1",[id])?,"lines":db::all(db,"SELECT q.*,p.Sku,p.StockUnits,p.Active FROM QuoteLine q JOIN Product p ON p.Id=q.ProductId WHERE QuoteId=?1 ORDER BY q.Id",[id])?}),
-    )
+    let quote = db::one(db,"SELECT * FROM Quote WHERE Id=?1",[id])?;
+    let mut lines = db::all(db,"SELECT q.*,p.Sku,p.StockUnits,p.Active FROM QuoteLine q JOIN Product p ON p.Id=q.ProductId WHERE QuoteId=?1 ORDER BY q.Id",[id])?;
+    for line in &mut lines {
+        let p = catalog::product(db, line["productId"].as_i64().unwrap_or(0))?;
+        if p.box_content.is_some() {
+            line["stockUnits"] = json!(p.stock_units);
+        }
+    }
+    Ok(json!({"quote":quote,"lines":lines}))
 }
 impl Engine {
     pub fn quotes(&self, search: &str) -> Result<Value> {
@@ -89,6 +95,9 @@ impl Engine {
             "Público en general".into()
         };
         let (id, folio) = if input.id == 0 {
+            if db::scalar(&tx, "SELECT COUNT(*) FROM Quote", [])? == 0 {
+                tx.execute("UPDATE Sequence SET Value=0 WHERE Key=?1", [QUOTE_SEQUENCE])?;
+            }
             let folio = db::folio(&tx, QUOTE_SEQUENCE, QUOTE_PREFIX)?;
             tx.execute("INSERT INTO Quote(Folio,CreatedAt,ValidUntil,CustomerId,CustomerName,Notes,TotalCents,TaxCents,SaleId,UserId) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,NULL,?9)",params![folio,now,input.valid_until,input.customer_id,customer,input.notes.trim(),charge.total_cents,charge.tax_cents,actor.id])?;
             (tx.last_insert_rowid(), folio)

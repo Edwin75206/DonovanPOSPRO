@@ -21,6 +21,14 @@ pub struct InventoryAdjustment {
 
 const PRODUCT_OPTIONS_JOIN: &str = "LEFT JOIN AppMeta a ON a.Key=CONCAT('product-appearance:',p.Id)
     LEFT JOIN AppMeta w ON w.Key=CONCAT('product-wholesale-minimum:',p.Id)";
+pub(crate) const BOX_JOIN: &str = "LEFT JOIN AppMeta box ON box.Key=CONCAT('product-box:',p.Id)
+    LEFT JOIN AppMeta n ON n.Key=CONCAT('product-box-quantity:',p.Id)
+    LEFT JOIN Product b ON b.Id=box.Value";
+pub(crate) const AVAILABLE_STOCK: &str = "CASE WHEN box.Value IS NULL THEN p.StockUnits
+    WHEN b.Active=1 THEN (b.StockUnits-b.StockUnits%(n.Value*10000))/NULLIF(n.Value,0)
+    ELSE 0 END";
+const BOX_COLUMNS: &str = "box.Value AS BoxId,n.Value AS BoxQuantity,b.Name AS BoxName,
+    b.Unit AS BoxUnit,b.StockUnits AS BoxProductStock,b.Active AS BoxProductActive";
 
 fn valid_appearance(appearance: &ProductAppearance) -> bool {
     [
@@ -44,6 +52,24 @@ fn read_product_options(record: &mut Value) {
             .remove("wholesaleMinimumText")
             .and_then(|value| wholesale_minimum(value.as_str()?));
         fields.insert("wholesaleMinimumUnits".into(), json!(minimum));
+        let box_id = fields.remove("boxId").and_then(|v| v.as_str()?.parse::<i64>().ok());
+        let count = fields.remove("boxQuantity")
+            .and_then(|v| v.as_str()?.parse::<i64>().ok())
+            .filter(|n| (1..=money::MAX_UNITS / 10_000).contains(n));
+        let name = fields.remove("boxName");
+        let unit = fields.remove("boxUnit");
+        let stock = fields.remove("boxProductStock");
+        let active = fields.remove("boxProductActive");
+        if let (Some(product_id), Some(count)) = (box_id, count) {
+            let available = match active.as_ref() {
+                Some(v) if v.as_bool() == Some(true) || v.as_i64() == Some(1) => stock.as_ref().and_then(Value::as_i64).unwrap_or(0),
+                _ => 0,
+            };
+            fields.insert("stockUnits".into(), json!((available / (count * 10_000)) * 10_000));
+            fields.insert("boxContent".into(), json!({
+                "productId": product_id, "quantity": count, "name": name, "unit": unit, "stockUnits": available,
+            }));
+        }
     }
 }
 
@@ -57,7 +83,7 @@ fn product_record(db: &Connection, id: i64) -> Result<Value> {
     let mut record = db::one(
         db,
         &format!(
-            "SELECT p.*,a.Value AS AppearanceJson,w.Value AS WholesaleMinimumText FROM Product p {PRODUCT_OPTIONS_JOIN} WHERE p.Id=?1"
+            "SELECT p.*,a.Value AS AppearanceJson,w.Value AS WholesaleMinimumText,{BOX_COLUMNS} FROM Product p {PRODUCT_OPTIONS_JOIN} {BOX_JOIN} WHERE p.Id=?1"
         ),
         [id],
     )?;
@@ -67,6 +93,21 @@ fn product_record(db: &Connection, id: i64) -> Result<Value> {
 
 pub fn product(db: &Connection, id: i64) -> Result<Product> {
     Ok(serde_json::from_value(product_record(db, id)?)?)
+}
+pub(crate) fn stock_target(p: &Product, delta: i64) -> Result<(i64, i64)> {
+    match &p.box_content {
+        Some(content) => Ok((
+            content.product_id,
+            delta.checked_mul(content.quantity).ok_or_else(|| {
+                crate::error::AppError::rule("VALIDATION", "La cantidad total de la caja supera el límite de inventario.")
+            })?,
+        )),
+        None => Ok((p.id, delta)),
+    }
+}
+
+fn box_dependencies(db: &Connection, id: i64) -> Result<i64> {
+    db::scalar(db, "SELECT COUNT(*) FROM AppMeta WHERE Key LIKE 'product-box:%' AND Value=?1", [id.to_string()])
 }
 pub fn validate(p: &mut Product) -> Result<()> {
     ensure(
@@ -114,6 +155,14 @@ pub fn validate(p: &mut Product) -> Result<()> {
         ensure(p.wholesale_cents > 0, "VALIDATION", "Captura un precio de mayoreo para configurar la cantidad mínima.")?;
         money::quantity(p.unit, minimum)?;
     }
+    if let Some(content) = &p.box_content {
+        ensure(
+            p.unit == 4 && p.barcode.is_some() && content.product_id > 0
+                && content.product_id != p.id && (1..=money::MAX_UNITS / 10_000).contains(&content.quantity),
+            "VALIDATION",
+            "Selecciona Caja, captura su código de barras y elige un producto con una cantidad entera mayor a cero.",
+        )?;
+    }
     Ok(())
 }
 pub fn stock(
@@ -127,12 +176,14 @@ pub fn stock(
     reason: &str,
 ) -> Result<()> {
     let p = product(db, id)?;
-    let balance = p
+    let (target, delta_units) = stock_target(&p, delta)?;
+    let physical = if target == id { p.clone() } else { product(db, target)? };
+    let balance = physical
         .stock_units
-        .checked_add(delta)
+        .checked_add(delta_units)
         .filter(|n| *n >= 0 && *n <= money::MAX_UNITS);
     ensure(
-        balance.is_some(),
+        balance.is_some() && p.stock_units.saturating_add(delta) >= 0,
         "INSUFFICIENT_STOCK",
         &format!(
             "No hay suficientes unidades de {}. Disponibles: {:.4}. Modifica la cantidad para continuar.",
@@ -142,9 +193,10 @@ pub fn stock(
     )?;
     db.execute(
         "UPDATE Product SET StockUnits=?1 WHERE Id=?2",
-        params![balance, id],
+        params![balance, target],
     )?;
-    db.execute("INSERT INTO StockMovement(ProductId,CreatedAt,UserId,Kind,Reference,Reason,DeltaUnits,BalanceUnits) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",params![id,now,user,kind,reference,reason,delta,balance])?;
+    let reason = if target == id || !reason.is_empty() { reason.to_owned() } else { format!("Presentación {}", p.sku) };
+    db.execute("INSERT INTO StockMovement(ProductId,CreatedAt,UserId,Kind,Reference,Reason,DeltaUnits,BalanceUnits) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",params![target,now,user,kind,reference,reason,delta_units,balance])?;
     Ok(())
 }
 fn adjustment_reason(reason: &str) -> Result<String> {
@@ -192,7 +244,7 @@ pub fn persist(db: &Connection, p: &Product) -> Result<i64> {
         let existing = product(db, p.id)?;
         if p.unit != existing.unit {
             ensure(
-                existing.stock_units == 0
+                existing.stock_units == 0 && box_dependencies(db, p.id)? == 0
                     && db::scalar(
                         db,
                         "SELECT (SELECT COUNT(*) FROM StockMovement WHERE ProductId=?1)+(SELECT COUNT(*) FROM QuoteLine WHERE ProductId=?1)+(SELECT COUNT(*) FROM HeldSaleLine WHERE ProductId=?1)",
@@ -303,7 +355,7 @@ impl Engine {
             "sku" => "p.Sku COLLATE NOCASE",
             "name" => "p.Name COLLATE NOCASE",
             "category" => "p.Category COLLATE NOCASE",
-            "stockUnits" => "p.StockUnits",
+            "stockUnits" => AVAILABLE_STOCK,
             "priceCents" => "p.PriceCents",
             "wholesaleCents" => "p.WholesaleCents",
             "costCents" => {
@@ -333,7 +385,7 @@ impl Engine {
             .map(|s| format!("\"{s}\"*"))
             .collect();
         let query = tokens.join(" AND ");
-        let mut where_sql = "WHERE (?1='' OR p.Id IN (SELECT rowid FROM ProductSearch WHERE ProductSearch MATCH ?1) OR p.Sku=?2 COLLATE NOCASE OR p.Barcode=?2) AND (?3='' OR p.Category=?3) AND ((?4='archived' AND p.Active=0) OR (?4<>'archived' AND p.Active=1)) AND (?4<>'low' OR p.StockUnits<=p.MinimumUnits) AND (?4<>'empty' OR p.StockUnits=0) AND (?5='' OR p.Brand=?5)".to_owned();
+        let mut where_sql = format!("WHERE (?1='' OR p.Id IN (SELECT rowid FROM ProductSearch WHERE ProductSearch MATCH ?1) OR p.Sku=?2 COLLATE NOCASE OR p.Barcode=?2) AND (?3='' OR p.Category=?3) AND ((?4='archived' AND p.Active=0) OR (?4<>'archived' AND p.Active=1)) AND (?4<>'low' OR ({AVAILABLE_STOCK})<=p.MinimumUnits) AND (?4<>'empty' OR ({AVAILABLE_STOCK})=0) AND (?5='' OR p.Brand=?5)");
         use rusqlite::types::Value as SqlValue;
         let mut bindings = vec![
             SqlValue::Text(query),
@@ -374,13 +426,13 @@ impl Engine {
         };
         let total = db::scalar(
             self.db()?,
-            &format!("SELECT COUNT(*) FROM Product p {where_sql}"),
+            &format!("SELECT COUNT(*) FROM Product p {BOX_JOIN} {where_sql}"),
             count_bindings,
         )?;
         let mut items = db::all(
             self.db()?,
             &format!(
-                "SELECT p.*,a.Value AS AppearanceJson,w.Value AS WholesaleMinimumText FROM Product p {PRODUCT_OPTIONS_JOIN} {where_sql} ORDER BY CASE WHEN p.Sku=?2 COLLATE NOCASE OR p.Barcode=?2 THEN 0 ELSE 1 END,{order} {direction},p.Id LIMIT 60 OFFSET ?6"
+                "SELECT p.*,a.Value AS AppearanceJson,w.Value AS WholesaleMinimumText,{BOX_COLUMNS} FROM Product p {PRODUCT_OPTIONS_JOIN} {BOX_JOIN} {where_sql} ORDER BY CASE WHEN p.Sku=?2 COLLATE NOCASE OR p.Barcode=?2 THEN 0 ELSE 1 END,{order} {direction},p.Id LIMIT 60 OFFSET ?6"
             ),
             bindings,
         )?;
@@ -421,8 +473,40 @@ impl Engine {
         validate(&mut p)?;
         let now = self.now_string();
         let tx = self.db_mut()?.transaction()?;
+        let existing = if p.id > 0 { Some(product(&tx, p.id)?) } else { None };
+        let old_box = existing.as_ref().and_then(|p| p.box_content.as_ref());
+        if old_box != p.box_content.as_ref() && p.id > 0 {
+            ensure(
+                db::scalar(&tx,
+                    "SELECT (SELECT COUNT(*) FROM SaleLine WHERE ProductId=?1)
+                     +(SELECT COUNT(*) FROM PurchaseLine WHERE ProductId=?1)
+                     +(SELECT COUNT(*) FROM QuoteLine WHERE ProductId=?1)
+                     +(SELECT COUNT(*) FROM HeldSaleLine WHERE ProductId=?1)
+                     +(SELECT COUNT(*) FROM StockMovement WHERE ProductId=?1)
+                     +(SELECT StockUnits FROM Product WHERE Id=?1)", [p.id])? == 0,
+                "BOX_HAS_HISTORY",
+                "Este producto ya tiene inventario u operaciones. Crea otra ficha para cambiar lo que contiene la caja.",
+            )?;
+        }
+        if let Some(content) = &p.box_content {
+            let item = product(&tx, content.product_id)?;
+            ensure(
+                item.box_content.is_none() && (p.id == 0 || box_dependencies(&tx, p.id)? == 0),
+                "BOX_NESTED",
+                "Selecciona un producto con inventario propio para vincularlo a la caja.",
+            )?;
+            ensure(
+                item.barcode.as_ref() != p.barcode.as_ref() && db::scalar(&tx,
+                    "SELECT COUNT(*) FROM Product WHERE Id<>?1 AND (Sku=?2 COLLATE NOCASE OR Barcode=?3)",
+                    params![p.id,p.barcode,p.sku])? == 0,
+                "BOX_BARCODE",
+                "La caja necesita un código de barras diferente al del producto.",
+            )?;
+            ensure(adjustment.is_none(), "BOX_STOCK_SHARED", "Ajusta el inventario del producto contenido o usa Ajustar existencias.")?;
+            p.stock_units = 0;
+        }
         let stock_change = if let Some(adjustment) = adjustment {
-            let current = product(&tx, p.id)?.stock_units;
+            let current = existing.as_ref().map_or(0, |p| p.stock_units);
             ensure(
                 current == adjustment.expected_stock_units,
                 "STOCK_CHANGED",
@@ -433,6 +517,18 @@ impl Engine {
             None
         };
         let id = persist(&tx, &p)?;
+        if old_box != p.box_content.as_ref() {
+            let link = format!("product-box:{id}");
+            let amount = format!("product-box-quantity:{id}");
+            if let Some(content) = &p.box_content {
+                tx.execute(
+                    "INSERT INTO AppMeta(Key,Value) VALUES (?1,?2),(?3,?4) ON CONFLICT(Key) DO UPDATE SET Value=excluded.Value",
+                    params![link, content.product_id.to_string(), amount, content.quantity.to_string()],
+                )?;
+            } else {
+                tx.execute("DELETE FROM AppMeta WHERE Key IN (?1,?2)", params![link, amount])?;
+            }
+        }
         let minimum_key = format!("product-wholesale-minimum:{id}");
         if let Some(minimum) = p.wholesale_minimum_units {
             tx.execute(
@@ -487,6 +583,11 @@ impl Engine {
         let now = self.now_string();
         let tx = self.db_mut()?.transaction()?;
         let product = product(&tx, id)?;
+        ensure(
+            box_dependencies(&tx, id)? == 0,
+            "PRODUCT_IN_USE",
+            "Este producto está vinculado a una caja. Revisa la ficha de esa caja antes de eliminarlo.",
+        )?;
         let history = db::scalar(
             &tx,
             "SELECT (SELECT COUNT(*) FROM SaleLine WHERE ProductId=?1)
@@ -505,8 +606,8 @@ impl Engine {
         tx.execute("DELETE FROM StockMovement WHERE ProductId=?1", [id])?;
         tx.execute("DELETE FROM Product WHERE Id=?1", [id])?;
         tx.execute(
-            "DELETE FROM AppMeta WHERE Key IN (?1,?2)",
-            params![format!("product-appearance:{id}"), format!("product-wholesale-minimum:{id}")],
+            "DELETE FROM AppMeta WHERE Key IN (?1,?2,?3,?4)",
+            params![format!("product-appearance:{id}"), format!("product-wholesale-minimum:{id}"),format!("product-box:{id}"),format!("product-box-quantity:{id}")],
         )?;
         db::audit(&tx, &now, Some(actor.id), "Eliminar producto", &product.sku, &id.to_string())?;
         tx.commit()?;

@@ -174,7 +174,7 @@ impl Engine {
                 actor.id,
                 cash,
                 -paid_refund,
-                "Reembolso",
+                if input.cancel { "Cancelación" } else { "Reembolso" },
                 &folio,
                 &reason,
             )?;

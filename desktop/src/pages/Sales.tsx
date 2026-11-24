@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { SortingState } from '@tanstack/react-table';
-import { Search, ArrowRight, RotateCcw, ReceiptText, Trash2 } from 'lucide-react';
+import { Search, ArrowRight, Ban, RotateCcw, ReceiptText, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, type Bootstrap, type SaleDetail } from '@/lib/api';
 import { useResource } from '@/lib/useResource';
@@ -9,6 +9,13 @@ import { Button, Busy, Failure, Field, Modal, PageTitle, useOperation } from '@/
 import { DataGrid } from '@/components/DataGrid';
 import { DocumentDialog } from '@/components/DocumentViewer';
 import { DeleteRecordDialog } from '@/components/DeleteRecordDialog';
+
+const refundMethods = ['Efectivo', 'Tarjeta', 'Transferencia'];
+
+function saleStatus(cancelled: boolean, refundedCents: number) {
+  if (cancelled) return 'Cancelada';
+  return refundedCents > 0 ? 'Devolución parcial' : 'Registrada';
+}
 
 export function Sales({ data, filters }: { data: Bootstrap; filters: Record<string, unknown> }) {
   const [from, setFrom] = useState(
@@ -107,6 +114,7 @@ export function Sales({ data, filters }: { data: Bootstrap; filters: Record<stri
         >
           <option value="all">Todas las ventas</option>
           <option value="active">Sin cancelar</option>
+          <option value="cancelled">Canceladas</option>
           <option value="refunded">Con devoluciones</option>
         </select>
       </div>
@@ -186,19 +194,10 @@ export function Sales({ data, filters }: { data: Bootstrap; filters: Record<stri
             {
               id: 'state',
               label: 'Estado',
-              value: (s) =>
-                s.cancelled
-                  ? 'Cancelada / devuelta'
-                  : s.refundedCents
-                    ? 'Devolución parcial'
-                    : 'Registrada',
+              value: (s) => saleStatus(s.cancelled, s.refundedCents),
               render: (s) => (
                 <span className={`record-state ${s.cancelled ? 'expired' : 'valid'}`}>
-                  {s.cancelled
-                    ? 'Cancelada / devuelta'
-                    : s.refundedCents
-                      ? 'Devolución parcial'
-                      : 'Registrada'}
+                  {saleStatus(s.cancelled, s.refundedCents)}
                 </span>
               ),
             },
@@ -221,6 +220,7 @@ export function Sales({ data, filters }: { data: Bootstrap; filters: Record<stri
           key={selected}
           id={selected}
           data={data}
+          onChanged={list.reload}
           onClose={() => {
             setSelected(null);
             list.reload();
@@ -234,20 +234,22 @@ export function SaleViewer({
   id,
   data,
   onClose,
+  onChanged,
 }: {
   id: number;
   data: Bootstrap;
   onClose: () => void;
+  onChanged?: () => void;
 }) {
   const detail = useResource(() => api('sale', { id }), [id]);
   const [receipt, setReceipt] = useState(false);
-  const [returning, setReturning] = useState(false);
+  const [returning, setReturning] = useState<'return' | 'cancel' | null>(null);
   const [deleting, setDeleting] = useState(false);
   return (
     <Modal
       open
       onClose={() => {
-        if (!deleting) onClose();
+        if (!deleting && !returning) onClose();
       }}
       title={detail.data ? `Venta ${detail.data.sale.folio}` : 'Detalle de venta'}
       description={
@@ -262,6 +264,7 @@ export function SaleViewer({
         <Busy />
       ) : (
         <>
+          {detail.data.sale.cancelled && <span className="record-state expired">Cancelada</span>}
           <DataGrid
             rows={detail.data.lines}
             caption="Productos vendidos"
@@ -376,31 +379,44 @@ export function SaleViewer({
               </Button>
             )}
             {data.actor?.role === 0 && !detail.data.sale.cancelled && (
-              <Button variant="outline" onClick={() => setReturning(true)}>
-                <RotateCcw size={17} /> Devolver / cancelar
-              </Button>
+              <>
+                <Button variant="outline" onClick={() => setReturning('return')}>
+                  <RotateCcw size={17} /> Devolver productos
+                </Button>
+                <Button variant="outline" onClick={() => setReturning('cancel')}>
+                  <Ban size={17} /> Cancelar venta
+                </Button>
+              </>
             )}
             <Button onClick={() => setReceipt(true)}>
               <ReceiptText size={17} /> Ver y reimprimir ticket
             </Button>
           </div>
           {deleting && (
-            <DeleteRecordDialog label="Eliminar última venta" name={detail.data.sale.folio}
+            <DeleteRecordDialog
+              label="Eliminar última venta"
+              name={detail.data.sale.folio}
               description="La operación devuelve las existencias, revierte los importes en Donovan y deja libre el folio. Si hubo un cobro externo, corrígelo en la terminal o el banco."
-              requiresReason onDelete={(reason) => api('deleteSale', { id, reason })}
+              requiresReason
+              onDelete={(reason) => api('deleteSale', { id, reason })}
               onClose={() => setDeleting(false)}
               onDeleted={() => {
-                toast.success(`Venta eliminada. La próxima venta reutilizará ${detail.data?.sale.folio}.`);
+                toast.success(
+                  `Venta eliminada. La próxima venta reutilizará ${detail.data?.sale.folio}.`,
+                );
                 onClose();
-              }} />
+              }}
+            />
           )}
           {returning && (
             <ReturnForm
               detail={detail.data}
-              onClose={() => setReturning(false)}
+              cancel={returning === 'cancel'}
+              onClose={() => setReturning(null)}
               onSaved={() => {
-                setReturning(false);
+                setReturning(null);
                 detail.reload();
+                onChanged?.();
               }}
             />
           )}
@@ -418,17 +434,26 @@ export function SaleViewer({
 }
 function ReturnForm({
   detail,
+  cancel,
   onClose,
   onSaved,
 }: {
   detail: SaleDetail;
+  cancel: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const [cancel, setCancel] = useState(false);
   const [quantities, setQuantities] = useState<Record<number, string>>({});
   const [reason, setReason] = useState('');
-  const [method, setMethod] = useState(0);
+  const [method, setMethod] = useState<number | null>(() => {
+    if (!cancel) return 0;
+    const paidMethods = new Set(
+      detail.payments
+        .filter((p) => refundMethods[p.method] && p.amountCents > 0)
+        .map((p) => p.method),
+    );
+    return paidMethods.size === 1 ? [...paidMethods][0] : null;
+  });
   const [confirmed, setConfirmed] = useState(false);
   const [requestId] = useState(() => crypto.randomUUID());
   const op = useOperation();
@@ -460,23 +485,29 @@ function ReturnForm({
         return sum + Number(accumulated) - l.refundedCents;
       }, 0)
     : 0;
-  const creditReduction = Math.min(detail.creditBalanceCents, total);
+  const creditReduction = Math.min(Math.max(detail.creditBalanceCents, 0), total);
   const refund = total - creditReduction;
+  const needsMethod = refund > 0 && method === null;
+  const canSubmit = valid && confirmed && !needsMethod && reason.trim().length >= 3;
   return (
     <Modal
       open
       onClose={() => {
         if (!op.busy) onClose();
       }}
-      title={`Revisar devolución · ${detail.sale.folio}`}
-      description="Las existencias se recuperan y primero se reduce el crédito pendiente de esta venta."
+      title={`${cancel ? 'Cancelar venta' : 'Revisar devolución'} · ${detail.sale.folio}`}
+      description={
+        cancel
+          ? 'El folio quedará como Cancelada en el historial. Se reintegrarán al inventario todas las unidades pendientes.'
+          : 'Las existencias se recuperan y primero se reduce el crédito pendiente de esta venta.'
+      }
       className="records-dialog"
     >
       <form
         className="record-form"
         onSubmit={(e) => {
           e.preventDefault();
-          if (!valid || !confirmed) return;
+          if (!canSubmit) return;
           void op.run(
             () =>
               api('returnSale', {
@@ -484,73 +515,70 @@ function ReturnForm({
                 saleId: detail.sale.id,
                 items,
                 cancel,
-                reason,
-                method,
+                reason: reason.trim(),
+                method: method ?? 0,
                 expectedTotalCents: total,
                 expectedPaidRefundCents: refund,
               }),
             (result) => {
-              toast.success(`${result.return.folio} · Devolución registrada`, {
-                description:
-                  result.paidRefundCents > 0
-                    ? `Reembolso: ${money(result.paidRefundCents)} por ${['efectivo', 'tarjeta', 'transferencia'][method]}.`
-                    : 'Se aplicó la reducción del crédito pendiente.',
-              });
+              toast.success(
+                cancel
+                  ? `Venta ${detail.sale.folio} cancelada`
+                  : `${result.return.folio} · Devolución registrada`,
+                {
+                  description:
+                    result.paidRefundCents > 0 && method !== null
+                      ? method === 0
+                        ? `Se descontaron ${money(result.paidRefundCents)} de la caja abierta.`
+                        : `Reembolso por ${refundMethods[method].toLowerCase()} de ${money(result.paidRefundCents)}.`
+                      : result.return.creditReductionCents > 0
+                        ? 'Se aplicó la reducción del crédito pendiente.'
+                        : 'Se registró la devolución de existencias.',
+                },
+              );
               onSaved();
             },
           );
         }}
       >
         <fieldset disabled={op.busy}>
-          <label className="check-label">
-            <input
-              type="checkbox"
-              checked={cancel}
-              onChange={(e) => {
-                setCancel(e.target.checked);
-                setConfirmed(false);
-              }}
-            />{' '}
-            Cancelar la venta y devolver todo lo pendiente
-          </label>
           <DataGrid
             rows={remaining}
-            caption="Seleccionar cantidades devueltas"
+            caption={cancel ? 'Unidades por reintegrar' : 'Seleccionar cantidades devueltas'}
             columns={[
               { id: 'name', label: 'Producto', value: (l) => l.name },
               {
                 id: 'available',
-                label: 'Por devolver',
+                label: cancel ? 'Se reintegran' : 'Por devolver',
                 value: (l) => l.quantityUnits - l.returnedUnits,
                 render: (l) => `${quantity(l.quantityUnits - l.returnedUnits)} ${units[l.unit]}`,
               },
-              {
-                id: 'quantity',
-                label: 'Devolver ahora',
-                value: (l) => l.id,
-                sortable: false,
-                render: (l) => (
-                  <input
-                    className="table-number"
-                    type="number"
-                    min="0"
-                    max={(l.quantityUnits - l.returnedUnits) / 10000}
-                    step={[0, 4, 5].includes(l.unit) ? '1' : '0.0001'}
-                    aria-label={`Devolver ${l.name}`}
-                    disabled={cancel || op.busy}
-                    value={
-                      cancel
-                        ? (l.quantityUnits - l.returnedUnits) / 10000
-                        : (quantities[l.id] ?? '')
-                    }
-                    placeholder="0"
-                    onChange={(e) => {
-                      setQuantities((q) => ({ ...q, [l.id]: e.target.value }));
-                      setConfirmed(false);
-                    }}
-                  />
-                ),
-              },
+              ...(cancel
+                ? []
+                : [
+                    {
+                      id: 'quantity',
+                      label: 'Devolver ahora',
+                      value: (l: SaleDetail['lines'][number]) => l.id,
+                      sortable: false,
+                      render: (l: SaleDetail['lines'][number]) => (
+                        <input
+                          className="table-number"
+                          type="number"
+                          min="0"
+                          max={(l.quantityUnits - l.returnedUnits) / 10000}
+                          step={[0, 4, 5].includes(l.unit) ? '1' : '0.0001'}
+                          aria-label={`Devolver ${l.name}`}
+                          value={quantities[l.id] ?? ''}
+                          placeholder="0"
+                          onChange={(e) => {
+                            setQuantities((q) => ({ ...q, [l.id]: e.target.value }));
+                            setConfirmed(false);
+                          }}
+                        />
+                      ),
+                    },
+                  ]),
             ]}
           />
           <Field label="Motivo">
@@ -560,12 +588,14 @@ function ReturnForm({
               maxLength={300}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="Describe por qué se devuelve o cancela…"
+              placeholder={
+                cancel ? 'Describe por qué se cancela…' : 'Describe por qué se devuelve…'
+              }
             />
           </Field>
           <div className="records-metrics">
             <article>
-              <span>Importe de la devolución</span>
+              <span>{cancel ? 'Importe por revertir' : 'Importe de la devolución'}</span>
               <strong>{money(total)}</strong>
             </article>
             <article>
@@ -580,19 +610,30 @@ function ReturnForm({
           {refund > 0 && (
             <Field label="Forma de reembolso">
               <select
-                value={method}
+                required
+                value={method ?? ''}
                 onChange={(e) => {
-                  setMethod(Number(e.target.value));
+                  setMethod(e.target.value === '' ? null : Number(e.target.value));
                   setConfirmed(false);
                 }}
               >
-                {['Efectivo', 'Tarjeta', 'Transferencia'].map((m, i) => (
+                <option value="" disabled>
+                  Selecciona una forma de reembolso
+                </option>
+                {refundMethods.map((m, i) => (
                   <option key={m} value={i}>
                     {m}
                   </option>
                 ))}
               </select>
             </Field>
+          )}
+          {refund > 0 && method !== null && (
+            <p className="muted">
+              {method === 0
+                ? `Se descontarán ${money(refund)} del efectivo de la caja abierta.`
+                : `Registra esta operación después de devolver ${money(refund)} por ${refundMethods[method].toLowerCase()}.`}
+            </p>
           )}
           <label className="check-label">
             <input
@@ -605,17 +646,13 @@ function ReturnForm({
             {money(total)}
             {refund > 0 ? `, con reembolso de ${money(refund)}` : ''}.
           </label>
-          <p className="muted">
-            Si el saldo o la venta cambia durante esta revisión, no se aplicará la operación. El
-            reembolso en efectivo requiere una caja abierta con fondos suficientes.
-          </p>
         </fieldset>
         <Failure error={op.error} />
         <div className="dialog-actions">
           <Button type="button" variant="outline" disabled={op.busy} onClick={onClose}>
             Volver sin cambios
           </Button>
-          <Button type="submit" variant="destructive" disabled={op.busy || !valid || !confirmed}>
+          <Button type="submit" variant="destructive" disabled={op.busy || !canSubmit}>
             {op.busy ? 'Registrando…' : cancel ? 'Confirmar cancelación' : 'Confirmar devolución'}
           </Button>
         </div>

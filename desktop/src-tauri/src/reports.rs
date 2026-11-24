@@ -208,7 +208,7 @@ impl Engine {
                     t("state", "Estado actual", 1.1),
                 ],
                 query_rows(
-                    "SELECT Folio,CreatedAt,CustomerName,Cashier,TotalCents,TaxCents,CASE WHEN Cancelled=1 THEN 'Cancelada / devuelta' ELSE 'Registrada' END AS State FROM Sale WHERE CreatedAt>=?1 AND CreatedAt<?2 ORDER BY CreatedAt DESC,Id DESC",
+                    "SELECT Folio,CreatedAt,CustomerName,Cashier,TotalCents,TaxCents,CASE WHEN Cancelled=1 THEN 'Cancelada' ELSE 'Registrada' END AS State FROM Sale WHERE CreatedAt>=?1 AND CreatedAt<?2 ORDER BY CreatedAt DESC,Id DESC",
                 )?,
                 None,
             ),

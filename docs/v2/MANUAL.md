@@ -39,7 +39,7 @@ La captura global se pausa al editar otro campo o abrir otros diálogos. Cantida
 
 **Efectivo y pagos mixtos:** Exacto y las denominaciones rápidas rellenan el dinero entregado. En Mixto, los importes aplicados deben sumar el total; «Efectivo recibido» puede exceder solamente la parte en efectivo y de ahí se calcula el cambio. Tarjeta y transferencia son registros manuales, no conexiones a una terminal bancaria.
 
-**Mayoreo:** en Inventario → Editar guarda el precio de mayoreo y captura **Mayoreo desde** en la unidad base. Al alcanzar esa cantidad, el renglón aplica automáticamente la tarifa. Administrador y Encargado pueden usar **Menudeo** o **Mayoreo** debajo del precio para cambiar la tarifa. Pulsa el control otra vez para volver al cálculo automático. Deja el mínimo vacío si la tarifa se aplicará manualmente.
+**Mayoreo:** en Inventario → Editar guarda el precio de mayoreo y captura **Mayoreo desde** en la unidad base. Al alcanzar esa cantidad, el renglón cambia el precio y muestra **Mayoreo** debajo del precio unitario. Administrador y Encargado pueden pulsar **Mayoreo** para aplicar **Menudeo manual** a esa partida, o pulsar **Menudeo** para aplicar **Mayoreo manual** incluso con menos unidades. Pulsa la tarifa manual para volver a la regla por cantidad. Deja el mínimo vacío si la tarifa se aplicará manualmente.
 
 F1 abre **Punto de venta** y F10 abre **Ayuda y tutoriales**. F2 abre el buscador de productos desde cualquier módulo. F3 enfoca la captura de códigos. F8 abre el cobro o el guardado de una cotización en edición. F5 y Ctrl+R se desactivan para proteger el ticket en curso.
 

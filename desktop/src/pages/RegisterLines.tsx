@@ -103,6 +103,12 @@ export function RegisterLines({
             const amount = line?.totalCents ?? lineCents?.[index];
             const wholesale = usesWholesale(row);
             const manualPrice = Boolean(row.wholesale || row.retail);
+            const priceLabel = (wholesale ? 'Mayoreo' : 'Menudeo') + (manualPrice ? ' manual' : '');
+            const priceAction = manualPrice
+              ? 'Volver a la tarifa automática'
+              : wholesale
+                ? 'Aplicar menudeo manual a esta partida'
+                : 'Aplicar mayoreo manual a esta partida';
             return (
               <motion.tr
                 key={row.product.id}
@@ -148,16 +154,18 @@ export function RegisterLines({
                   </span>
                   {canDiscount && !locked && row.product.wholesaleCents > 0 && (
                     <button
-                      className="price-mode"
+                      className={`price-mode${wholesale ? ' is-wholesale' : ''}`}
                       onClick={() => onWholesale(row.product.id)}
-                      aria-label={`Cambiar tarifa de ${row.product.name}`}
-                      title={manualPrice ? 'Volver a la tarifa automática' : 'Cambiar la tarifa de esta partida'}
+                      aria-label={`Cambiar tarifa de ${row.product.name}: ${priceLabel}`}
+                      title={priceAction}
                     >
-                      {wholesale ? 'Mayoreo' : 'Menudeo'}{manualPrice ? ' manual' : ''}
-                      <SlidersHorizontal size={11} />
+                      {priceLabel}
+                      <SlidersHorizontal size={11} aria-hidden="true" />
                     </button>
                   )}
-                  {!canDiscount && !locked && wholesale && <small className="muted">Mayoreo</small>}
+                  {!canDiscount && !locked && wholesale && (
+                    <small className="price-mode is-wholesale">Mayoreo</small>
+                  )}
                 </td>
                 {cart.discountParts > 0 && (
                   <td className="numeric discount-cell">{quantity(cart.discountParts)}%</td>

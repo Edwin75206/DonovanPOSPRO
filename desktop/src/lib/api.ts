@@ -228,6 +228,7 @@ export interface ChargeLine extends Omit<Item, 'wholesale' | 'retail'> {
   category: string;
   unit: number;
   priceCents: number;
+  catalogPricing?: Pick<Product, 'priceCents' | 'wholesaleCents' | 'wholesaleMinimumUnits'>;
   costCents: number | null;
   taxBasisPoints: number;
   totalCents: number;

@@ -3,7 +3,7 @@ use crate::{
     catalog, db,
     engine::Engine,
     error::{Result, ensure, text},
-    models::{Actor, Charge, ChargeLine, Checkout, Product, SaleItem},
+    models::{Actor, CatalogPricing, Charge, ChargeLine, Checkout, Product, SaleItem},
     money, operations,
 };
 use rusqlite::params;
@@ -68,6 +68,11 @@ pub fn calculate(
             unit: p.unit,
             quantity_units: item.quantity_units,
             price_cents: price,
+            catalog_pricing: Some(CatalogPricing {
+                price_cents: p.price_cents,
+                wholesale_cents: p.wholesale_cents,
+                wholesale_minimum_units: p.wholesale_minimum_units,
+            }),
             cost_cents: p.cost_cents,
             tax_basis_points: p.tax_basis_points,
             total_cents: money::line_total(price, item.quantity_units)?,
@@ -704,6 +709,7 @@ fn quote_charge(db: &Connection, id: i64, today: &str) -> Result<Charge> {
             unit: row["unit"].as_i64().unwrap_or(0),
             quantity_units: row["quantityUnits"].as_i64().unwrap_or(0),
             price_cents: row["priceCents"].as_i64().unwrap_or(0),
+            catalog_pricing: None,
             cost_cents: p.cost_cents,
             tax_basis_points: row["taxBasisPoints"].as_i64().unwrap_or(0),
             total_cents: row["totalCents"].as_i64().unwrap_or(0),

@@ -336,7 +336,12 @@
   border: 0;
   color: var(--subtle);
   background: transparent;
-  font-size: 0.59rem;
+  width: fit-content;
+  font-size: 0.68rem;
+}
+.sale-table .price-mode.is-wholesale {
+  color: var(--green);
+  font-weight: 700;
 }
 .sale-table .remove-line {
   width: 27px;

@@ -120,11 +120,32 @@ export function Register({
   const updateCart = useCallback(
     (update: (current: Cart) => Cart) => {
       const next = update(cartRef.current);
+      if (next === cartRef.current) return;
       cartRef.current = next;
       setCart(next);
     },
     [setCart],
   );
+  const applyCharge = useCallback((result: Charge) => {
+    const catalogPricing = new Map(
+      result.lines.map((line) => [line.productId, line.catalogPricing]),
+    );
+    updateCart((cart) => {
+      const rows = cart.rows.map((row) => {
+        const product = row.product;
+        const prices = catalogPricing.get(product.id);
+        if (
+          !prices ||
+          (prices.priceCents === product.priceCents &&
+            prices.wholesaleCents === product.wholesaleCents &&
+            (prices.wholesaleMinimumUnits ?? null) === (product.wholesaleMinimumUnits ?? null))
+        ) return row;
+        return { ...row, product: { ...product, ...prices } };
+      });
+      return rows.some((row, index) => row !== cart.rows[index]) ? { ...cart, rows } : cart;
+    });
+    setCharge(result);
+  }, [updateCart]);
   const visual = useVisual();
   const fixedQuote = cart.quoteId !== null;
   const searchRef = useRef<HTMLInputElement>(null);
@@ -155,7 +176,7 @@ export function Register({
       void api('price', { items, discountParts: cart.discountParts, quoteId: cart.quoteId })
         .then((result) => {
           if (current === priceId.current) {
-            setCharge(result);
+            applyCharge(result);
             setError(null);
           }
         })
@@ -167,7 +188,7 @@ export function Register({
         });
     }, 80);
     return () => clearTimeout(timer);
-  }, [JSON.stringify(items), cart.discountParts, cart.quoteId]);
+  }, [JSON.stringify(items), cart.discountParts, cart.quoteId, applyCharge]);
   const add = useCallback(
     (product: Product) => {
       if (fixedQuote) {
@@ -273,7 +294,7 @@ export function Register({
           toast.info('La venta cambió. Revisa las cantidades y vuelve a cobrar.');
         return;
       }
-      setCharge(current);
+      applyCharge(current);
       setCheckout(true);
     } catch (e) {
       reportError(e);
@@ -281,7 +302,7 @@ export function Register({
       checkoutStarting.current = false;
       setPricing(false);
     }
-  }, [cart, cash, checkout, pricing, scanBusy, invalidRows, onCash]);
+  }, [cart, cash, checkout, pricing, scanBusy, invalidRows, onCash, applyCharge]);
   const openPicker = useCallback(() => {
     if (fixedQuote || scanPending.current || checkoutStarting.current) return;
     scanner.current.reset();
